@@ -435,3 +435,5 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 >>>>>>> 089e958b601c4c9213ab6cd0384c6f366ebe3c6a
+.vscode
+.codex
