@@ -1,4 +1,4 @@
-name: build-mac-x64
+name: build-mac-silicon
 
 on:
   workflow_dispatch:
