@@ -1,0 +1,306 @@
+{
+  "version": "java_1_21_11_plus",
+  "target": "@p",
+  "item": "命令方块",
+  "itemSearch": "",
+  "count": 1,
+  "withSlash": false,
+  "templateName": "字节核心MAX",
+  "bedrockDataValue": 0,
+  "bedrockItemLock": "不设置",
+  "bedrockKeepOnDeath": false,
+  "displayName": [
+    [
+      {
+        "text": "字",
+        "color": "#4797ff"
+      },
+      {
+        "text": "节",
+        "color": "#3f65d8"
+      },
+      {
+        "text": "核",
+        "color": "#3832b1"
+      },
+      {
+        "text": "心",
+        "color": "#30008a"
+      }
+    ]
+  ],
+  "itemName": [],
+  "lore": [
+    [
+      {
+        "text": "警",
+        "color": "#e60000",
+        "shadow_color": -2132410368
+      },
+      {
+        "text": "告",
+        "color": "#e60000",
+        "shadow_color": -2132410368
+      },
+      {
+        "text": "：",
+        "color": "#e60000",
+        "shadow_color": -2132410368
+      }
+    ],
+    [
+      {
+        "text": "内",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "核",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "级",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "权",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "限",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "请",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "谨",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "慎",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "使",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      },
+      {
+        "text": "用",
+        "color": "#ff5555",
+        "shadow_color": -2130750123
+      }
+    ]
+  ],
+  "rarity": "史诗",
+  "glint": "默认",
+  "enchantments": [
+    {
+      "id": "耐久",
+      "level": 10
+    },
+    {
+      "id": "无限",
+      "level": 10
+    }
+  ],
+  "attributes": [
+    {
+      "type": "护甲值",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615389368"
+    },
+    {
+      "type": "护甲韧性",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615394050"
+    },
+    {
+      "type": "攻击伤害",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615398172"
+    },
+    {
+      "type": "攻击击退",
+      "amount": 0,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615410936"
+    },
+    {
+      "type": "攻击速度",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615420797"
+    },
+    {
+      "type": "方块破坏速度",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615426992"
+    },
+    {
+      "type": "方块交互距离",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615433835"
+    },
+    {
+      "type": "实体交互距离",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615441685"
+    },
+    {
+      "type": "摔落伤害倍率",
+      "amount": 0,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615450045"
+    },
+    {
+      "type": "击退抗性",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615474889"
+    },
+    {
+      "type": "幸运值",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615488359"
+    },
+    {
+      "type": "最大伤害吸收值",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615497129"
+    },
+    {
+      "type": "最大生命值",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615501428"
+    },
+    {
+      "type": "挖掘效率",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615509026"
+    },
+    {
+      "type": "氧气加成",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615517262"
+    },
+    {
+      "type": "安全摔落距离",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615527138"
+    },
+    {
+      "type": "潜行速度",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615542432"
+    },
+    {
+      "type": "水下挖掘速度",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615554098"
+    },
+    {
+      "type": "水中移动效率",
+      "amount": 2048,
+      "slot": "主手",
+      "operation": "加算",
+      "id": "1779615558898"
+    }
+  ],
+  "blockLimits": [],
+  "unbreakable": true,
+  "glider": true,
+  "deathProtection": true,
+  "deathEffects": [
+    {
+      "type": "apply_effects",
+      "probability_percent": 100,
+      "effects": [
+        {
+          "id": "minecraft:strength",
+          "duration": 300,
+          "amplifier": 255,
+          "show_particles": true,
+          "show_icon": false
+        },
+        {
+          "id": "minecraft:instant_health",
+          "duration": 300,
+          "amplifier": 255,
+          "show_particles": true,
+          "show_icon": false
+        },
+        {
+          "id": "minecraft:speed",
+          "duration": 300,
+          "amplifier": 5,
+          "show_particles": true,
+          "show_icon": false
+        }
+      ]
+    }
+  ],
+  "damageEnabled": false,
+  "damage": 0,
+  "maxDamageEnabled": false,
+  "maxDamage": 1,
+  "stackEnabled": true,
+  "maxStackSize": 1,
+  "repairEnabled": false,
+  "repairCost": 0,
+  "hiddenComponents": "",
+  "foodEnabled": false,
+  "nutrition": 0,
+  "saturation": 0,
+  "alwaysEat": "默认",
+  "consumableEnabled": false,
+  "consumeSeconds": 0,
+  "consumeSound": "",
+  "consumeParticles": "默认",
+  "consumeEffects": [],
+  "toolEnabled": true,
+  "defaultMiningSpeed": 2048,
+  "damagePerBlock": 0,
+  "toolRules": []
+}

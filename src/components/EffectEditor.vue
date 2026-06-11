@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import CatalogCombo from "./CatalogCombo.vue";
+import CustomSelect from "./CustomSelect.vue";
+import InfoTip from "./InfoTip.vue";
+import NumberInput from "./NumberInput.vue";
 import { EFFECTS, EFFECT_TYPES } from "../data/catalog";
 import {
   fmtNumber,
@@ -9,6 +13,11 @@ import {
   type EffectGroup,
   type EffectItem,
 } from "../logic/builder";
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 defineProps<{
   title: string;
@@ -31,6 +40,8 @@ const showParticles = ref("否");
 const showIcon = ref("否");
 
 const activeGroup = computed(() => model.value[selectedGroup.value]);
+const groupTypeOptions = computed(() => pairOptions(EFFECT_TYPES));
+const yesNoOptions = computed(() => textOptions(["是", "否"]));
 
 function addGroup() {
   const type = pairValue(EFFECT_TYPES, groupType.value) as EffectGroup["type"];
@@ -110,20 +121,26 @@ function effectParticles(value: EffectItem | string): string {
 function effectIcon(value: EffectItem | string): string {
   return typeof value === "string" ? "" : value.show_icon === false ? "否" : "是";
 }
+
+function pairOptions(rows: readonly (readonly [string, string, ...unknown[]])[]): SelectOption[] {
+  return rows.map((row) => ({ label: String(row[0]), value: String(row[0]) }));
+}
+
+function textOptions(items: string[]): SelectOption[] {
+  return items.map((item) => ({ label: item, value: item }));
+}
 </script>
 
 <template>
   <section class="effect-editor">
     <label class="effect-title">{{ title }}</label>
     <div class="inline-row">
-      <label>类型</label>
-      <select v-model="groupType">
-        <option v-for="row in EFFECT_TYPES" :key="row[1]">{{ row[0] }}</option>
-      </select>
-      <label>概率</label>
-      <input v-model.number="groupProbability" max="100" min="0" step="0.01" type="number" />
-      <label>直径</label>
-      <input v-model.number="groupDiameter" min="0" step="0.001" type="number" />
+      <span class="field-label">类型<InfoTip text="选择食用或死亡时触发的效果组类型：给予、移除、清除或随机传送。" /></span>
+      <CustomSelect v-model="groupType" :options="groupTypeOptions" />
+      <span class="field-label">概率<InfoTip text="apply_effects 类型触发的概率，100% 表示必定触发。" /></span>
+      <NumberInput v-model="groupProbability" :max="100" :min="0" :step="0.01" />
+      <span class="field-label">直径<InfoTip text="随机传送类型使用的传送范围直径。" /></span>
+      <NumberInput v-model="groupDiameter" :min="0" :step="0.001" />
       <button type="button" @click="addGroup">添加效果组</button>
       <button type="button" @click="removeGroup">删除效果组</button>
     </div>
@@ -154,25 +171,16 @@ function effectIcon(value: EffectItem | string): string {
 
     <label>选中效果组内容</label>
     <div class="inline-row">
-      <label>状态效果</label>
-      <input v-model="effect" list="effect-options" />
-      <datalist id="effect-options">
-        <option v-for="row in EFFECTS" :key="row[0]" :value="row[1]"></option>
-      </datalist>
-      <label>持续时间</label>
-      <input v-model.number="duration" min="0" type="number" />
-      <label>等级</label>
-      <input v-model.number="amplifier" min="0" type="number" />
-      <label>显示粒子</label>
-      <select v-model="showParticles">
-        <option>是</option>
-        <option>否</option>
-      </select>
-      <label>显示图标</label>
-      <select v-model="showIcon">
-        <option>是</option>
-        <option>否</option>
-      </select>
+      <span class="field-label">状态效果<InfoTip text="输入中文、英文 ID 或关键词后按 Tab 补全；候选项会显示效果 ID。" /></span>
+      <CatalogCombo v-model="effect" :catalog="EFFECTS" explain placeholder="状态效果或 ID" />
+      <span class="field-label">持续时间<InfoTip text="效果持续 tick 数。20 tick 约等于 1 秒。" /></span>
+      <NumberInput v-model="duration" :min="0" />
+      <span class="field-label">等级<InfoTip text="效果强度等级，游戏内通常显示为等级 + 1。" /></span>
+      <NumberInput v-model="amplifier" :min="0" />
+      <span class="field-label">显示粒子<InfoTip text="是否显示状态效果粒子。" /></span>
+      <CustomSelect v-model="showParticles" :options="yesNoOptions" />
+      <span class="field-label">显示图标<InfoTip text="是否在界面上显示状态效果图标。" /></span>
+      <CustomSelect v-model="showIcon" :options="yesNoOptions" />
       <button type="button" @click="addSub">添加内容</button>
     </div>
 

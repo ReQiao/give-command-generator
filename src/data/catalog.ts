@@ -1432,6 +1432,14 @@ export const LIMIT_TYPES = [
 
 export const VERSIONS = [
   [
+    "Java 1.21",
+    "java_1_21"
+  ],
+  [
+    "Java 1.21.1",
+    "java_1_21_1"
+  ],
+  [
     "Java 1.21.11+",
     "java_1_21_11_plus"
   ],

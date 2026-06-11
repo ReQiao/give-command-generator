@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import CatalogCombo from "./components/CatalogCombo.vue";
+import CustomSelect from "./components/CustomSelect.vue";
 import EffectEditor from "./components/EffectEditor.vue";
+import InfoTip from "./components/InfoTip.vue";
+import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import {
   ATTRIBUTES,
@@ -21,7 +25,9 @@ import {
   fmtNumber,
   mapCatalog,
   matches,
+  isJava121LegacyFamily,
   normalizeForm,
+  pairText,
   type AttributeRow,
   type BlockLimitRow,
   type EnchantRow,
@@ -30,8 +36,15 @@ import {
 } from "./logic/builder";
 import "./style.css";
 
+interface SelectOption {
+  label: string;
+  value: string;
+  description?: string;
+}
+
 const autosaveKey = "give-generator-pyside-autosave";
 const animationKey = "give-generator-animation";
+const builtinTemplateModules = import.meta.glob("../templates/*.json", { eager: true, import: "default" }) as Record<string, unknown>;
 
 const status = ref("状态：未生成");
 const form = reactive<GiveForm>(loadAutosave());
@@ -43,6 +56,7 @@ const dirty = ref(false);
 const toastText = ref("");
 const modal = reactive({ open: false, title: "", message: "", error: false });
 const fileInput = ref<HTMLInputElement | null>(null);
+const selectedBuiltinTemplate = ref("");
 const generateButtonText = ref("生成指令");
 const copyButtonText = ref("复制指令");
 const rowFlash = reactive<Record<string, boolean>>({});
@@ -68,17 +82,55 @@ const selectedToolRow = ref(-1);
 
 const visibleTabs = computed(() => {
   if (form.version === "bedrock") return ["方块", "基岩选项"];
+  if (isJava121LegacyFamily(form.version)) return ["文本", "附魔", "属性", "方块", "基础", "食物工具"];
   return ["文本", "附魔", "属性", "方块", "基础", "死亡效果", "食物工具"];
 });
 
 const filteredItems = computed(() => ITEMS.filter((row) => matches(row, form.itemSearch)));
 const filteredBlocks = computed(() => BLOCKS.filter((row) => matches(row, blockSearch.value)));
 const shellClass = computed(() => ({ "app-shell": true, "no-motion": !animationEnabled.value }));
+const legacyJava = computed(() => isJava121LegacyFamily(form.version));
+const versionOptions = computed(() => pairOptions(VERSIONS, "value"));
+const slotOptions = computed(() => pairOptions(SLOTS));
+const operationOptions = computed(() => pairOptions(OPERATIONS));
+const limitTypeOptions = computed(() => pairOptions(LIMIT_TYPES));
+const rarityOptions = computed(() => pairOptions(RARITIES));
+const itemLockOptions = computed(() => pairOptions(ITEM_LOCK_MODES));
+const correctForDropsOptions = computed(() => pairOptions(CORRECT_FOR_DROPS));
+const glintOptions = computed(() => textOptions(["默认", "开启", "关闭"]));
+const yesNoDefaultOptions = computed(() => textOptions(["默认", "是", "否"]));
+const builtinTemplates = computed(() =>
+  Object.entries(builtinTemplateModules).map(([path, data]) => {
+    const fallback = path.split(/[\\/]/).pop()?.replace(/\.json$/i, "") || "未命名模板";
+    const normalized = normalizeForm(data);
+    return {
+      label: normalized.templateName || fallback,
+      value: fallback,
+      data: normalized,
+    };
+  }),
+);
+const builtinTemplateOptions = computed<SelectOption[]>(() => [
+  { label: "选择内置模板", value: "" },
+  ...builtinTemplates.value.map((template) => ({
+    label: template.label,
+    value: template.value,
+    description: "内置 JSON 模板",
+  })),
+]);
+const targetCatalog = [
+  ["@s", "@s", "自己 self"],
+  ["@p", "@p", "最近玩家 nearest player"],
+  ["@a", "@a", "全部玩家 all players"],
+  ["@r", "@r", "随机玩家 random player"],
+  ["@e", "@e", "全部实体 all entities"],
+] as const;
 
 watch(
   form,
   () => {
     dirty.value = true;
+    refreshPreviewIfGenerated();
   },
   { deep: true },
 );
@@ -91,10 +143,15 @@ watch(animationEnabled, (value) => {
 watch(
   () => form.version,
   () => {
+    pruneUnsupportedOptionsForVersion();
     if (!visibleTabs.value.includes(activeTab.value)) {
       activeTab.value = form.version === "bedrock" ? "基岩选项" : "文本";
     }
-    status.value = form.version === "bedrock" ? "状态：基岩版模式" : "状态：Java 1.21.11+ 模式";
+    if (!["食物消耗", "食用效果", "工具规则"].includes(foodToolTab.value)) {
+      foodToolTab.value = "食物消耗";
+    }
+    status.value = form.version === "bedrock" ? "状态：基岩版模式" : `状态：${pairText(VERSIONS, form.version)} 模式`;
+    refreshPreviewIfGenerated();
   },
 );
 
@@ -205,6 +262,34 @@ function generate() {
   }
 }
 
+function refreshPreviewIfGenerated() {
+  if (!preview.value.trim()) return;
+  try {
+    preview.value = buildGiveCommand(form);
+  } catch {
+    // Keep the last valid generated command while the user is editing an incomplete form.
+  }
+}
+
+function pruneUnsupportedOptionsForVersion() {
+  if (isJava121LegacyFamily(form.version)) {
+    form.itemName = [];
+    form.glider = false;
+    form.deathProtection = false;
+    form.deathEffects = [];
+    form.hiddenComponents = "";
+    form.consumeSound = "";
+    form.consumeParticles = "默认";
+    if (activeTab.value === "死亡效果") activeTab.value = "基础";
+  }
+}
+
+function applyFormData(value: unknown) {
+  Object.assign(form, normalizeForm(value));
+  pruneUnsupportedOptionsForVersion();
+  refreshPreviewIfGenerated();
+}
+
 async function copy() {
   try {
     await navigator.clipboard.writeText(preview.value);
@@ -240,12 +325,22 @@ async function handleTemplateFile(event: Event) {
 
   try {
     const text = await file.text();
-    Object.assign(form, normalizeForm(JSON.parse(text)));
+    applyFormData(JSON.parse(text));
     status.value = "状态：模板已读取";
     showToast("模板已读取");
   } catch (error) {
     showMessage("读取失败", error instanceof Error ? error.message : String(error), true);
   }
+}
+
+function applyBuiltinTemplate(value: string) {
+  selectedBuiltinTemplate.value = value;
+  if (!value) return;
+  const template = builtinTemplates.value.find((item) => item.value === value);
+  if (!template) return;
+  applyFormData(template.data);
+  status.value = `状态：已载入内置模板 ${template.label}`;
+  showToast("内置模板已载入");
 }
 
 function showMessage(title: string, message: string, error = false) {
@@ -284,6 +379,18 @@ function pulseRow(key: string) {
 function displayBlocks(value: string[] | string): string {
   return Array.isArray(value) ? value.join(",") : value;
 }
+
+function pairOptions(rows: readonly (readonly [string, string, ...unknown[]])[], mode: "label" | "value" = "label"): SelectOption[] {
+  return rows.map((row) => ({
+    label: String(row[0]),
+    value: mode === "value" ? String(row[1]) : String(row[0]),
+    description: typeof row[2] === "string" ? row[2] : undefined,
+  }));
+}
+
+function textOptions(items: string[]): SelectOption[] {
+  return items.map((item) => ({ label: item, value: item }));
+}
 </script>
 
 <template>
@@ -294,8 +401,14 @@ function displayBlocks(value: string[] | string): string {
         <h1>Give指令生成器</h1>
       </div>
       <div class="top-form">
-        <label>模板名</label>
+        <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>
         <input v-model="form.templateName" class="template-input" />
+        <CustomSelect
+          class="builtin-template-select"
+          :model-value="selectedBuiltinTemplate"
+          :options="builtinTemplateOptions"
+          @update:model-value="applyBuiltinTemplate"
+        />
         <button type="button" @click="saveTemplate">保存模板</button>
         <button type="button" @click="loadTemplate">读取模板</button>
         <button type="button" @click="copy">{{ copyButtonText }}</button>
@@ -307,32 +420,20 @@ function displayBlocks(value: string[] | string): string {
     <section class="split-layout">
       <aside class="card side-panel">
         <div class="form-grid">
-          <label>版本</label>
-          <select v-model="form.version">
-            <option v-for="row in VERSIONS" :key="row[1]" :value="row[1]">{{ row[0] }}</option>
-          </select>
+          <span class="field-label">版本<InfoTip text="选择 Java 组件语法或基岩版基础 give 语法。Java 功能更多，基岩版更偏基础参数。" /></span>
+          <CustomSelect v-model="form.version" :options="versionOptions" />
 
-          <label>目标</label>
-          <input v-model="form.target" list="target-options" />
-          <datalist id="target-options">
-            <option value="@s"></option>
-            <option value="@p"></option>
-            <option value="@a"></option>
-            <option value="@r"></option>
-            <option value="@e"></option>
-          </datalist>
+          <span class="field-label">目标<InfoTip text="@a 是所有玩家，@p 是最近玩家，@s 是自己，@e 是全部实体。" /></span>
+          <CatalogCombo v-model="form.target" :catalog="targetCatalog" placeholder="@a" />
 
-          <label>物品搜索</label>
+          <span class="field-label">物品搜索<InfoTip text="按中文、英文 ID 或关键词过滤左侧物品列表。" /></span>
           <input v-model="form.itemSearch" placeholder="搜索物品或直接输入英文ID" />
 
-          <label>物品</label>
-          <input v-model="form.item" list="item-options" />
-          <datalist id="item-options">
-            <option v-for="row in filteredItems" :key="row[0]" :value="row[1]"></option>
-          </datalist>
+          <span class="field-label">物品<InfoTip text="可以输入中文名、minecraft:ID 或不带 minecraft: 的 ID，按 Tab 可补全。" /></span>
+          <CatalogCombo v-model="form.item" :catalog="ITEMS" placeholder="选择或输入物品" />
 
-          <label>数量</label>
-          <input v-model.number="form.count" min="1" type="number" />
+          <span class="field-label">数量<InfoTip text="生成物品数量。可以直接输入，也可以用右侧箭头微调。" /></span>
+          <NumberInput v-model="form.count" :min="1" />
 
           <span></span>
           <label class="check-line"><input v-model="form.withSlash" type="checkbox" />带斜杠</label>
@@ -373,19 +474,16 @@ function displayBlocks(value: string[] | string): string {
           <section :key="activeTab" class="tab-page">
             <div v-if="activeTab === '文本'" class="text-tab">
               <RichTextEditor v-model="form.displayName" title="显示名称" @toast="showToast" />
-              <RichTextEditor v-model="form.itemName" title="物品名称" @toast="showToast" />
+              <RichTextEditor v-if="!legacyJava" v-model="form.itemName" title="物品名称" @toast="showToast" />
               <RichTextEditor v-model="form.lore" multiline title="物品描述" @toast="showToast" />
             </div>
 
             <div v-else-if="activeTab === '附魔'" class="table-tab">
               <div class="inline-row">
-                <label>附魔</label>
-                <input v-model="enchantText" list="enchant-options" />
-                <datalist id="enchant-options">
-                  <option v-for="row in ENCHANTS" :key="row[0]" :value="row[1]"></option>
-                </datalist>
-                <label>等级</label>
-                <input v-model.number="enchantLevel" min="1" type="number" />
+                <span class="field-label">附魔<InfoTip text="输入中文、英文 ID 或缩写后按 Tab 补全；悬浮候选项可看到通俗说明。" /></span>
+                <CatalogCombo v-model="enchantText" :catalog="ENCHANTS" explain placeholder="输入 耐 / unb / minecraft:unb" />
+                <span class="field-label">等级<InfoTip text="附魔等级，允许高于原版常规上限，用于生成高等级物品。" /></span>
+                <NumberInput v-model="enchantLevel" :min="1" />
                 <button type="button" @click="addEnchant">添加</button>
                 <button type="button" @click="removeEnchant">删除选中</button>
               </div>
@@ -407,18 +505,15 @@ function displayBlocks(value: string[] | string): string {
 
             <div v-else-if="activeTab === '属性'" class="table-tab">
               <div class="inline-row attr-row">
-                <label>属性</label>
-                <input v-model="attrText" list="attr-options" />
-                <datalist id="attr-options">
-                  <option v-for="row in ATTRIBUTES" :key="row[0]" :value="row[1]"></option>
-                </datalist>
-                <label>数值</label>
-                <input v-model.number="attrAmount" step="0.0001" type="number" />
-                <label>槽位</label>
-                <select v-model="attrSlot"><option v-for="row in SLOTS" :key="row[1]">{{ row[0] }}</option></select>
-                <label>运算</label>
-                <select v-model="attrOperation"><option v-for="row in OPERATIONS" :key="row[1]">{{ row[0] }}</option></select>
-                <label>ID</label>
+                <span class="field-label">属性<InfoTip text="属性修饰符会改变物品持有或装备时的能力；悬浮候选项可查看作用解释。" /></span>
+                <CatalogCombo v-model="attrText" :catalog="ATTRIBUTES" explain placeholder="属性名或 ID" />
+                <span class="field-label">数值<InfoTip text="属性增减的数值。过大可能导致游戏内效果异常，请按用途调整。" /></span>
+                <NumberInput v-model="attrAmount" :step="0.0001" />
+                <span class="field-label">槽位<InfoTip text="限制属性在哪个装备槽或手持槽生效。任意表示不限制。" /></span>
+                <CustomSelect v-model="attrSlot" :options="slotOptions" />
+                <span class="field-label">运算<InfoTip text="加算是直接增减；基值乘算按基础值比例变化；总值乘算按最终值比例变化。" /></span>
+                <CustomSelect v-model="attrOperation" :options="operationOptions" />
+                <span class="field-label">ID<InfoTip text="属性修饰符的唯一标识。留空会自动生成，通常不需要手动填。" /></span>
                 <input v-model="attrId" placeholder="留空自动生成" />
                 <button type="button" @click="addAttribute">添加</button>
                 <button type="button" @click="removeAttribute">删除选中</button>
@@ -444,15 +539,12 @@ function displayBlocks(value: string[] | string): string {
 
             <div v-else-if="activeTab === '方块'" class="table-tab">
               <div class="inline-row">
-                <label>方块搜索</label>
+                <span class="field-label">方块搜索<InfoTip text="过滤可放置 / 可破坏方块列表，可输入中文或英文 ID。" /></span>
                 <input v-model="blockSearch" placeholder="搜索方块或输入英文ID" />
-                <label>方块</label>
-                <input v-model="blockText" list="block-options" />
-                <datalist id="block-options">
-                  <option v-for="row in filteredBlocks" :key="row[0]" :value="row[1]"></option>
-                </datalist>
-                <label>类型</label>
-                <select v-model="blockType"><option v-for="row in LIMIT_TYPES" :key="row[1]">{{ row[0] }}</option></select>
+                <span class="field-label">方块<InfoTip text="用于 can_place_on 或 can_break / can_destroy 规则的方块 ID。" /></span>
+                <CatalogCombo v-model="blockText" :catalog="filteredBlocks" placeholder="方块名或 ID" />
+                <span class="field-label">类型<InfoTip text="可放置表示只能放到这些方块上；可破坏表示冒险模式可破坏这些方块；两者会同时生成。" /></span>
+                <CustomSelect v-model="blockType" :options="limitTypeOptions" />
                 <button type="button" @click="addBlock">添加</button>
                 <button type="button" @click="removeBlock">删除选中</button>
               </div>
@@ -473,22 +565,22 @@ function displayBlocks(value: string[] | string): string {
             </div>
 
             <div v-else-if="activeTab === '基础'" class="basic-grid">
-              <label>稀有度</label>
-              <select v-model="form.rarity"><option v-for="row in RARITIES" :key="row[1]">{{ row[0] }}</option></select>
-              <label>附魔光效</label>
-              <select v-model="form.glint"><option>默认</option><option>开启</option><option>关闭</option></select>
-              <span></span><label class="check-line"><input v-model="form.unbreakable" type="checkbox" />无法损坏</label>
-              <span></span><label class="check-line"><input v-model="form.glider" type="checkbox" />鞘翅飞行</label>
-              <span></span><label class="check-line"><input v-model="form.deathProtection" type="checkbox" />死亡保护</label>
-              <span></span><label class="check-line"><input v-model="form.damageEnabled" type="checkbox" />启用当前损耗</label>
-              <label>当前损耗</label><input v-model.number="form.damage" min="0" type="number" />
-              <span></span><label class="check-line"><input v-model="form.maxDamageEnabled" type="checkbox" />启用最大耐久</label>
-              <label>最大耐久</label><input v-model.number="form.maxDamage" min="1" type="number" />
-              <span></span><label class="check-line"><input v-model="form.stackEnabled" type="checkbox" />启用最大堆叠</label>
-              <label>最大堆叠</label><input v-model.number="form.maxStackSize" max="99" min="1" type="number" />
-              <span></span><label class="check-line"><input v-model="form.repairEnabled" type="checkbox" />启用修复消耗</label>
-              <label>修复消耗</label><input v-model.number="form.repairCost" min="0" type="number" />
-              <label>隐藏组件</label><input v-model="form.hiddenComponents" />
+              <span class="field-label">稀有度<InfoTip text="影响物品名显示颜色和稀有度标记，不改变物品本身强度。" /></span>
+              <CustomSelect v-model="form.rarity" :options="rarityOptions" />
+              <span class="field-label">附魔光效<InfoTip text="强制开启或关闭附魔闪光；默认表示交给游戏按组件判断。" /></span>
+              <CustomSelect v-model="form.glint" :options="glintOptions" />
+              <span></span><label class="check-line"><input v-model="form.unbreakable" type="checkbox" />无法损坏<InfoTip text="物品不会因为使用而损失耐久。" /></label>
+              <span v-if="!legacyJava"></span><label v-if="!legacyJava" class="check-line"><input v-model="form.glider" type="checkbox" />鞘翅飞行<InfoTip text="让物品拥有类似鞘翅的滑翔组件。" /></label>
+              <span v-if="!legacyJava"></span><label v-if="!legacyJava" class="check-line"><input v-model="form.deathProtection" type="checkbox" />死亡保护<InfoTip text="死亡时触发保护组件，可配合死亡效果使用。" /></label>
+              <span></span><label class="check-line"><input v-model="form.damageEnabled" type="checkbox" />启用当前损耗<InfoTip text="写入当前已经损失的耐久值。" /></label>
+              <span class="field-label">当前损耗<InfoTip text="数值越大，物品越接近损坏。" /></span><NumberInput v-model="form.damage" :min="0" />
+              <span></span><label class="check-line"><input v-model="form.maxDamageEnabled" type="checkbox" />启用最大耐久<InfoTip text="自定义物品最大耐久。" /></label>
+              <span class="field-label">最大耐久<InfoTip text="物品可承受的总耐久值。" /></span><NumberInput v-model="form.maxDamage" :min="1" />
+              <span></span><label class="check-line"><input v-model="form.stackEnabled" type="checkbox" />启用最大堆叠<InfoTip text="自定义物品最大堆叠数量。" /></label>
+              <span class="field-label">最大堆叠<InfoTip text="通常不超过 99，实际表现以游戏版本为准。" /></span><NumberInput v-model="form.maxStackSize" :max="99" :min="1" />
+              <span></span><label class="check-line"><input v-model="form.repairEnabled" type="checkbox" />启用修复消耗<InfoTip text="影响铁砧修复时的经验消耗。" /></label>
+              <span class="field-label">修复消耗<InfoTip text="铁砧相关经验消耗数值。" /></span><NumberInput v-model="form.repairCost" :min="0" />
+              <span v-if="!legacyJava" class="field-label">隐藏组件<InfoTip text="用逗号分隔要隐藏在物品提示里的组件 ID。" /></span><input v-if="!legacyJava" v-model="form.hiddenComponents" />
             </div>
 
             <EffectEditor
@@ -506,14 +598,14 @@ function displayBlocks(value: string[] | string): string {
               </div>
 
               <div v-if="foodToolTab === '食物消耗'" class="basic-grid">
-                <span></span><label class="check-line"><input v-model="form.foodEnabled" type="checkbox" />启用食物</label>
-                <label>营养值</label><input v-model.number="form.nutrition" min="0" type="number" />
-                <label>饱和度</label><input v-model.number="form.saturation" min="0" step="0.001" type="number" />
-                <label>总是可食用</label><select v-model="form.alwaysEat"><option>默认</option><option>是</option><option>否</option></select>
-                <span></span><label class="check-line"><input v-model="form.consumableEnabled" type="checkbox" />启用消耗</label>
-                <label>消耗时间</label><input v-model.number="form.consumeSeconds" min="0" step="0.001" type="number" />
-                <label>消耗声音</label><input v-model="form.consumeSound" />
-                <label>消耗粒子</label><select v-model="form.consumeParticles"><option>默认</option><option>是</option><option>否</option></select>
+                <span></span><label class="check-line"><input v-model="form.foodEnabled" type="checkbox" />启用食物<InfoTip text="让物品拥有食物组件，可恢复饥饿值和饱和度。" /></label>
+                <span class="field-label">营养值<InfoTip text="恢复多少饥饿值。" /></span><NumberInput v-model="form.nutrition" :min="0" />
+                <span class="field-label">饱和度<InfoTip text="影响饥饿值消耗速度，越高越耐饿。" /></span><NumberInput v-model="form.saturation" :min="0" :step="0.001" />
+                <span class="field-label">总是可食用<InfoTip text="是否允许满饥饿时也能食用。" /></span><CustomSelect v-model="form.alwaysEat" :options="yesNoDefaultOptions" />
+                <span></span><label class="check-line"><input v-model="form.consumableEnabled" type="checkbox" />启用消耗<InfoTip text="添加使用 / 食用耗时、声音和粒子等消耗组件。" /></label>
+                <span class="field-label">消耗时间<InfoTip text="使用或食用完成所需秒数。" /></span><NumberInput v-model="form.consumeSeconds" :min="0" :step="0.001" />
+                <span v-if="!legacyJava" class="field-label">消耗声音<InfoTip text="消耗完成后播放的声音 ID，例如 minecraft:item.honey_bottle.drink。" /></span><input v-if="!legacyJava" v-model="form.consumeSound" />
+                <span v-if="!legacyJava" class="field-label">消耗粒子<InfoTip text="控制食用或使用时是否显示粒子。" /></span><CustomSelect v-if="!legacyJava" v-model="form.consumeParticles" :options="yesNoDefaultOptions" />
               </div>
 
               <EffectEditor
@@ -525,20 +617,17 @@ function displayBlocks(value: string[] | string): string {
 
               <div v-else class="table-tab">
                 <div class="basic-grid tool-form">
-                  <span></span><label class="check-line"><input v-model="form.toolEnabled" type="checkbox" />启用工具</label>
-                  <label>默认挖掘速度</label><input v-model.number="form.defaultMiningSpeed" min="0" step="0.001" type="number" />
-                  <label>每方块损耗</label><input v-model.number="form.damagePerBlock" min="0" type="number" />
+                  <span></span><label class="check-line"><input v-model="form.toolEnabled" type="checkbox" />启用工具<InfoTip text="让物品拥有工具组件，可控制挖掘速度和耐久损耗。" /></label>
+                  <span class="field-label">默认挖掘速度<InfoTip text="未命中特定规则时的默认挖掘速度。" /></span><NumberInput v-model="form.defaultMiningSpeed" :min="0" :step="0.001" />
+                  <span class="field-label">每方块损耗<InfoTip text="每破坏一个方块消耗多少耐久。" /></span><NumberInput v-model="form.damagePerBlock" :min="0" />
                 </div>
                 <div class="inline-row">
-                  <label>方块</label>
-                  <input v-model="toolBlock" list="tool-block-options" />
-                  <datalist id="tool-block-options">
-                    <option v-for="row in BLOCKS" :key="row[0]" :value="row[1]"></option>
-                  </datalist>
-                  <label>速度</label>
-                  <input v-model.number="toolRuleSpeed" min="0" step="0.001" type="number" />
-                  <label>正确掉落</label>
-                  <select v-model="toolCorrect"><option v-for="row in CORRECT_FOR_DROPS" :key="row[1]">{{ row[0] }}</option></select>
+                  <span class="field-label">方块<InfoTip text="这条工具规则匹配的方块，可输入多个时用逗号分隔。" /></span>
+                  <CatalogCombo v-model="toolBlock" :catalog="BLOCKS" placeholder="方块名或 ID" />
+                  <span class="field-label">速度<InfoTip text="匹配这些方块时的挖掘速度。" /></span>
+                  <NumberInput v-model="toolRuleSpeed" :min="0" :step="0.001" />
+                  <span class="field-label">正确掉落<InfoTip text="控制该工具是否被视为能正确掉落该方块。" /></span>
+                  <CustomSelect v-model="toolCorrect" :options="correctForDropsOptions" />
                   <button type="button" @click="addToolRule">添加规则</button>
                   <button type="button" @click="removeToolRule">删除选中</button>
                 </div>
@@ -561,10 +650,10 @@ function displayBlocks(value: string[] | string): string {
             </div>
 
             <div v-else-if="activeTab === '基岩选项'" class="basic-grid">
-              <label>数据值</label><input v-model.number="form.bedrockDataValue" max="32767" min="0" type="number" />
-              <label>物品锁</label>
-              <select v-model="form.bedrockItemLock"><option v-for="row in ITEM_LOCK_MODES" :key="row[1]">{{ row[0] }}</option></select>
-              <span></span><label class="check-line"><input v-model="form.bedrockKeepOnDeath" type="checkbox" />基岩死亡保留</label>
+              <span class="field-label">数据值<InfoTip text="基岩版旧式 data value，多数物品填 0。" /></span><NumberInput v-model="form.bedrockDataValue" :max="32767" :min="0" />
+              <span class="field-label">物品锁<InfoTip text="锁定背包或槽位，常用于地图和服务器道具。" /></span>
+              <CustomSelect v-model="form.bedrockItemLock" :options="itemLockOptions" />
+              <span></span><label class="check-line"><input v-model="form.bedrockKeepOnDeath" type="checkbox" />基岩死亡保留<InfoTip text="基岩版组件：死亡后保留该物品。" /></label>
               <p class="sub-text">基岩版当前生成：基础 give、数据值、可放置、可破坏、物品锁、死亡保留</p>
             </div>
           </section>
@@ -574,7 +663,7 @@ function displayBlocks(value: string[] | string): string {
 
     <section class="card preview-card" :class="{ flash: rowFlash.preview }">
       <label>生成结果</label>
-      <textarea id="preview" v-model="preview" spellcheck="false"></textarea>
+      <textarea id="preview" v-model="preview" placeholder="点击“生成指令”后，最终指令会显示在这里。" spellcheck="false"></textarea>
     </section>
 
     <Transition name="toast">

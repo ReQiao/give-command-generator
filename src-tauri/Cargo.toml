@@ -1,9 +1,9 @@
 [package]
 name = "give-command-generator"
-version = "0.1.0"
-description = "A Tauri App"
+version = "3.4.0"
+description = "Minecraft give command generator"
 authors = ["you"]
-edition = "2021"
+edition = "2026"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

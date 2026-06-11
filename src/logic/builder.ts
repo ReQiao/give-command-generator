@@ -13,7 +13,7 @@ import {
   type PairRow,
 } from "../data/catalog";
 
-export type GiveVersion = "java_1_21_11_plus" | "bedrock";
+export type GiveVersion = "java_1_21" | "java_1_21_1" | "java_1_21_11_plus" | "bedrock";
 
 export interface TextComponent {
   text: string;
@@ -170,7 +170,7 @@ export function normalizeForm(value: unknown): GiveForm {
   return {
     ...fallback,
     ...data,
-    version: data.version === "bedrock" ? "bedrock" : "java_1_21_11_plus",
+    version: normalizeVersion(data.version),
     count: normalizeInt(data.count, fallback.count, 1),
     bedrockDataValue: normalizeInt(data.bedrockDataValue, fallback.bedrockDataValue, 0),
     damage: normalizeInt(data.damage, fallback.damage, 0),
@@ -198,7 +198,14 @@ export function buildGiveCommand(form: GiveForm): string {
   if (form.version === "bedrock") {
     return buildBedrock(form);
   }
+  if (isJava121LegacyFamily(form.version)) {
+    return buildJava121Legacy(form);
+  }
 
+  return buildJava12111Plus(form);
+}
+
+function buildJava12111Plus(form: GiveForm): string {
   const parts: string[] = [];
   const add = (name: string, value: string) => parts.push(`${name}=${value}`);
 
@@ -293,6 +300,71 @@ export function buildGiveCommand(form: GiveForm): string {
   return `${slash}give ${normalizeTarget(form.target)} ${mapCatalog(ITEMS, form.item)}${body} ${normalizeInt(form.count, 1, 1)}`;
 }
 
+function buildJava121Legacy(form: GiveForm): string {
+  const parts: string[] = [];
+  const add = (name: string, value: string) => parts.push(`${name}=${value}`);
+
+  if (form.displayName.length) add("custom_name", snbtJsonString(form.displayName[0] ?? []));
+  if (form.lore.length) add("lore", `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]`);
+
+  const rarity = pairValue(RARITIES, form.rarity);
+  if (rarity !== "none") add("rarity", rarity);
+
+  if (form.glint !== "\u9ed8\u8ba4") {
+    add("enchantment_glint_override", form.glint === "\u5f00\u542f" ? "true" : "false");
+  }
+
+  const enchants = form.enchantments
+    .filter((row) => String(row.id ?? "").trim())
+    .map((row) => `${componentId(mapCatalog(ENCHANTS, row.id))}:${normalizeInt(row.level, 1, 1)}`);
+  if (enchants.length) add("enchantments", `{levels:{${enchants.join(",")}}}`);
+
+  const attributes = form.attributes
+    .filter((row) => String(row.type ?? "").trim())
+    .map((row) => {
+      const fields = [
+        `type:${quote(legacyAttributeType(row.type))}`,
+        `amount:${fmtNumber(row.amount)}`,
+      ];
+      const slot = pairValue(SLOTS, row.slot || "any");
+      if (slot && slot !== "any") fields.push(`slot:${slot}`);
+      fields.push(`id:${legacyAttributeId(row.id || cryptoId())}`);
+      fields.push(`operation:${pairValue(OPERATIONS, row.operation || "add_value")}`);
+      return `{${fields.join(",")}}`;
+    });
+  if (attributes.length) add("attribute_modifiers", `{modifiers:[${attributes.join(",")}]}`);
+
+  const place = form.blockLimits.filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
+  const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
+  if (place.length) add("can_place_on", `[${place.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
+  if (brk.length) add("can_break", `[${brk.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
+
+  if (form.unbreakable) add("unbreakable", "{}");
+
+  if (form.damageEnabled) add("damage", String(normalizeInt(form.damage, 0, 0)));
+  if (form.maxDamageEnabled) add("max_damage", String(normalizeInt(form.maxDamage, 1, 1)));
+  if (form.stackEnabled) add("max_stack_size", String(normalizeInt(form.maxStackSize, 1, 1)));
+  if (form.repairEnabled) add("repair_cost", String(normalizeInt(form.repairCost, 0, 0)));
+
+  const legacyFood = buildJava121Food(form);
+  if (legacyFood) add("food", legacyFood);
+
+  const toolRules = buildToolRules(form.toolRules);
+  if (form.toolEnabled || toolRules) {
+    const fields: string[] = [];
+    if (form.toolEnabled) {
+      fields.push(`default_mining_speed:${fmtNumber(form.defaultMiningSpeed)}`);
+      fields.push(`damage_per_block:${normalizeInt(form.damagePerBlock, 0, 0)}`);
+    }
+    if (toolRules) fields.push(`rules:[${toolRules}]`);
+    add("tool", `{${fields.join(",")}}`);
+  }
+
+  const body = parts.length ? `[${parts.join(",")}]` : "";
+  const slash = form.withSlash ? "/" : "";
+  return `${slash}give ${normalizeTarget(form.target)} ${mapCatalog(ITEMS, form.item)}${body} ${normalizeInt(form.count, 1, 1)}`;
+}
+
 function buildBedrock(form: GiveForm): string {
   const components: Record<string, unknown> = {};
   const place = form.blockLimits
@@ -312,6 +384,41 @@ function buildBedrock(form: GiveForm): string {
   const suffix = Object.keys(components).length ? ` ${compact(components)}` : "";
   const slash = form.withSlash ? "/" : "";
   return `${slash}give ${normalizeTarget(form.target)} ${componentId(mapCatalog(ITEMS, form.item))} ${normalizeInt(form.count, 1, 1)} ${normalizeInt(form.bedrockDataValue, 0, 0)}${suffix}`;
+}
+
+function buildJava121Food(form: GiveForm): string {
+  const foodEffects = buildJava121FoodEffects(form.consumeEffects);
+  if (!form.foodEnabled && !form.consumableEnabled && !foodEffects) return "";
+
+  const fields = [
+    `nutrition:${normalizeInt(form.nutrition, 0, 0)}`,
+    `saturation:${fmtNumber(form.saturation)}`,
+  ];
+  if (form.alwaysEat !== "\u9ed8\u8ba4") fields.push(`can_always_eat:${form.alwaysEat === "\u662f" ? "1b" : "0b"}`);
+  if (form.consumableEnabled) fields.push(`eat_seconds:${fmtNumber(form.consumeSeconds)}`);
+  if (foodEffects) fields.push(`effects:[${foodEffects}]`);
+  return `{${fields.join(",")}}`;
+}
+
+function buildJava121FoodEffects(groups: EffectGroup[]): string {
+  const out: string[] = [];
+  for (const group of groups || []) {
+    if (group.type !== "apply_effects") continue;
+    const probability = `${percentToProbability(group.probability_percent ?? 100)}f`;
+    for (const effect of group.effects || []) {
+      const id = componentId(typeof effect === "string" ? effect : effect.id);
+      if (!id) continue;
+      const fields = [`id:${id}`];
+      if (typeof effect !== "string") {
+        fields.push(`duration:${normalizeInt(effect.duration, 0, 0)}`);
+        fields.push(`amplifier:${normalizeInt(effect.amplifier, 0, 0)}`);
+        fields.push(`ShowParticles:${boolByte(effect.show_particles ?? true)}`);
+        fields.push(`ShowIcon:${boolByte(effect.show_icon ?? true)}`);
+      }
+      out.push(`{effect:{${fields.join(",")}},probability:${probability}}`);
+    }
+  }
+  return out.join(",");
 }
 
 function buildEffectGroups(groups: EffectGroup[]): string {
@@ -368,6 +475,10 @@ export function compact(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function snbtJsonString(value: unknown): string {
+  return `'${JSON.stringify(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
 export function quote(value: string): string {
   return JSON.stringify(value);
 }
@@ -387,6 +498,38 @@ export function componentId(value: string): string {
   const text = String(value ?? "").trim();
   if (!text) return "";
   return stripMinecraftNamespace(namespaced(text));
+}
+
+function legacyAttributeType(value: string): string {
+  const id = componentId(mapCatalog(ATTRIBUTES, value));
+  if (id.includes(".")) return id;
+  const mapped: Record<string, string> = {
+    armor: "generic.armor",
+    armor_toughness: "generic.armor_toughness",
+    attack_damage: "generic.attack_damage",
+    attack_knockback: "generic.attack_knockback",
+    attack_speed: "generic.attack_speed",
+    block_break_speed: "generic.block_break_speed",
+    block_interaction_range: "player.block_interaction_range",
+    entity_interaction_range: "player.entity_interaction_range",
+    fall_damage_multiplier: "generic.fall_damage_multiplier",
+    knockback_resistance: "generic.knockback_resistance",
+    luck: "generic.luck",
+    max_absorption: "generic.max_absorption",
+    max_health: "generic.max_health",
+    mining_efficiency: "player.mining_efficiency",
+    oxygen_bonus: "generic.oxygen_bonus",
+    safe_fall_distance: "generic.safe_fall_distance",
+    sneaking_speed: "player.sneaking_speed",
+    submerged_mining_speed: "player.submerged_mining_speed",
+    water_movement_efficiency: "generic.water_movement_efficiency",
+  };
+  return mapped[id] ?? `generic.${id}`;
+}
+
+function legacyAttributeId(value: string): string {
+  const text = String(value ?? "").trim();
+  return /^-?\d+$/.test(text) ? text : quote(text || cryptoId());
 }
 
 export function boolByte(value: boolean): string {
@@ -483,6 +626,18 @@ export function shadowColorInt(hexColor: string, alphaPercent: number): number {
 function normalizeTarget(value: string): string {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : "@a";
+}
+
+function normalizeVersion(value: unknown): GiveVersion {
+  const text = String(value ?? "").trim();
+  if (text === "java_1_21" || text === "java_1_21_1" || text === "java_1_21_11_plus" || text === "bedrock") {
+    return text;
+  }
+  return "java_1_21_11_plus";
+}
+
+export function isJava121LegacyFamily(version: GiveVersion): boolean {
+  return version === "java_1_21" || version === "java_1_21_1";
 }
 
 function normalizeInt(value: unknown, fallback: number, min: number): number {
