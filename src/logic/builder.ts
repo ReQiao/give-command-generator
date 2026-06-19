@@ -305,6 +305,7 @@ function buildJava121Legacy(form: GiveForm): string {
   const add = (name: string, value: string) => parts.push(`${name}=${value}`);
 
   if (form.displayName.length) add("custom_name", snbtJsonString(form.displayName[0] ?? []));
+  if (form.itemName.length) add("item_name", snbtJsonString(form.itemName[0] ?? []));
   if (form.lore.length) add("lore", `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]`);
 
   const rarity = pairValue(RARITIES, form.rarity);

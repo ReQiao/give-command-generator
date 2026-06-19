@@ -273,7 +273,6 @@ function refreshPreviewIfGenerated() {
 
 function pruneUnsupportedOptionsForVersion() {
   if (isJava121LegacyFamily(form.version)) {
-    form.itemName = [];
     form.glider = false;
     form.deathProtection = false;
     form.deathEffects = [];
@@ -474,7 +473,7 @@ function textOptions(items: string[]): SelectOption[] {
           <section :key="activeTab" class="tab-page">
             <div v-if="activeTab === '文本'" class="text-tab">
               <RichTextEditor v-model="form.displayName" title="显示名称" @toast="showToast" />
-              <RichTextEditor v-if="!legacyJava" v-model="form.itemName" title="物品名称" @toast="showToast" />
+              <RichTextEditor v-model="form.itemName" title="物品名称" @toast="showToast" />
               <RichTextEditor v-model="form.lore" multiline title="物品描述" @toast="showToast" />
             </div>
 
