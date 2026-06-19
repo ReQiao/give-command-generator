@@ -17,58 +17,62 @@ const g = (component) => `give @a minecraft:stone[${component}] 1`;
 // 因此这类探针改用本身不可堆叠的物品，确保失败只来自语法本身。
 const gd = (component) => `give @a minecraft:diamond_sword[${component}] 1`;
 
-/** 版本 -> builder 版本族。1.21/1.21.1 为 legacy，其余 Java 版默认 modern。 */
+/** 版本 -> builder 版本族。 */
 export function familyOf(version) {
   if (version === "1.21" || version === "1.21.1") return "legacy";
-  if (version === "1.21.2" || version === "1.21.3") return "mid";
+  if (version === "1.20.5" || version === "1.20.6") return "early";
+  if (version === "1.21.2" || version === "1.21.3" || version === "1.21.4") return "mid";
   return "modern";
 }
 
 export const PROBES = [
   // ---- 基础 ----
-  { feature: "basic", id: "basic_plain", command: "give @a minecraft:stone 1", builderFamilies: ["legacy", "mid", "modern"], note: "最基础的 give" },
+  { feature: "basic", id: "basic_plain", command: "give @a minecraft:stone 1", builderFamilies: ["early", "legacy", "mid", "modern"], note: "最基础的 give" },
 
   // ---- 文本：custom_name ----
   { feature: "custom_name", id: "custom_name_json", command: g('custom_name=[{"text":"hi"}]'), builderFamilies: ["modern"], note: "直接 JSON 数组（紧凑）" },
-  { feature: "custom_name", id: "custom_name_snbt_string", command: g(`custom_name='[{"text":"hi"}]'`), builderFamilies: ["legacy", "mid"], note: "SNBT 单引号字符串" },
+  { feature: "custom_name", id: "custom_name_snbt_string", command: g(`custom_name='[{"text":"hi"}]'`), builderFamilies: ["early", "legacy", "mid"], note: "SNBT 单引号字符串" },
 
   // ---- 文本：item_name ----
   { feature: "item_name", id: "item_name_json", command: g('item_name=[{"text":"hi"}]'), builderFamilies: ["modern"], note: "直接 JSON 数组" },
-  { feature: "item_name", id: "item_name_snbt_string", command: g(`item_name='[{"text":"hi"}]'`), builderFamilies: ["legacy", "mid"], note: "SNBT 单引号字符串" },
+  { feature: "item_name", id: "item_name_snbt_string", command: g(`item_name='[{"text":"hi"}]'`), builderFamilies: ["early", "legacy", "mid"], note: "SNBT 单引号字符串" },
 
   // ---- 文本：lore ----
   { feature: "lore", id: "lore_json_arrays", command: g('lore=[[{"text":"a"}],[{"text":"b"}]]'), builderFamilies: ["modern"], note: "数组的数组（直接 JSON）" },
-  { feature: "lore", id: "lore_snbt_strings", command: g(`lore=['[{"text":"a"}]','[{"text":"b"}]']`), builderFamilies: ["legacy", "mid"], note: "字符串数组（每项单引号 SNBT）" },
+  { feature: "lore", id: "lore_snbt_strings", command: g(`lore=['[{"text":"a"}]','[{"text":"b"}]']`), builderFamilies: ["early", "legacy", "mid"], note: "字符串数组（每项单引号 SNBT）" },
 
   // ---- rarity / glint ----
-  { feature: "rarity", id: "rarity_epic", command: g("rarity=epic"), builderFamilies: ["legacy", "mid", "modern"], note: "稀有度" },
-  { feature: "enchant_glint", id: "glint_true", command: g("enchantment_glint_override=true"), builderFamilies: ["legacy", "mid", "modern"], note: "发光覆盖" },
+  { feature: "rarity", id: "rarity_epic", command: g("rarity=epic"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "稀有度" },
+  { feature: "enchant_glint", id: "glint_true", command: g("enchantment_glint_override=true"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "发光覆盖" },
 
   // ---- enchantments ----
   { feature: "enchantments", id: "ench_levels", command: g("enchantments={levels:{unbreaking:1}}"), builderFamilies: ["legacy"], note: "带 levels 外层" },
-  { feature: "enchantments", id: "ench_flat", command: g("enchantments={unbreaking:1}"), builderFamilies: ["mid", "modern"], note: "扁平，无 levels 外层" },
+  { feature: "enchantments", id: "ench_flat", command: g("enchantments={unbreaking:1}"), builderFamilies: ["early", "mid", "modern"], note: "扁平，无 levels 外层" },
 
   // ---- attribute_modifiers ----
   { feature: "attribute_modifiers", id: "attr_array_type_unquoted_plain", command: g('attribute_modifiers=[{type:armor,amount:1,id:"test:x",operation:add_value}]'), builderFamilies: ["mid", "modern"], note: "数组形式，type 不带引号/无 generic 前缀（builder modern/mid）" },
   { feature: "attribute_modifiers", id: "attr_array_type_quoted_generic", command: g('attribute_modifiers=[{type:"generic.armor",amount:1,id:"test:x",operation:add_value}]'), builderFamilies: [], note: "数组形式，type 带引号且含 generic. 前缀" },
+  { feature: "attribute_modifiers", id: "attr_array_type_ns_quoted", command: g('attribute_modifiers=[{type:"minecraft:generic.armor",amount:1,id:"test:x",operation:add_value}]'), builderFamilies: [], note: "数组形式，type 带 minecraft: 命名空间前缀（1.20.5 候选）" },
+  { feature: "attribute_modifiers", id: "attr_array_type_ns_unquoted", command: g('attribute_modifiers=[{type:minecraft:generic.armor,amount:1,id:"test:x",operation:add_value}]'), builderFamilies: [], note: "数组形式，type 不带引号但带 minecraft: 前缀（1.20.5 候选）" },
+  { feature: "attribute_modifiers", id: "attr_array_op_quoted", command: g('attribute_modifiers=[{type:armor,amount:1,id:"test:x",operation:"add_value"}]'), builderFamilies: [], note: "operation 用引号字符串（1.20.5 候选）" },
   { feature: "attribute_modifiers", id: "attr_wrapper_type_quoted_generic", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:"test:x",operation:add_value}]}'), builderFamilies: ["legacy"], note: "modifiers 外层 + 引号 generic.（builder legacy）" },
   { feature: "attribute_modifiers", id: "attr_wrapper_id_numeric", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:123,operation:add_value}]}'), builderFamilies: [], note: "id 为纯数字（服务器拒绝，builder 已改为始终引号）" },
   { feature: "attribute_modifiers", id: "attr_wrapper_id_quoted_number", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:"123",operation:add_value}]}'), builderFamilies: [], note: "id 为带引号数字字符串（探查修复方向）" },
   { feature: "attribute_modifiers", id: "attr_wrapper_with_slot", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,slot:mainhand,id:"test:x",operation:add_value}]}'), builderFamilies: [], note: "带 slot 字段" },
 
   // ---- unbreakable ----
-  { feature: "unbreakable", id: "unbreakable_empty", command: g("unbreakable={}"), builderFamilies: ["legacy", "mid", "modern"], note: "空对象" },
+  { feature: "unbreakable", id: "unbreakable_empty", command: g("unbreakable={}"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "空对象" },
 
   // ---- 数值类 ----
-  { feature: "damage", id: "damage_int", command: gd("damage=1"), builderFamilies: ["legacy", "mid", "modern"], note: "已损耗值（不可堆叠物品）" },
-  { feature: "max_damage", id: "max_damage_int", command: gd("max_damage=100"), builderFamilies: ["legacy", "mid", "modern"], note: "最大耐久（不可堆叠物品，避免 damageable+stackable 约束）" },
-  { feature: "max_stack_size", id: "max_stack_size_int", command: g("max_stack_size=16"), builderFamilies: ["legacy", "mid", "modern"], note: "最大堆叠" },
-  { feature: "repair_cost", id: "repair_cost_int", command: g("repair_cost=3"), builderFamilies: ["legacy", "mid", "modern"], note: "修复经验消耗" },
+  { feature: "damage", id: "damage_int", command: gd("damage=1"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "已损耗值（不可堆叠物品）" },
+  { feature: "max_damage", id: "max_damage_int", command: gd("max_damage=100"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "最大耐久（不可堆叠物品，避免 damageable+stackable 约束）" },
+  { feature: "max_stack_size", id: "max_stack_size_int", command: g("max_stack_size=16"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "最大堆叠" },
+  { feature: "repair_cost", id: "repair_cost_int", command: g("repair_cost=3"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "修复经验消耗" },
 
   // ---- food ----
-  { feature: "food", id: "food_basic", command: g("food={nutrition:5,saturation:6}"), builderFamilies: ["legacy", "mid", "modern"], note: "基础营养/饱和" },
-  { feature: "food", id: "food_can_always_eat", command: g("food={nutrition:5,saturation:6,can_always_eat:true}"), builderFamilies: ["legacy", "mid", "modern"], note: "can_always_eat（布尔）" },
-  { feature: "food", id: "food_can_always_eat_byte", command: g("food={nutrition:5,saturation:6,can_always_eat:1b}"), builderFamilies: ["legacy", "mid", "modern"], note: "can_always_eat（1b 字节，builder 实际输出）" },
+  { feature: "food", id: "food_basic", command: g("food={nutrition:5,saturation:6}"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "基础营养/饱和" },
+  { feature: "food", id: "food_can_always_eat", command: g("food={nutrition:5,saturation:6,can_always_eat:true}"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "can_always_eat（布尔）" },
+  { feature: "food", id: "food_can_always_eat_byte", command: g("food={nutrition:5,saturation:6,can_always_eat:1b}"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "can_always_eat（1b 字节，builder 实际输出）" },
   { feature: "food", id: "food_eat_seconds", command: g("food={nutrition:5,saturation:6,eat_seconds:2}"), builderFamilies: ["legacy"], note: "eat_seconds 并入 food（legacy）" },
   { feature: "food", id: "food_effects_inside", command: g("food={nutrition:5,saturation:6,effects:[{effect:{id:speed,duration:20,amplifier:0},probability:1.0f}]}"), builderFamilies: ["legacy"], note: "效果并入 food.effects（legacy）" },
 
@@ -80,17 +84,17 @@ export const PROBES = [
   // ---- tool ----
   { feature: "tool", id: "tool_rules_blocks_stripped", command: g("tool={rules:[{blocks:[stone],speed:1.0,correct_for_drops:true}]}"), builderFamilies: [], note: "blocks 去命名空间，speed 浮点，correct_for_drops 布尔" },
   { feature: "tool", id: "tool_blocks_namespaced", command: g("tool={rules:[{blocks:[minecraft:stone],speed:1.0f,correct_for_drops:1b}]}"), builderFamilies: [], note: "blocks 带命名空间（探查命名空间是否被接受）" },
-  { feature: "tool", id: "tool_rules_f_byte", command: g("tool={rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}"), builderFamilies: ["legacy", "mid", "modern"], note: "speed 带 f 后缀、correct_for_drops 1b（builder 实际输出）" },
-  { feature: "tool", id: "tool_full", command: g("tool={default_mining_speed:1.0,damage_per_block:1,rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}"), builderFamilies: ["legacy", "mid", "modern"], note: "含 default_mining_speed/damage_per_block（blocks 去命名空间）" },
+  { feature: "tool", id: "tool_rules_f_byte", command: g("tool={rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "speed 带 f 后缀、correct_for_drops 1b（builder 实际输出）" },
+  { feature: "tool", id: "tool_full", command: g("tool={default_mining_speed:1.0,damage_per_block:1,rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}"), builderFamilies: ["early", "legacy", "mid", "modern"], note: "含 default_mining_speed/damage_per_block（blocks 去命名空间）" },
 
   // ---- can_place_on / can_break（CLAUDE.md 标记待确认）----
   { feature: "can_place_on", id: "can_place_on_blocks_obj", command: g("can_place_on=[{blocks:minecraft:stone}]"), builderFamilies: [], note: "无引号 blocks（两族均拒绝）" },
-  { feature: "can_place_on", id: "can_place_on_predicates", command: g('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: ["legacy", "mid"], note: "{predicates:[...]}（legacy/mid 正确格式）" },
+  { feature: "can_place_on", id: "can_place_on_predicates", command: g('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: ["early", "legacy", "mid"], note: "{predicates:[...]}（legacy/mid/early 正确格式）" },
   { feature: "can_place_on", id: "can_place_on_predicates_stripped", command: g('can_place_on={predicates:[{blocks:"stone"}]}'), builderFamilies: [], note: "{predicates:[...]} 去命名空间" },
   { feature: "can_place_on", id: "can_place_on_predicates_multi", command: g('can_place_on={predicates:[{blocks:"minecraft:stone"},{blocks:"minecraft:dirt"}]}'), builderFamilies: [], note: "多个 predicate" },
   { feature: "can_place_on", id: "can_place_on_quoted_array", command: g('can_place_on=[{blocks:"minecraft:stone"}]'), builderFamilies: ["modern"], note: "直接列表 + 引号 blocks（modern 正确格式）" },
   { feature: "can_break", id: "can_break_blocks_obj", command: g("can_break=[{blocks:minecraft:stone}]"), builderFamilies: [], note: "无引号 blocks（两族均拒绝）" },
-  { feature: "can_break", id: "can_break_predicates", command: g('can_break={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: ["legacy", "mid"], note: "{predicates:[...]}（legacy/mid 正确格式）" },
+  { feature: "can_break", id: "can_break_predicates", command: g('can_break={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: ["early", "legacy", "mid"], note: "{predicates:[...]}（legacy/mid/early 正确格式）" },
   { feature: "can_break", id: "can_break_quoted_array", command: g('can_break=[{blocks:"minecraft:stone"}]'), builderFamilies: ["modern"], note: "直接列表 + 引号 blocks（modern 正确格式）" },
 
   // ---- glider（modern，1.21.2+）----

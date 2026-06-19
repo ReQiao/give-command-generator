@@ -360,6 +360,115 @@ function base(version) {
   expect("1.21.3 same syntax as 1.21.2", make("java_1_21_3"), make("java_1_21_2"));
 }
 
+// --- 25. Java 1.21.4 produces identical output to 1.21.2 (mid family) ---
+{
+  const make = (version) => {
+    const f = base(version);
+    f.displayName = [[{ text: "hi" }]];
+    f.enchantments = [{ id: "minecraft:unbreaking", level: 3 }];
+    f.glider = true;
+    f.blockLimits = [{ block: "minecraft:stone", type: "place" }];
+    return buildGiveCommand(f);
+  };
+  expect("1.21.4 same syntax as 1.21.2 (mid)", make("java_1_21_4"), make("java_1_21_2"));
+}
+
+// --- 26. Java 1.21.5 produces identical output to 1.21.11+ (modern) ---
+{
+  const make = (version) => {
+    const f = base(version);
+    f.displayName = [[{ text: "hi" }]];
+    f.blockLimits = [{ block: "minecraft:stone", type: "place" }];
+    f.hiddenComponents = "enchantments";
+    return buildGiveCommand(f);
+  };
+  expect("1.21.5 same syntax as 1.21.11+ (modern)", make("java_1_21_5"), make("java_1_21_11_plus"));
+}
+
+// --- 27. Java 1.21.6 produces identical output to 1.21.11+ ---
+{
+  const f1 = base("java_1_21_6");
+  const f2 = base("java_1_21_11_plus");
+  f1.enchantments = f2.enchantments = [{ id: "minecraft:unbreaking", level: 2 }];
+  expect("1.21.6 same syntax as 1.21.11+", buildGiveCommand(f1), buildGiveCommand(f2));
+}
+
+// --- 28. Java 1.21.9 produces identical output to 1.21.11+ ---
+{
+  const f1 = base("java_1_21_9");
+  const f2 = base("java_1_21_11_plus");
+  f1.deathProtection = f2.deathProtection = true;
+  expect("1.21.9 same syntax as 1.21.11+", buildGiveCommand(f1), buildGiveCommand(f2));
+}
+
+// --- 29. Java 26.1 and 26.2+ produce identical output to 1.21.11+ ---
+{
+  const f1 = base("java_26_1");
+  const f2 = base("java_26_2_plus");
+  const f3 = base("java_1_21_11_plus");
+  f1.glider = f2.glider = f3.glider = true;
+  f1.hiddenComponents = f2.hiddenComponents = f3.hiddenComponents = "enchantments";
+  expect("26.1 same syntax as 1.21.11+", buildGiveCommand(f1), buildGiveCommand(f3));
+  expect("26.2+ same syntax as 1.21.11+", buildGiveCommand(f2), buildGiveCommand(f3));
+}
+
+// --- 30. Java 1.20.5 text uses SNBT single-quoted strings ---
+{
+  const f = base("java_1_20_5");
+  f.displayName = [[{ text: "hi" }]];
+  f.itemName = [[{ text: "name" }]];
+  f.lore = [[{ text: "a" }]];
+  const cmd = buildGiveCommand(f);
+  expect("1.20.5 custom_name SNBT string", cmd.includes("custom_name='"), true);
+  expect("1.20.5 item_name SNBT string", cmd.includes("item_name='"), true);
+  expect("1.20.5 lore SNBT string array", cmd.includes("lore=['"), true);
+}
+
+// --- 31. Java 1.20.5 can_place_on uses predicates wrapper ---
+{
+  const f = base("java_1_20_5");
+  f.blockLimits = [{ block: "minecraft:stone", type: "place" }];
+  const cmd = buildGiveCommand(f);
+  expect("1.20.5 can_place_on predicates wrapper", cmd.includes('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'), true);
+}
+
+// --- 32. Java 1.20.5 does not output consumable, glider, death_protection ---
+{
+  const f = base("java_1_20_5");
+  f.consumableEnabled = true;
+  f.consumeSeconds = 2;
+  f.glider = true;
+  f.deathProtection = true;
+  const cmd = buildGiveCommand(f);
+  expect("1.20.5 no consumable", !cmd.includes("consumable="), true);
+  expect("1.20.5 no glider", !cmd.includes("glider"), true);
+  expect("1.20.5 no death_protection", !cmd.includes("death_protection"), true);
+}
+
+// --- 33. Java 1.20.5 does not output attribute_modifiers ---
+{
+  const f = base("java_1_20_5");
+  f.attributes = [{ type: "armor", amount: 5, slot: "任意", operation: "加算", id: "test" }];
+  const cmd = buildGiveCommand(f);
+  expect("1.20.5 no attribute_modifiers", !cmd.includes("attribute_modifiers"), true);
+}
+
+// --- 34. Java 1.20.5 does not output tooltip_display ---
+{
+  const f = base("java_1_20_5");
+  f.hiddenComponents = "enchantments";
+  const cmd = buildGiveCommand(f);
+  expect("1.20.5 no tooltip_display", !cmd.includes("tooltip_display"), true);
+}
+
+// --- 35. Java 1.20.5 enchantments flat format ---
+{
+  const f = base("java_1_20_5");
+  f.enchantments = [{ id: "minecraft:unbreaking", level: 3 }];
+  const cmd = buildGiveCommand(f);
+  expect("1.20.5 enchantments flat", cmd.includes("enchantments={unbreaking:3}"), true);
+}
+
 // --- summary ---
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

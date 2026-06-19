@@ -26,6 +26,7 @@ import {
   mapCatalog,
   matches,
   isJava121LegacyFamily,
+  isJava1205Family,
   isJava1212Family,
   normalizeForm,
   pairText,
@@ -91,7 +92,11 @@ const filteredItems = computed(() => ITEMS.filter((row) => matches(row, form.ite
 const filteredBlocks = computed(() => BLOCKS.filter((row) => matches(row, blockSearch.value)));
 const shellClass = computed(() => ({ "app-shell": true, "no-motion": !animationEnabled.value }));
 const legacyJava = computed(() => isJava121LegacyFamily(form.version));
-const supportsTooltipDisplay = computed(() => form.version === "java_1_21_11_plus");
+const supportsTooltipDisplay = computed(() =>
+  !isJava121LegacyFamily(form.version) &&
+  !isJava1205Family(form.version) &&
+  !isJava1212Family(form.version)
+);
 const versionOptions = computed(() => pairOptions(VERSIONS, "value"));
 const slotOptions = computed(() => pairOptions(SLOTS));
 const operationOptions = computed(() => pairOptions(OPERATIONS));
@@ -281,6 +286,17 @@ function pruneUnsupportedOptionsForVersion() {
     form.hiddenComponents = "";
     form.consumeSound = "";
     form.consumeParticles = "默认";
+    if (activeTab.value === "死亡效果") activeTab.value = "基础";
+  } else if (isJava1205Family(form.version)) {
+    form.glider = false;
+    form.deathProtection = false;
+    form.deathEffects = [];
+    form.hiddenComponents = "";
+    form.consumableEnabled = false;
+    form.consumeSound = "";
+    form.consumeParticles = "默认";
+    form.consumeEffects = [];
+    form.attributes = [];
     if (activeTab.value === "死亡效果") activeTab.value = "基础";
   } else if (isJava1212Family(form.version)) {
     form.hiddenComponents = "";

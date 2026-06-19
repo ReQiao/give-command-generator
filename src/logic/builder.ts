@@ -14,11 +14,18 @@ import {
 } from "../data/catalog";
 
 export type GiveVersion =
+  | "java_1_20_5"
   | "java_1_21"
   | "java_1_21_1"
   | "java_1_21_2"
   | "java_1_21_3"
+  | "java_1_21_4"
+  | "java_1_21_5"
+  | "java_1_21_6"
+  | "java_1_21_9"
   | "java_1_21_11_plus"
+  | "java_26_1"
+  | "java_26_2_plus"
   | "bedrock";
 
 export interface TextComponent {
@@ -204,18 +211,40 @@ interface ModernProfile {
   textAsSnbtString: boolean;
   adventurePredicateWrapper: boolean;
   supportsTooltipDisplay: boolean;
+  supportsConsumable: boolean;
+  supportsGlider: boolean;
+  supportsDeathProtection: boolean;
+  supportsAttributeModifiers: boolean;
 }
 
 const MODERN_PROFILE: ModernProfile = {
   textAsSnbtString: false,
   adventurePredicateWrapper: false,
   supportsTooltipDisplay: true,
+  supportsConsumable: true,
+  supportsGlider: true,
+  supportsDeathProtection: true,
+  supportsAttributeModifiers: true,
 };
 
 const JAVA_1_21_2_PROFILE: ModernProfile = {
   textAsSnbtString: true,
   adventurePredicateWrapper: true,
   supportsTooltipDisplay: false,
+  supportsConsumable: true,
+  supportsGlider: true,
+  supportsDeathProtection: true,
+  supportsAttributeModifiers: true,
+};
+
+const JAVA_1_20_5_PROFILE: ModernProfile = {
+  textAsSnbtString: true,
+  adventurePredicateWrapper: true,
+  supportsTooltipDisplay: false,
+  supportsConsumable: false,
+  supportsGlider: false,
+  supportsDeathProtection: false,
+  supportsAttributeModifiers: false,
 };
 
 export function buildGiveCommand(form: GiveForm): string {
@@ -224,6 +253,9 @@ export function buildGiveCommand(form: GiveForm): string {
   }
   if (isJava121LegacyFamily(form.version)) {
     return buildJava121Legacy(form);
+  }
+  if (isJava1205Family(form.version)) {
+    return buildModernFamily(form, JAVA_1_20_5_PROFILE);
   }
   if (isJava1212Family(form.version)) {
     return buildModernFamily(form, JAVA_1_21_2_PROFILE);
@@ -258,20 +290,22 @@ function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
     .map((row) => `${componentId(mapCatalog(ENCHANTS, row.id))}:${normalizeInt(row.level, 1, 1)}`);
   if (enchants.length) add("enchantments", `{${enchants.join(",")}}`);
 
-  const attributes = form.attributes
-    .filter((row) => String(row.type ?? "").trim())
-    .map((row) => {
-      const fields = [
-        `type:${componentId(mapCatalog(ATTRIBUTES, row.type))}`,
-        `amount:${fmtNumber(row.amount)}`,
-      ];
-      const slot = pairValue(SLOTS, row.slot || "任意");
-      if (slot && slot !== "any") fields.push(`slot:${slot}`);
-      fields.push(`id:${quote(row.id || cryptoId())}`);
-      fields.push(`operation:${pairValue(OPERATIONS, row.operation || "加算")}`);
-      return `{${fields.join(",")}}`;
-    });
-  if (attributes.length) add("attribute_modifiers", `[${attributes.join(",")}]`);
+  if (profile.supportsAttributeModifiers) {
+    const attributes = form.attributes
+      .filter((row) => String(row.type ?? "").trim())
+      .map((row) => {
+        const fields = [
+          `type:${componentId(mapCatalog(ATTRIBUTES, row.type))}`,
+          `amount:${fmtNumber(row.amount)}`,
+        ];
+        const slot = pairValue(SLOTS, row.slot || "任意");
+        if (slot && slot !== "any") fields.push(`slot:${slot}`);
+        fields.push(`id:${quote(row.id || cryptoId())}`);
+        fields.push(`operation:${pairValue(OPERATIONS, row.operation || "加算")}`);
+        return `{${fields.join(",")}}`;
+      });
+    if (attributes.length) add("attribute_modifiers", `[${attributes.join(",")}]`);
+  }
 
   const place = form.blockLimits.filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
   const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
@@ -283,11 +317,13 @@ function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
   if (breakPredicates.length) add("can_break", wrapPredicates(breakPredicates));
 
   if (form.unbreakable) add("unbreakable", "{}");
-  if (form.glider) add("glider", "{}");
+  if (profile.supportsGlider && form.glider) add("glider", "{}");
 
-  const deathEffects = buildEffectGroups(form.deathEffects);
-  if (form.deathProtection || deathEffects) {
-    add("death_protection", deathEffects ? `{death_effects:[${deathEffects}]}` : "{}");
+  if (profile.supportsDeathProtection) {
+    const deathEffects = buildEffectGroups(form.deathEffects);
+    if (form.deathProtection || deathEffects) {
+      add("death_protection", deathEffects ? `{death_effects:[${deathEffects}]}` : "{}");
+    }
   }
 
   if (form.damageEnabled) add("damage", String(normalizeInt(form.damage, 0, 0)));
@@ -309,18 +345,20 @@ function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
     add("food", `{${fields.join(",")}}`);
   }
 
-  const consumeEffects = buildEffectGroups(form.consumeEffects);
-  if (form.consumableEnabled || consumeEffects) {
-    const fields: string[] = [];
-    if (form.consumableEnabled) {
-      fields.push(`consume_seconds:${fmtNumber(form.consumeSeconds)}`);
-      if (form.consumeSound.trim()) fields.push(`sound:${quote(namespaced(form.consumeSound))}`);
-      if (form.consumeParticles !== "默认") {
-        fields.push(`has_consume_particles:${form.consumeParticles === "是" ? "1b" : "0b"}`);
+  if (profile.supportsConsumable) {
+    const consumeEffects = buildEffectGroups(form.consumeEffects);
+    if (form.consumableEnabled || consumeEffects) {
+      const fields: string[] = [];
+      if (form.consumableEnabled) {
+        fields.push(`consume_seconds:${fmtNumber(form.consumeSeconds)}`);
+        if (form.consumeSound.trim()) fields.push(`sound:${quote(namespaced(form.consumeSound))}`);
+        if (form.consumeParticles !== "默认") {
+          fields.push(`has_consume_particles:${form.consumeParticles === "是" ? "1b" : "0b"}`);
+        }
       }
+      if (consumeEffects) fields.push(`on_consume_effects:[${consumeEffects}]`);
+      add("consumable", `{${fields.join(",")}}`);
     }
-    if (consumeEffects) fields.push(`on_consume_effects:[${consumeEffects}]`);
-    add("consumable", `{${fields.join(",")}}`);
   }
 
   const toolRules = buildToolRules(form.toolRules);
@@ -674,11 +712,18 @@ function normalizeTarget(value: string): string {
 function normalizeVersion(value: unknown): GiveVersion {
   const text = String(value ?? "").trim();
   if (
+    text === "java_1_20_5" ||
     text === "java_1_21" ||
     text === "java_1_21_1" ||
     text === "java_1_21_2" ||
     text === "java_1_21_3" ||
+    text === "java_1_21_4" ||
+    text === "java_1_21_5" ||
+    text === "java_1_21_6" ||
+    text === "java_1_21_9" ||
     text === "java_1_21_11_plus" ||
+    text === "java_26_1" ||
+    text === "java_26_2_plus" ||
     text === "bedrock"
   ) {
     return text;
@@ -690,8 +735,12 @@ export function isJava121LegacyFamily(version: GiveVersion): boolean {
   return version === "java_1_21" || version === "java_1_21_1";
 }
 
+export function isJava1205Family(version: GiveVersion): boolean {
+  return version === "java_1_20_5";
+}
+
 export function isJava1212Family(version: GiveVersion): boolean {
-  return version === "java_1_21_2" || version === "java_1_21_3";
+  return version === "java_1_21_2" || version === "java_1_21_3" || version === "java_1_21_4";
 }
 
 function normalizeInt(value: unknown, fallback: number, min: number): number {
