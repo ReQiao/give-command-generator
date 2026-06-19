@@ -214,6 +214,75 @@ function base(version) {
   );
 }
 
+// --- 14. Java 1.21 can_place_on / can_break use predicates wrapper (server-verified) ---
+{
+  const f = base("java_1_21");
+  f.blockLimits = [
+    { block: "minecraft:stone", type: "place" },
+    { block: "minecraft:dirt", type: "break" },
+  ];
+  const cmd = buildGiveCommand(f);
+  expect(
+    "java_1_21 can_place_on uses predicates wrapper",
+    cmd.includes('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'),
+    true,
+  );
+  expect(
+    "java_1_21 can_break uses predicates wrapper",
+    cmd.includes('can_break={predicates:[{blocks:"minecraft:dirt"}]}'),
+    true,
+  );
+}
+
+// --- 15. Java 1.21.11+ can_place_on / can_break use direct quoted list (server-verified) ---
+{
+  const f = base("java_1_21_11_plus");
+  f.blockLimits = [
+    { block: "minecraft:stone", type: "place" },
+    { block: "minecraft:dirt", type: "break" },
+  ];
+  const cmd = buildGiveCommand(f);
+  expect(
+    "1.21.11+ can_place_on uses direct quoted list",
+    cmd.includes('can_place_on=[{blocks:"minecraft:stone"}]'),
+    true,
+  );
+  expect(
+    "1.21.11+ can_break uses direct quoted list",
+    cmd.includes('can_break=[{blocks:"minecraft:dirt"}]'),
+    true,
+  );
+  expect(
+    "1.21.11+ can_place_on has no predicates wrapper",
+    !cmd.includes("predicates"),
+    true,
+  );
+}
+
+// --- 16. Java 1.21 attribute id always quoted, even numeric input (server-verified) ---
+{
+  const f = base("java_1_21");
+  f.attributes = [{ type: "armor", amount: 1, slot: "any", operation: "add_value", id: "123" }];
+  const cmd = buildGiveCommand(f);
+  expect(
+    "java_1_21 numeric attribute id is quoted",
+    cmd.includes('id:"123"'),
+    true,
+  );
+}
+
+// --- 17. Java 1.21.11+ tooltip_display hidden_components are quoted (server-verified) ---
+{
+  const f = base("java_1_21_11_plus");
+  f.hiddenComponents = "enchantments";
+  const cmd = buildGiveCommand(f);
+  expect(
+    "1.21.11+ tooltip_display hidden_components quoted",
+    cmd.includes('hidden_components:["minecraft:enchantments"]'),
+    true,
+  );
+}
+
 // --- summary ---
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

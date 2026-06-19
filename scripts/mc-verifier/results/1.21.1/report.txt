@@ -1,10 +1,5 @@
 # 1.21.1  (builder 族: legacy)
-摘要: PASS=14  FAIL=3  UNKNOWN=0
-
-## 需修正（builder 输出被服务器拒绝）
-[FAIL] attribute_modifiers: attr_array_type_unquoted_plain=invalid  attr_array_type_quoted_generic=valid  attr_wrapper_type_quoted_generic=valid*  attr_wrapper_id_numeric=invalid*  attr_wrapper_with_slot=valid
-[FAIL] can_place_on: can_place_on_blocks_obj=invalid*  can_place_on_predicates=valid
-[FAIL] can_break: can_break_blocks_obj=invalid*
+摘要: PASS=17  FAIL=0  UNKNOWN=0
 
 ## 全部特性（* 表示该版本族 builder 实际输出）
 [PASS] basic: basic_plain=valid*
@@ -14,6 +9,7 @@
 [PASS] rarity: rarity_epic=valid*
 [PASS] enchant_glint: glint_true=valid*
 [PASS] enchantments: ench_levels=valid*  ench_flat=valid
+[PASS] attribute_modifiers: attr_array_type_unquoted_plain=invalid  attr_array_type_quoted_generic=valid  attr_wrapper_type_quoted_generic=valid*  attr_wrapper_id_numeric=invalid  attr_wrapper_id_quoted_number=valid  attr_wrapper_with_slot=valid
 [PASS] unbreakable: unbreakable_empty=valid*
 [PASS] damage: damage_int=valid*
 [PASS] max_damage: max_damage_int=valid*
@@ -22,6 +18,8 @@
 [PASS] food: food_basic=valid*  food_can_always_eat=valid*  food_can_always_eat_byte=valid*  food_eat_seconds=valid*  food_effects_inside=valid*
 [N/A] consumable: consumable_seconds=invalid  consumable_on_consume_effects=invalid
 [PASS] tool: tool_rules_blocks_stripped=valid  tool_blocks_namespaced=invalid  tool_rules_f_byte=valid*  tool_full=valid*
+[PASS] can_place_on: can_place_on_blocks_obj=invalid  can_place_on_predicates=valid*  can_place_on_predicates_stripped=valid  can_place_on_predicates_multi=valid  can_place_on_quoted_array=invalid
+[PASS] can_break: can_break_blocks_obj=invalid  can_break_predicates=valid*  can_break_quoted_array=invalid
 [N/A] glider: glider_empty=invalid
 [N/A] death_protection: death_protection_empty=invalid  death_protection_effects=invalid
-[N/A] tooltip_display: tooltip_hidden=invalid
+[N/A] tooltip_display: tooltip_hidden=invalid  tooltip_hidden_quoted=invalid  tooltip_hide_bool=invalid

@@ -242,8 +242,10 @@ function buildJava12111Plus(form: GiveForm): string {
 
   const place = form.blockLimits.filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
   const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
-  if (place.length) add("can_place_on", `[${place.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
-  if (brk.length) add("can_break", `[${brk.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
+  const placePredicates = blockPredicateList(place);
+  const breakPredicates = blockPredicateList(brk);
+  if (placePredicates.length) add("can_place_on", `[${placePredicates.join(",")}]`);
+  if (breakPredicates.length) add("can_break", `[${breakPredicates.join(",")}]`);
 
   if (form.unbreakable) add("unbreakable", "{}");
   if (form.glider) add("glider", "{}");
@@ -259,7 +261,7 @@ function buildJava12111Plus(form: GiveForm): string {
   if (form.repairEnabled) add("repair_cost", String(normalizeInt(form.repairCost, 0, 0)));
 
   const hidden = splitCsv(form.hiddenComponents);
-  if (hidden.length) add("tooltip_display", `{hidden_components:[${hidden.map((value) => namespaced(value)).join(",")}]}`);
+  if (hidden.length) add("tooltip_display", `{hidden_components:[${hidden.map((value) => quote(namespaced(value))).join(",")}]}`);
 
   if (form.foodEnabled) {
     const fields = [
@@ -329,7 +331,7 @@ function buildJava121Legacy(form: GiveForm): string {
       ];
       const slot = pairValue(SLOTS, row.slot || "any");
       if (slot && slot !== "any") fields.push(`slot:${slot}`);
-      fields.push(`id:${legacyAttributeId(row.id || cryptoId())}`);
+      fields.push(`id:${quote(row.id || cryptoId())}`);
       fields.push(`operation:${pairValue(OPERATIONS, row.operation || "add_value")}`);
       return `{${fields.join(",")}}`;
     });
@@ -337,8 +339,10 @@ function buildJava121Legacy(form: GiveForm): string {
 
   const place = form.blockLimits.filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
   const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
-  if (place.length) add("can_place_on", `[${place.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
-  if (brk.length) add("can_break", `[${brk.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
+  const placePredicates = blockPredicateList(place);
+  const breakPredicates = blockPredicateList(brk);
+  if (placePredicates.length) add("can_place_on", `{predicates:[${placePredicates.join(",")}]}`);
+  if (breakPredicates.length) add("can_break", `{predicates:[${breakPredicates.join(",")}]}`);
 
   if (form.unbreakable) add("unbreakable", "{}");
 
@@ -472,6 +476,12 @@ function buildToolRules(rules: ToolRuleRow[]): string {
   return out.join(",");
 }
 
+function blockPredicateList(rows: BlockLimitRow[]): string[] {
+  return rows
+    .filter((row) => String(row.block ?? "").trim())
+    .map((row) => `{blocks:${quote(mapCatalog(BLOCKS, row.block))}}`);
+}
+
 export function compact(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -526,11 +536,6 @@ function legacyAttributeType(value: string): string {
     water_movement_efficiency: "generic.water_movement_efficiency",
   };
   return mapped[id] ?? `generic.${id}`;
-}
-
-function legacyAttributeId(value: string): string {
-  const text = String(value ?? "").trim();
-  return /^-?\d+$/.test(text) ? text : quote(text || cryptoId());
 }
 
 export function boolByte(value: boolean): string {

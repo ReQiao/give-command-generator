@@ -51,7 +51,8 @@ export const PROBES = [
   { feature: "attribute_modifiers", id: "attr_array_type_unquoted_plain", command: g('attribute_modifiers=[{type:armor,amount:1,id:"test:x",operation:add_value}]'), builderFamilies: ["modern"], note: "数组形式，type 不带引号/无 generic 前缀（builder modern）" },
   { feature: "attribute_modifiers", id: "attr_array_type_quoted_generic", command: g('attribute_modifiers=[{type:"generic.armor",amount:1,id:"test:x",operation:add_value}]'), builderFamilies: [], note: "数组形式，type 带引号且含 generic. 前缀" },
   { feature: "attribute_modifiers", id: "attr_wrapper_type_quoted_generic", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:"test:x",operation:add_value}]}'), builderFamilies: ["legacy"], note: "modifiers 外层 + 引号 generic.（builder legacy）" },
-  { feature: "attribute_modifiers", id: "attr_wrapper_id_numeric", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:123,operation:add_value}]}'), builderFamilies: ["legacy"], note: "id 为纯数字（legacy 可选）" },
+  { feature: "attribute_modifiers", id: "attr_wrapper_id_numeric", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:123,operation:add_value}]}'), builderFamilies: [], note: "id 为纯数字（服务器拒绝，builder 已改为始终引号）" },
+  { feature: "attribute_modifiers", id: "attr_wrapper_id_quoted_number", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,id:"123",operation:add_value}]}'), builderFamilies: [], note: "id 为带引号数字字符串（探查修复方向）" },
   { feature: "attribute_modifiers", id: "attr_wrapper_with_slot", command: g('attribute_modifiers={modifiers:[{type:"generic.armor",amount:1,slot:mainhand,id:"test:x",operation:add_value}]}'), builderFamilies: [], note: "带 slot 字段" },
 
   // ---- unbreakable ----
@@ -81,9 +82,14 @@ export const PROBES = [
   { feature: "tool", id: "tool_full", command: g("tool={default_mining_speed:1.0,damage_per_block:1,rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}"), builderFamilies: ["legacy", "modern"], note: "含 default_mining_speed/damage_per_block（blocks 去命名空间）" },
 
   // ---- can_place_on / can_break（CLAUDE.md 标记待确认）----
-  { feature: "can_place_on", id: "can_place_on_blocks_obj", command: g("can_place_on=[{blocks:minecraft:stone}]"), builderFamilies: ["legacy", "modern"], note: "[{blocks:...}]（builder 当前输出）" },
-  { feature: "can_place_on", id: "can_place_on_predicates", command: g('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: [], note: "{predicates:[...]} 备选结构" },
-  { feature: "can_break", id: "can_break_blocks_obj", command: g("can_break=[{blocks:minecraft:stone}]"), builderFamilies: ["legacy", "modern"], note: "[{blocks:...}]（builder 当前输出）" },
+  { feature: "can_place_on", id: "can_place_on_blocks_obj", command: g("can_place_on=[{blocks:minecraft:stone}]"), builderFamilies: [], note: "无引号 blocks（两族均拒绝）" },
+  { feature: "can_place_on", id: "can_place_on_predicates", command: g('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: ["legacy"], note: "{predicates:[...]}（legacy 正确格式）" },
+  { feature: "can_place_on", id: "can_place_on_predicates_stripped", command: g('can_place_on={predicates:[{blocks:"stone"}]}'), builderFamilies: [], note: "{predicates:[...]} 去命名空间" },
+  { feature: "can_place_on", id: "can_place_on_predicates_multi", command: g('can_place_on={predicates:[{blocks:"minecraft:stone"},{blocks:"minecraft:dirt"}]}'), builderFamilies: [], note: "多个 predicate" },
+  { feature: "can_place_on", id: "can_place_on_quoted_array", command: g('can_place_on=[{blocks:"minecraft:stone"}]'), builderFamilies: ["modern"], note: "直接列表 + 引号 blocks（modern 正确格式）" },
+  { feature: "can_break", id: "can_break_blocks_obj", command: g("can_break=[{blocks:minecraft:stone}]"), builderFamilies: [], note: "无引号 blocks（两族均拒绝）" },
+  { feature: "can_break", id: "can_break_predicates", command: g('can_break={predicates:[{blocks:"minecraft:stone"}]}'), builderFamilies: ["legacy"], note: "{predicates:[...]}（legacy 正确格式）" },
+  { feature: "can_break", id: "can_break_quoted_array", command: g('can_break=[{blocks:"minecraft:stone"}]'), builderFamilies: ["modern"], note: "直接列表 + 引号 blocks（modern 正确格式）" },
 
   // ---- glider（modern，1.21.2+）----
   { feature: "glider", id: "glider_empty", command: g("glider={}"), builderFamilies: ["modern"], note: "鞘翅滑翔" },
@@ -93,7 +99,9 @@ export const PROBES = [
   { feature: "death_protection", id: "death_protection_effects", command: g('death_protection={death_effects:[{type:"minecraft:apply_effects",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}'), builderFamilies: ["modern"], note: "带 death_effects" },
 
   // ---- tooltip_display（modern）----
-  { feature: "tooltip_display", id: "tooltip_hidden", command: g("tooltip_display={hidden_components:[minecraft:enchantments]}"), builderFamilies: ["modern"], note: "隐藏组件" },
+  { feature: "tooltip_display", id: "tooltip_hidden", command: g("tooltip_display={hidden_components:[minecraft:enchantments]}"), builderFamilies: [], note: "隐藏组件（无引号，服务器拒绝）" },
+  { feature: "tooltip_display", id: "tooltip_hidden_quoted", command: g('tooltip_display={hidden_components:["minecraft:enchantments"]}'), builderFamilies: ["modern"], note: "隐藏组件（引号列表，modern 正确格式）" },
+  { feature: "tooltip_display", id: "tooltip_hide_bool", command: g("tooltip_display={hide_tooltip:true}"), builderFamilies: [], note: "hide_tooltip 布尔" },
 ];
 
 /**
