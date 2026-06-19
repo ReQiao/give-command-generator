@@ -80,14 +80,21 @@ npm run verify-syntax -- 1.21.1
 "Item cannot be both damageable and stackable" 这类物品约束错误，
 保证失败只来自语法本身。
 
-## 已知验证结论（1.21.1，server 实证）
+## 三个 Java 语法族（均 server 实证）
 
-- ✅ 确认正确：custom_name/item_name/lore 的 SNBT 单引号字符串、enchantments
-  `{levels:{...}}`、attribute_modifiers `{modifiers:[{type:"generic.armor",...}]}`、
-  food 含 `eat_seconds`/`effects`、tool `{rules:[{blocks:[stone],speed:Xf,correct_for_drops:1b}]}`
-- ❌ builder 待修正：
-  - `can_place_on` / `can_break`：当前输出 `[{blocks:...}]` 被拒，正确为
-    `{predicates:[{blocks:"minecraft:stone"}]}`（命名空间 id 需引号）
-  - 属性修饰符 `id` 为纯数字（如 `id:123`）被拒，必须是带引号的资源路径字符串
-- ⛔ 1.21.1 不支持（builder legacy 已正确省略）：consumable、glider、
-  death_protection、tooltip_display
+builder.ts 按 `familyOf()` 把 Java 版本分为三族：
+
+| 特性 | legacy (1.21/1.21.1) | mid (1.21.2/1.21.3) | modern (1.21.11+) |
+|------|----------------------|---------------------|-------------------|
+| 文本 custom_name/item_name/lore | SNBT 单引号字符串 | SNBT 单引号字符串 | 直接 JSON |
+| enchantments | `{levels:{...}}` | 扁平 `{...}` | 扁平 `{...}` |
+| attribute_modifiers | `{modifiers:[{type:"generic.armor",id:"..."}]}` | `[{type:armor,id:"..."}]` | `[{type:armor,id:"..."}]` |
+| 属性 id | 引号字符串（数字 id 被拒） | 引号字符串 | 引号字符串 |
+| can_place_on / can_break | `{predicates:[{blocks:"ns"}]}` | `{predicates:[{blocks:"ns"}]}` | `[{blocks:"ns"}]` |
+| 食用 | 并入 `food`（eat_seconds/effects） | 独立 `consumable` | 独立 `consumable` |
+| consumable / glider / death_protection | 不支持 | 支持 | 支持 |
+| tooltip_display | 不支持 | 不支持（Unknown component） | 支持，`hidden_components:["ns"]` |
+
+各版本完整逐项结果见 `results/<version>/report.txt`。
+mid 族的设计要点：在 modern 基础上，文本与 can_place_on/can_break 回退到 legacy 写法，
+并省略 tooltip_display。

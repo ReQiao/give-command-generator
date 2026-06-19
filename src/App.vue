@@ -26,6 +26,7 @@ import {
   mapCatalog,
   matches,
   isJava121LegacyFamily,
+  isJava1212Family,
   normalizeForm,
   pairText,
   type AttributeRow,
@@ -90,6 +91,7 @@ const filteredItems = computed(() => ITEMS.filter((row) => matches(row, form.ite
 const filteredBlocks = computed(() => BLOCKS.filter((row) => matches(row, blockSearch.value)));
 const shellClass = computed(() => ({ "app-shell": true, "no-motion": !animationEnabled.value }));
 const legacyJava = computed(() => isJava121LegacyFamily(form.version));
+const supportsTooltipDisplay = computed(() => form.version === "java_1_21_11_plus");
 const versionOptions = computed(() => pairOptions(VERSIONS, "value"));
 const slotOptions = computed(() => pairOptions(SLOTS));
 const operationOptions = computed(() => pairOptions(OPERATIONS));
@@ -280,6 +282,8 @@ function pruneUnsupportedOptionsForVersion() {
     form.consumeSound = "";
     form.consumeParticles = "默认";
     if (activeTab.value === "死亡效果") activeTab.value = "基础";
+  } else if (isJava1212Family(form.version)) {
+    form.hiddenComponents = "";
   }
 }
 
@@ -579,7 +583,7 @@ function textOptions(items: string[]): SelectOption[] {
               <span class="field-label">最大堆叠<InfoTip text="通常不超过 99，实际表现以游戏版本为准。" /></span><NumberInput v-model="form.maxStackSize" :max="99" :min="1" />
               <span></span><label class="check-line"><input v-model="form.repairEnabled" type="checkbox" />启用修复消耗<InfoTip text="影响铁砧修复时的经验消耗。" /></label>
               <span class="field-label">修复消耗<InfoTip text="铁砧相关经验消耗数值。" /></span><NumberInput v-model="form.repairCost" :min="0" />
-              <span v-if="!legacyJava" class="field-label">隐藏组件<InfoTip text="用逗号分隔要隐藏在物品提示里的组件 ID。" /></span><input v-if="!legacyJava" v-model="form.hiddenComponents" />
+              <span v-if="supportsTooltipDisplay" class="field-label">隐藏组件<InfoTip text="用逗号分隔要隐藏在物品提示里的组件 ID。" /></span><input v-if="supportsTooltipDisplay" v-model="form.hiddenComponents" />
             </div>
 
             <EffectEditor

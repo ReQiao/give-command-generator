@@ -16,7 +16,7 @@
 [PASS] max_stack_size: max_stack_size_int=valid*
 [PASS] repair_cost: repair_cost_int=valid*
 [PASS] food: food_basic=valid*  food_can_always_eat=valid*  food_can_always_eat_byte=valid*  food_eat_seconds=valid*  food_effects_inside=valid*
-[N/A] consumable: consumable_seconds=invalid  consumable_on_consume_effects=invalid
+[N/A] consumable: consumable_seconds=invalid  consumable_on_consume_effects=invalid  consumable_sound_particles=invalid
 [PASS] tool: tool_rules_blocks_stripped=valid  tool_blocks_namespaced=invalid  tool_rules_f_byte=valid*  tool_full=valid*
 [PASS] can_place_on: can_place_on_blocks_obj=invalid  can_place_on_predicates=valid*  can_place_on_predicates_stripped=valid  can_place_on_predicates_multi=valid  can_place_on_quoted_array=invalid
 [PASS] can_break: can_break_blocks_obj=invalid  can_break_predicates=valid*  can_break_quoted_array=invalid

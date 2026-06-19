@@ -1,5 +1,5 @@
 {
-  "version": "1.21.1",
+  "version": "1.21.3",
   "results": [
     {
       "id": "basic_plain",
@@ -129,16 +129,16 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:armor'...modifiers=[{type:armor,amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "attr_array_type_quoted_generic",
       "feature": "attribute_modifiers",
       "command": "give @a minecraft:stone[attribute_modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1",
       "builderFamilies": [],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_type_quoted_generic",
@@ -147,8 +147,8 @@
       "builderFamilies": [
         "legacy"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_id_numeric",
@@ -156,23 +156,23 @@
       "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a string'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a string; Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_id_quoted_number",
       "feature": "attribute_modifiers",
       "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"123\",operation:add_value}]}] 1",
       "builderFamilies": [],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"123\",operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_with_slot",
       "feature": "attribute_modifiers",
       "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1",
       "builderFamilies": [],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "unbreakable_empty",
@@ -298,8 +298,8 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={consume_seconds:2}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "consumable_on_consume_effects",
@@ -309,8 +309,8 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "consumable_sound_particles",
@@ -320,8 +320,8 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={consume_seconds:2,sound:\"minecraft:entity.generic.eat\",has_consume_particles:1b}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "tool_rules_blocks_stripped",
@@ -445,8 +445,8 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Unknown item component 'minecraft:glider'...aft:stone[glider={}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "death_protection_empty",
@@ -456,8 +456,8 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Unknown item component 'minecraft:death_protection'...aft:stone[death_protection={}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "death_protection_effects",
@@ -467,8 +467,8 @@
         "mid",
         "modern"
       ],
-      "result": "invalid",
-      "response": "Unknown item component 'minecraft:death_protection'...aft:stone[death_protection={death_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "tooltip_hidden",

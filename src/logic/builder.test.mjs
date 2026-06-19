@@ -283,6 +283,83 @@ function base(version) {
   );
 }
 
+// --- 18. Java 1.21.2 text uses SNBT single-quoted strings (server-verified) ---
+{
+  const f = base("java_1_21_2");
+  f.displayName = [[{ text: "hi" }]];
+  f.itemName = [[{ text: "name" }]];
+  f.lore = [[{ text: "a" }]];
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 custom_name SNBT string", cmd.includes("custom_name='"), true);
+  expect("1.21.2 item_name SNBT string", cmd.includes("item_name='"), true);
+  expect("1.21.2 lore SNBT string array", cmd.includes("lore=['"), true);
+}
+
+// --- 19. Java 1.21.2 enchantments flat, no levels wrapper (server-verified) ---
+{
+  const f = base("java_1_21_2");
+  f.enchantments = [{ id: "minecraft:unbreaking", level: 3 }];
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 enchantments flat", cmd.includes("enchantments={unbreaking:3}"), true);
+  expect("1.21.2 enchantments no levels wrapper", !cmd.includes("levels"), true);
+}
+
+// --- 20. Java 1.21.2 attribute uses modern array, stripped unquoted type (server-verified) ---
+{
+  const f = base("java_1_21_2");
+  f.attributes = [{ type: "armor", amount: 2, slot: "any", operation: "add_value", id: "x" }];
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 attribute_modifiers direct array", cmd.includes("attribute_modifiers=[{type:armor"), true);
+  expect("1.21.2 attribute no modifiers wrapper", !cmd.includes("modifiers:["), true);
+  expect("1.21.2 attribute id quoted", cmd.includes('id:"x"'), true);
+}
+
+// --- 21. Java 1.21.2 can_place_on / can_break use predicates wrapper (server-verified) ---
+{
+  const f = base("java_1_21_2");
+  f.blockLimits = [
+    { block: "minecraft:stone", type: "place" },
+    { block: "minecraft:dirt", type: "break" },
+  ];
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 can_place_on predicates wrapper", cmd.includes('can_place_on={predicates:[{blocks:"minecraft:stone"}]}'), true);
+  expect("1.21.2 can_break predicates wrapper", cmd.includes('can_break={predicates:[{blocks:"minecraft:dirt"}]}'), true);
+}
+
+// --- 22. Java 1.21.2 supports glider / death_protection / consumable ---
+{
+  const f = base("java_1_21_2");
+  f.glider = true;
+  f.deathProtection = true;
+  f.consumableEnabled = true;
+  f.consumeSeconds = 2;
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 glider supported", cmd.includes("glider={}"), true);
+  expect("1.21.2 death_protection supported", cmd.includes("death_protection"), true);
+  expect("1.21.2 consumable separate", cmd.includes("consumable={consume_seconds:2"), true);
+}
+
+// --- 23. Java 1.21.2 omits tooltip_display (unsupported, server-verified) ---
+{
+  const f = base("java_1_21_2");
+  f.hiddenComponents = "enchantments";
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 no tooltip_display", !cmd.includes("tooltip_display"), true);
+}
+
+// --- 24. Java 1.21.3 produces identical output to 1.21.2 ---
+{
+  const make = (version) => {
+    const f = base(version);
+    f.displayName = [[{ text: "hi" }]];
+    f.enchantments = [{ id: "minecraft:unbreaking", level: 3 }];
+    f.glider = true;
+    f.blockLimits = [{ block: "minecraft:stone", type: "place" }];
+    return buildGiveCommand(f);
+  };
+  expect("1.21.3 same syntax as 1.21.2", make("java_1_21_3"), make("java_1_21_2"));
+}
+
 // --- summary ---
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

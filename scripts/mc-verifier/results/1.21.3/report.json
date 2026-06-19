@@ -1,9 +1,9 @@
 {
-  "version": "1.21.1",
-  "family": "legacy",
-  "generatedAt": "2026-06-19T10:03:10.407Z",
+  "version": "1.21.3",
+  "family": "mid",
+  "generatedAt": "2026-06-19T10:03:40.186Z",
   "summary": {
-    "pass": 17,
+    "pass": 20,
     "fail": 0,
     "unknown": 0,
     "totalFeatures": 21
@@ -124,17 +124,17 @@
       "candidates": {
         "ench_levels": {
           "result": "valid",
-          "builderEmits": true,
+          "builderEmits": false,
           "command": "give @a minecraft:stone[enchantments={levels:{unbreaking:1}}] 1"
         },
         "ench_flat": {
           "result": "valid",
-          "builderEmits": false,
+          "builderEmits": true,
           "command": "give @a minecraft:stone[enchantments={unbreaking:1}] 1"
         }
       },
       "builderChoice": [
-        "ench_levels"
+        "ench_flat"
       ],
       "builderResult": [
         "valid"
@@ -144,18 +144,18 @@
     "attribute_modifiers": {
       "candidates": {
         "attr_array_type_unquoted_plain": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[attribute_modifiers=[{type:armor,amount:1,id:\"test:x\",operation:add_value}]] 1"
         },
         "attr_array_type_quoted_generic": {
-          "result": "valid",
+          "result": "invalid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[attribute_modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1"
         },
         "attr_wrapper_type_quoted_generic": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]}] 1"
         },
         "attr_wrapper_id_numeric": {
@@ -164,18 +164,18 @@
           "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1"
         },
         "attr_wrapper_id_quoted_number": {
-          "result": "valid",
+          "result": "invalid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"123\",operation:add_value}]}] 1"
         },
         "attr_wrapper_with_slot": {
-          "result": "valid",
+          "result": "invalid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1"
         }
       },
       "builderChoice": [
-        "attr_wrapper_type_quoted_generic"
+        "attr_array_type_unquoted_plain"
       ],
       "builderResult": [
         "valid"
@@ -281,25 +281,21 @@
         },
         "food_eat_seconds": {
           "result": "valid",
-          "builderEmits": true,
+          "builderEmits": false,
           "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,eat_seconds:2}] 1"
         },
         "food_effects_inside": {
           "result": "valid",
-          "builderEmits": true,
+          "builderEmits": false,
           "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,effects:[{effect:{id:speed,duration:20,amplifier:0},probability:1.0f}]}] 1"
         }
       },
       "builderChoice": [
         "food_basic",
         "food_can_always_eat",
-        "food_can_always_eat_byte",
-        "food_eat_seconds",
-        "food_effects_inside"
+        "food_can_always_eat_byte"
       ],
       "builderResult": [
-        "valid",
-        "valid",
         "valid",
         "valid",
         "valid"
@@ -309,24 +305,32 @@
     "consumable": {
       "candidates": {
         "consumable_seconds": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[consumable={consume_seconds:2}] 1"
         },
         "consumable_on_consume_effects": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1"
         },
         "consumable_sound_particles": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[consumable={consume_seconds:2,sound:\"minecraft:entity.generic.eat\",has_consume_particles:1b}] 1"
         }
       },
-      "builderChoice": null,
-      "builderResult": null,
-      "verdict": "N/A"
+      "builderChoice": [
+        "consumable_seconds",
+        "consumable_on_consume_effects",
+        "consumable_sound_particles"
+      ],
+      "builderResult": [
+        "valid",
+        "valid",
+        "valid"
+      ],
+      "verdict": "PASS"
     },
     "tool": {
       "candidates": {
@@ -426,31 +430,41 @@
     "glider": {
       "candidates": {
         "glider_empty": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[glider={}] 1"
         }
       },
-      "builderChoice": null,
-      "builderResult": null,
-      "verdict": "N/A"
+      "builderChoice": [
+        "glider_empty"
+      ],
+      "builderResult": [
+        "valid"
+      ],
+      "verdict": "PASS"
     },
     "death_protection": {
       "candidates": {
         "death_protection_empty": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[death_protection={}] 1"
         },
         "death_protection_effects": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[death_protection={death_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1"
         }
       },
-      "builderChoice": null,
-      "builderResult": null,
-      "verdict": "N/A"
+      "builderChoice": [
+        "death_protection_empty",
+        "death_protection_effects"
+      ],
+      "builderResult": [
+        "valid",
+        "valid"
+      ],
+      "verdict": "PASS"
     },
     "tooltip_display": {
       "candidates": {

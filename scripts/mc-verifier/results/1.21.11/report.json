@@ -1,7 +1,7 @@
 {
   "version": "1.21.11",
   "family": "modern",
-  "generatedAt": "2026-06-19T09:49:38.769Z",
+  "generatedAt": "2026-06-19T10:03:52.664Z",
   "summary": {
     "pass": 21,
     "fail": 0,
@@ -313,13 +313,20 @@
           "result": "valid",
           "builderEmits": true,
           "command": "give @a minecraft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1"
+        },
+        "consumable_sound_particles": {
+          "result": "valid",
+          "builderEmits": true,
+          "command": "give @a minecraft:stone[consumable={consume_seconds:2,sound:\"minecraft:entity.generic.eat\",has_consume_particles:1b}] 1"
         }
       },
       "builderChoice": [
         "consumable_seconds",
-        "consumable_on_consume_effects"
+        "consumable_on_consume_effects",
+        "consumable_sound_particles"
       ],
       "builderResult": [
+        "valid",
         "valid",
         "valid"
       ],

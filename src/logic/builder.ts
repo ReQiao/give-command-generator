@@ -13,7 +13,13 @@ import {
   type PairRow,
 } from "../data/catalog";
 
-export type GiveVersion = "java_1_21" | "java_1_21_1" | "java_1_21_11_plus" | "bedrock";
+export type GiveVersion =
+  | "java_1_21"
+  | "java_1_21_1"
+  | "java_1_21_2"
+  | "java_1_21_3"
+  | "java_1_21_11_plus"
+  | "bedrock";
 
 export interface TextComponent {
   text: string;
@@ -194,6 +200,24 @@ export function normalizeForm(value: unknown): GiveForm {
   };
 }
 
+interface ModernProfile {
+  textAsSnbtString: boolean;
+  adventurePredicateWrapper: boolean;
+  supportsTooltipDisplay: boolean;
+}
+
+const MODERN_PROFILE: ModernProfile = {
+  textAsSnbtString: false,
+  adventurePredicateWrapper: false,
+  supportsTooltipDisplay: true,
+};
+
+const JAVA_1_21_2_PROFILE: ModernProfile = {
+  textAsSnbtString: true,
+  adventurePredicateWrapper: true,
+  supportsTooltipDisplay: false,
+};
+
 export function buildGiveCommand(form: GiveForm): string {
   if (form.version === "bedrock") {
     return buildBedrock(form);
@@ -201,17 +225,26 @@ export function buildGiveCommand(form: GiveForm): string {
   if (isJava121LegacyFamily(form.version)) {
     return buildJava121Legacy(form);
   }
+  if (isJava1212Family(form.version)) {
+    return buildModernFamily(form, JAVA_1_21_2_PROFILE);
+  }
 
-  return buildJava12111Plus(form);
+  return buildModernFamily(form, MODERN_PROFILE);
 }
 
-function buildJava12111Plus(form: GiveForm): string {
+function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
   const parts: string[] = [];
   const add = (name: string, value: string) => parts.push(`${name}=${value}`);
 
-  if (form.displayName.length) add("custom_name", compact(form.displayName[0] ?? []));
-  if (form.itemName.length) add("item_name", compact(form.itemName[0] ?? []));
-  if (form.lore.length) add("lore", compact(form.lore));
+  if (form.displayName.length) {
+    add("custom_name", profile.textAsSnbtString ? snbtJsonString(form.displayName[0] ?? []) : compact(form.displayName[0] ?? []));
+  }
+  if (form.itemName.length) {
+    add("item_name", profile.textAsSnbtString ? snbtJsonString(form.itemName[0] ?? []) : compact(form.itemName[0] ?? []));
+  }
+  if (form.lore.length) {
+    add("lore", profile.textAsSnbtString ? `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]` : compact(form.lore));
+  }
 
   const rarity = pairValue(RARITIES, form.rarity);
   if (rarity !== "none") add("rarity", rarity);
@@ -244,8 +277,10 @@ function buildJava12111Plus(form: GiveForm): string {
   const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
   const placePredicates = blockPredicateList(place);
   const breakPredicates = blockPredicateList(brk);
-  if (placePredicates.length) add("can_place_on", `[${placePredicates.join(",")}]`);
-  if (breakPredicates.length) add("can_break", `[${breakPredicates.join(",")}]`);
+  const wrapPredicates = (preds: string[]) =>
+    profile.adventurePredicateWrapper ? `{predicates:[${preds.join(",")}]}` : `[${preds.join(",")}]`;
+  if (placePredicates.length) add("can_place_on", wrapPredicates(placePredicates));
+  if (breakPredicates.length) add("can_break", wrapPredicates(breakPredicates));
 
   if (form.unbreakable) add("unbreakable", "{}");
   if (form.glider) add("glider", "{}");
@@ -260,8 +295,10 @@ function buildJava12111Plus(form: GiveForm): string {
   if (form.stackEnabled) add("max_stack_size", String(normalizeInt(form.maxStackSize, 1, 1)));
   if (form.repairEnabled) add("repair_cost", String(normalizeInt(form.repairCost, 0, 0)));
 
-  const hidden = splitCsv(form.hiddenComponents);
-  if (hidden.length) add("tooltip_display", `{hidden_components:[${hidden.map((value) => quote(namespaced(value))).join(",")}]}`);
+  if (profile.supportsTooltipDisplay) {
+    const hidden = splitCsv(form.hiddenComponents);
+    if (hidden.length) add("tooltip_display", `{hidden_components:[${hidden.map((value) => quote(namespaced(value))).join(",")}]}`);
+  }
 
   if (form.foodEnabled) {
     const fields = [
@@ -636,7 +673,14 @@ function normalizeTarget(value: string): string {
 
 function normalizeVersion(value: unknown): GiveVersion {
   const text = String(value ?? "").trim();
-  if (text === "java_1_21" || text === "java_1_21_1" || text === "java_1_21_11_plus" || text === "bedrock") {
+  if (
+    text === "java_1_21" ||
+    text === "java_1_21_1" ||
+    text === "java_1_21_2" ||
+    text === "java_1_21_3" ||
+    text === "java_1_21_11_plus" ||
+    text === "bedrock"
+  ) {
     return text;
   }
   return "java_1_21_11_plus";
@@ -644,6 +688,10 @@ function normalizeVersion(value: unknown): GiveVersion {
 
 export function isJava121LegacyFamily(version: GiveVersion): boolean {
   return version === "java_1_21" || version === "java_1_21_1";
+}
+
+export function isJava1212Family(version: GiveVersion): boolean {
+  return version === "java_1_21_2" || version === "java_1_21_3";
 }
 
 function normalizeInt(value: unknown, fallback: number, min: number): number {
