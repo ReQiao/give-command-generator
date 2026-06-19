@@ -1,0 +1,400 @@
+{
+  "version": "1.21.1",
+  "results": [
+    {
+      "id": "basic_plain",
+      "feature": "basic",
+      "command": "give @a minecraft:stone 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "custom_name_json",
+      "feature": "custom_name",
+      "command": "give @a minecraft:stone[custom_name=[{\"text\":\"hi\"}]] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Malformed 'minecraft:custom_name' component: 'Not a string'...stom_name=[{\"text\":\"hi\"}]] 1<--[HERE]"
+    },
+    {
+      "id": "custom_name_snbt_string",
+      "feature": "custom_name",
+      "command": "give @a minecraft:stone[custom_name='[{\"text\":\"hi\"}]'] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "item_name_json",
+      "feature": "item_name",
+      "command": "give @a minecraft:stone[item_name=[{\"text\":\"hi\"}]] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Malformed 'minecraft:item_name' component: 'Not a string'...item_name=[{\"text\":\"hi\"}]] 1<--[HERE]"
+    },
+    {
+      "id": "item_name_snbt_string",
+      "feature": "item_name",
+      "command": "give @a minecraft:stone[item_name='[{\"text\":\"hi\"}]'] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "lore_json_arrays",
+      "feature": "lore",
+      "command": "give @a minecraft:stone[lore=[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Malformed 'minecraft:lore' component: 'Not a string; Not a string'...tone[lore=[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]] 1<--[HERE]"
+    },
+    {
+      "id": "lore_snbt_strings",
+      "feature": "lore",
+      "command": "give @a minecraft:stone[lore=['[{\"text\":\"a\"}]','[{\"text\":\"b\"}]']] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "rarity_epic",
+      "feature": "rarity",
+      "command": "give @a minecraft:stone[rarity=epic] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "glint_true",
+      "feature": "enchant_glint",
+      "command": "give @a minecraft:stone[enchantment_glint_override=true] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "ench_levels",
+      "feature": "enchantments",
+      "command": "give @a minecraft:stone[enchantments={levels:{unbreaking:1}}] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "ench_flat",
+      "feature": "enchantments",
+      "command": "give @a minecraft:stone[enchantments={unbreaking:1}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "attr_array_type_unquoted_plain",
+      "feature": "attribute_modifiers",
+      "command": "give @a minecraft:stone[attribute_modifiers=[{type:armor,amount:1,id:\"test:x\",operation:add_value}]] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:armor'...modifiers=[{type:armor,amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
+    },
+    {
+      "id": "attr_array_type_quoted_generic",
+      "feature": "attribute_modifiers",
+      "command": "give @a minecraft:stone[attribute_modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1",
+      "builderFamilies": [],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "attr_wrapper_type_quoted_generic",
+      "feature": "attribute_modifiers",
+      "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]}] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "attr_wrapper_id_numeric",
+      "feature": "attribute_modifiers",
+      "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a string'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1<--[HERE]"
+    },
+    {
+      "id": "attr_wrapper_with_slot",
+      "feature": "attribute_modifiers",
+      "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1",
+      "builderFamilies": [],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "unbreakable_empty",
+      "feature": "unbreakable",
+      "command": "give @a minecraft:stone[unbreakable={}] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "damage_int",
+      "feature": "damage",
+      "command": "give @a minecraft:diamond_sword[damage=1] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "max_damage_int",
+      "feature": "max_damage",
+      "command": "give @a minecraft:diamond_sword[max_damage=100] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "max_stack_size_int",
+      "feature": "max_stack_size",
+      "command": "give @a minecraft:stone[max_stack_size=16] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "repair_cost_int",
+      "feature": "repair_cost",
+      "command": "give @a minecraft:stone[repair_cost=3] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "food_basic",
+      "feature": "food",
+      "command": "give @a minecraft:stone[food={nutrition:5,saturation:6}] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "food_can_always_eat",
+      "feature": "food",
+      "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,can_always_eat:true}] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "food_can_always_eat_byte",
+      "feature": "food",
+      "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,can_always_eat:1b}] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "food_eat_seconds",
+      "feature": "food",
+      "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,eat_seconds:2}] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "food_effects_inside",
+      "feature": "food",
+      "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,effects:[{effect:{id:speed,duration:20,amplifier:0},probability:1.0f}]}] 1",
+      "builderFamilies": [
+        "legacy"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "consumable_seconds",
+      "feature": "consumable",
+      "command": "give @a minecraft:stone[consumable={consume_seconds:2}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={consume_seconds:2}] 1<--[HERE]"
+    },
+    {
+      "id": "consumable_on_consume_effects",
+      "feature": "consumable",
+      "command": "give @a minecraft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1<--[HERE]"
+    },
+    {
+      "id": "tool_rules_blocks_stripped",
+      "feature": "tool",
+      "command": "give @a minecraft:stone[tool={rules:[{blocks:[stone],speed:1.0,correct_for_drops:true}]}] 1",
+      "builderFamilies": [],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "tool_blocks_namespaced",
+      "feature": "tool",
+      "command": "give @a minecraft:stone[tool={rules:[{blocks:[minecraft:stone],speed:1.0f,correct_for_drops:1b}]}] 1",
+      "builderFamilies": [],
+      "result": "invalid",
+      "response": "Expected ']'...[minecraft:stone],speed:1.0f,correct_for_drops:1b}]}] 1<--[HERE]"
+    },
+    {
+      "id": "tool_rules_f_byte",
+      "feature": "tool",
+      "command": "give @a minecraft:stone[tool={rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "tool_full",
+      "feature": "tool",
+      "command": "give @a minecraft:stone[tool={default_mining_speed:1.0,damage_per_block:1,rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "can_place_on_blocks_obj",
+      "feature": "can_place_on",
+      "command": "give @a minecraft:stone[can_place_on=[{blocks:minecraft:stone}]] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Expected '}'...:minecraft:stone}]] 1<--[HERE]"
+    },
+    {
+      "id": "can_place_on_predicates",
+      "feature": "can_place_on",
+      "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"minecraft:stone\"}]}] 1",
+      "builderFamilies": [],
+      "result": "valid",
+      "response": "No player was found"
+    },
+    {
+      "id": "can_break_blocks_obj",
+      "feature": "can_break",
+      "command": "give @a minecraft:stone[can_break=[{blocks:minecraft:stone}]] 1",
+      "builderFamilies": [
+        "legacy",
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Expected '}'...:minecraft:stone}]] 1<--[HERE]"
+    },
+    {
+      "id": "glider_empty",
+      "feature": "glider",
+      "command": "give @a minecraft:stone[glider={}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:glider'...aft:stone[glider={}] 1<--[HERE]"
+    },
+    {
+      "id": "death_protection_empty",
+      "feature": "death_protection",
+      "command": "give @a minecraft:stone[death_protection={}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:death_protection'...aft:stone[death_protection={}] 1<--[HERE]"
+    },
+    {
+      "id": "death_protection_effects",
+      "feature": "death_protection",
+      "command": "give @a minecraft:stone[death_protection={death_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:death_protection'...aft:stone[death_protection={death_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1<--[HERE]"
+    },
+    {
+      "id": "tooltip_hidden",
+      "feature": "tooltip_display",
+      "command": "give @a minecraft:stone[tooltip_display={hidden_components:[minecraft:enchantments]}] 1",
+      "builderFamilies": [
+        "modern"
+      ],
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:tooltip_display'...aft:stone[tooltip_display={hidden_components:[minecraft:enchantments]}] 1<--[HERE]"
+    }
+  ]
+}

@@ -269,3 +269,11 @@ docker-compose.override.yml
 # generated/
 # src/generated/
 # src-tauri/bindings/
+
+
+# =========================
+# MC 语法验证器（server.jar 缓存与运行产物）
+# =========================
+scripts/mc-verifier/cache/
+# results/ 默认保留（人工审查用），如需忽略可取消下一行注释
+# scripts/mc-verifier/results/
