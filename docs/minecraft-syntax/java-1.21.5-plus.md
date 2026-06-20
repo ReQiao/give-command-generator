@@ -3,10 +3,11 @@
 ## 来源与验证
 
 - 验证方式：本仓库 `scripts/mc-verifier`，用 Mojang 官方 server.jar + RCON 实测。
-- 验证版本：1.21.5、1.21.6、1.21.9（各代表其所在族）。
-- 26.1 / 26.2+ 需要 Java 25+，当前环境无法验证，暂按 modern 处理。
+- 验证版本：1.21.5、1.21.6、1.21.9、26.1、26.2（全部 server 实证，PASS=21 FAIL=0）。
+- 26.1 / 26.2+ 服务器需 Java 25+ 运行，已用 JDK 25 实测确认与 modern 完全一致。
 - 验证日期：2026-06。
-- 原始结果：`scripts/mc-verifier/results/1.21.5/`、`results/1.21.6/`、`results/1.21.9/`。
+- 原始结果：`scripts/mc-verifier/results/1.21.5/`、`results/1.21.6/`、`results/1.21.9/`、
+  `results/26.1/`、`results/26.2/`。
 
 ## 版本族归属
 
@@ -17,8 +18,8 @@ builder 路由：默认 `buildModernFamily(form, MODERN_PROFILE)`。
 
 ## 与 1.21.11 对比
 
-服务器实证结果：三个代表版本（1.21.5、1.21.6、1.21.9）的每条探针结果与 1.21.11 完全相同。
-包括：
+服务器实证结果：五个代表版本（1.21.5、1.21.6、1.21.9、26.1、26.2）的每条探针结果与
+1.21.11 完全相同。包括：
 - 文本：直接 JSON 数组
 - enchantments：扁平形式
 - attribute_modifiers：数组形式，type 不带引号
@@ -35,4 +36,4 @@ builder 路由：默认 `buildModernFamily(form, MODERN_PROFILE)`。
 ## 对应测试
 
 - 单元/快照：`src/logic/builder.test.mjs`（用例 26–29）。
-- 服务器回归：`npm run verify-syntax -- 1.21.5 1.21.6 1.21.9`。
+- 服务器回归：`npm run verify-syntax -- 1.21.5 1.21.6 1.21.9 26.1 26.2`。

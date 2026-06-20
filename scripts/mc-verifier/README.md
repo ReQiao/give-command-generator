@@ -29,7 +29,8 @@ npm run verify-syntax -- 1.21.1
 
 前提：
 
-- 本机可用 `java`（1.21.x 需要 Java 21+）
+- 本机可用 `java`（1.21.x 需要 Java 21+；**26.1 / 26.2+ 需要 Java 25+**，
+  否则服务器启动即报 `UnsupportedClassVersionError`）
 - 可访问 `piston-meta.mojang.com`（下载 server.jar）
 - 每个版本 server.jar 约 50MB，缓存在 `cache/`（已被 .gitignore 忽略）
 
@@ -49,7 +50,8 @@ npm run verify-syntax -- 1.21.1
 - 候选行内 `*` 标记表示该版本族 builder **实际会输出**这种格式
 
 版本 → builder 族映射见 `probes.mjs` 的 `familyOf()`：
-`1.21` / `1.21.1` 为 `legacy`，其余 Java 版默认 `modern`。
+`1.20.5` / `1.20.6` 为 `early`；`1.21` / `1.21.1` 为 `legacy`；
+`1.21.2` / `1.21.3` / `1.21.4` 为 `mid`；其余 Java 版（1.21.5+、26.x）默认 `modern`。
 
 ## 文件结构
 
@@ -80,21 +82,25 @@ npm run verify-syntax -- 1.21.1
 "Item cannot be both damageable and stackable" 这类物品约束错误，
 保证失败只来自语法本身。
 
-## 三个 Java 语法族（均 server 实证）
+## 四个 Java 语法族（均 server 实证）
 
-builder.ts 按 `familyOf()` 把 Java 版本分为三族：
+builder.ts 按 `familyOf()` 把组件时代（1.20.5+）的 Java 版本分为四族：
 
-| 特性 | legacy (1.21/1.21.1) | mid (1.21.2/1.21.3) | modern (1.21.11+) |
-|------|----------------------|---------------------|-------------------|
-| 文本 custom_name/item_name/lore | SNBT 单引号字符串 | SNBT 单引号字符串 | 直接 JSON |
-| enchantments | `{levels:{...}}` | 扁平 `{...}` | 扁平 `{...}` |
-| attribute_modifiers | `{modifiers:[{type:"generic.armor",id:"..."}]}` | `[{type:armor,id:"..."}]` | `[{type:armor,id:"..."}]` |
-| 属性 id | 引号字符串（数字 id 被拒） | 引号字符串 | 引号字符串 |
-| can_place_on / can_break | `{predicates:[{blocks:"ns"}]}` | `{predicates:[{blocks:"ns"}]}` | `[{blocks:"ns"}]` |
-| 食用 | 并入 `food`（eat_seconds/effects） | 独立 `consumable` | 独立 `consumable` |
-| consumable / glider / death_protection | 不支持 | 支持 | 支持 |
-| tooltip_display | 不支持 | 不支持（Unknown component） | 支持，`hidden_components:["ns"]` |
+| 特性 | early (1.20.5/1.20.6) | legacy (1.21/1.21.1) | mid (1.21.2~1.21.4) | modern (1.21.5+、26.x) |
+|------|-----------------------|----------------------|---------------------|------------------------|
+| 文本 custom_name/item_name/lore | SNBT 单引号字符串 | SNBT 单引号字符串 | SNBT 单引号字符串 | 直接 JSON |
+| enchantments | 扁平 `{...}` | `{levels:{...}}` | 扁平 `{...}` | 扁平 `{...}` |
+| attribute_modifiers | **不输出**（所有格式被拒） | `{modifiers:[{type:"generic.armor",id:"..."}]}` | `[{type:armor,id:"..."}]` | `[{type:armor,id:"..."}]` |
+| 属性 id | — | 引号字符串（数字 id 被拒） | 引号字符串 | 引号字符串 |
+| can_place_on / can_break | `{predicates:[{blocks:"ns"}]}` | `{predicates:[{blocks:"ns"}]}` | `{predicates:[{blocks:"ns"}]}` | `[{blocks:"ns"}]` |
+| 食用 | 并入 `food` | 并入 `food`（eat_seconds/effects） | 独立 `consumable` | 独立 `consumable` |
+| consumable / glider / death_protection | 不支持 | 不支持 | 支持 | 支持 |
+| tooltip_display | 不支持 | 不支持 | 不支持（Unknown component） | 支持，`hidden_components:["ns"]` |
 
 各版本完整逐项结果见 `results/<version>/report.txt`。
-mid 族的设计要点：在 modern 基础上，文本与 can_place_on/can_break 回退到 legacy 写法，
-并省略 tooltip_display。
+
+设计要点：
+- **early**：组件时代最初形态，文本/方块限制同 legacy，但 attribute_modifiers 所有已知格式
+  均被服务器拒绝（暂不输出），且尚无 consumable/glider/death_protection/tooltip。
+- **mid**：在 modern 基础上，文本与 can_place_on/can_break 回退到 legacy 写法，并省略 tooltip_display。
+- **版本边界**：early→legacy 在 1.20.6→1.21；mid→modern 在 1.21.4→1.21.5；26.1/26.2+ 仍为 modern。
