@@ -1,15 +1,22 @@
 /**
- * give 命令语法探针集。
+ * Minecraft 指令语法探针集（give + P1 其它指令）。
  *
  * 设计理念：对每个"特性"提供多个"候选格式"，由服务器判定哪种合法。
  * 这样不仅能验证 builder.ts 当前输出，还能主动发现某版本的正确写法。
  *
- * builderFamilies 标注 builder.ts 当前对哪些版本族会输出该格式：
- *   "legacy" = buildJava121Legacy  (java_1_21 / java_1_21_1)
- *   "modern" = buildJava12111Plus  (java_1_21_11_plus 及更新)
+ * 两类探针：
+ *   1. give 探针 —— 与 builder.ts 输出对照（report 给 PASS/FAIL）。
+ *   2. 其它指令探针（say/tp/effect/setblock/summon）—— builder 尚未产出，
+ *      属纯语法调查（report 给 valid/invalid/unknown 真值表）。
  *
- * 命令一律不带前导斜杠（RCON 要求），统一使用 minecraft:stone 与合法 id，
- * 这样失败只可能来自组件结构本身，而非物品/附魔不存在。
+ * builderFamilies 标注 builder.ts（或拟实现的 builder）对哪些版本族输出该格式：
+ *   "early"  = java_1_20_5 / java_1_20_6
+ *   "legacy" = java_1_21 / java_1_21_1
+ *   "mid"    = java_1_21_2 / java_1_21_3 / java_1_21_4
+ *   "modern" = java_1_21_5 及更新
+ *
+ * 命令一律不带前导斜杠（RCON 要求），统一使用合法 id 与相对/本地坐标，
+ * 这样失败只可能来自语法结构本身，而非物品/实体/坐标不存在。
  */
 
 const g = (component) => `give @a minecraft:stone[${component}] 1`;
@@ -108,22 +115,92 @@ export const PROBES = [
   { feature: "tooltip_display", id: "tooltip_hidden", command: g("tooltip_display={hidden_components:[minecraft:enchantments]}"), builderFamilies: [], note: "隐藏组件（无引号，服务器拒绝）" },
   { feature: "tooltip_display", id: "tooltip_hidden_quoted", command: g('tooltip_display={hidden_components:["minecraft:enchantments"]}'), builderFamilies: ["modern"], note: "隐藏组件（引号列表，modern 正确格式）" },
   { feature: "tooltip_display", id: "tooltip_hide_bool", command: g("tooltip_display={hide_tooltip:true}"), builderFamilies: [], note: "hide_tooltip 布尔" },
+
+  // ============================================================
+  // P1 其它指令语法调查（builder 尚未产出，先建真值表）
+  // 核心：/setblock（方块实体 NBT）与 /summon（实体 NBT）共用 SNBT {…} 语法，
+  // 其中嵌套物品统一为 {id,count,components:{…}}，只需实现一次序列化器即可复用。
+  // 坐标统一用相对/本地坐标，仅判定语法不依赖已加载区块。
+  // ============================================================
+
+  // ---- /say（纯文本，全版本一致）----
+  { feature: "say", id: "say_basic", command: "say hello world", builderFamilies: ["early", "legacy", "mid", "modern"], note: "广播纯文本" },
+  { feature: "say", id: "say_selector", command: "say @a", builderFamilies: ["early", "legacy", "mid", "modern"], note: "消息含选择器（解析为玩家名）" },
+
+  // ---- /tp（坐标 / 旋转 / 朝向 / 目标）----
+  { feature: "tp", id: "tp_coords_abs", command: "tp @s 0 64 0", builderFamilies: ["early", "legacy", "mid", "modern"], note: "绝对坐标" },
+  { feature: "tp", id: "tp_coords_rel", command: "tp @s ~ ~ ~", builderFamilies: ["early", "legacy", "mid", "modern"], note: "相对坐标 ~" },
+  { feature: "tp", id: "tp_coords_local", command: "tp @s ^ ^ ^1", builderFamilies: ["early", "legacy", "mid", "modern"], note: "本地坐标 ^" },
+  { feature: "tp", id: "tp_rotation", command: "tp @s 0 64 0 90 45", builderFamilies: ["early", "legacy", "mid", "modern"], note: "带 yaw/pitch 旋转" },
+  { feature: "tp", id: "tp_facing", command: "tp @s 0 64 0 facing 10 70 10", builderFamilies: ["early", "legacy", "mid", "modern"], note: "facing 朝向坐标" },
+  { feature: "tp", id: "tp_to_entity", command: "tp @s @e[type=pig,limit=1]", builderFamilies: ["early", "legacy", "mid", "modern"], note: "传送到实体选择器" },
+  { feature: "teleport", id: "teleport_alias", command: "teleport @s 0 64 0", builderFamilies: ["early", "legacy", "mid", "modern"], note: "teleport 别名" },
+
+  // ---- /effect（give / clear）----
+  { feature: "effect_give", id: "effect_give_basic", command: "effect give @a minecraft:speed", builderFamilies: ["early", "legacy", "mid", "modern"], note: "最简：仅效果 id" },
+  { feature: "effect_give", id: "effect_give_seconds", command: "effect give @a minecraft:speed 30", builderFamilies: ["early", "legacy", "mid", "modern"], note: "时长（秒）" },
+  { feature: "effect_give", id: "effect_give_amplifier", command: "effect give @a minecraft:speed 30 2", builderFamilies: ["early", "legacy", "mid", "modern"], note: "等级（amplifier）" },
+  { feature: "effect_give", id: "effect_give_hide", command: "effect give @a minecraft:speed 30 2 true", builderFamilies: ["early", "legacy", "mid", "modern"], note: "隐藏粒子" },
+  { feature: "effect_give", id: "effect_give_infinite", command: "effect give @a minecraft:speed infinite 1", builderFamilies: ["early", "legacy", "mid", "modern"], note: "无限时长（1.19.4+）" },
+  { feature: "effect_clear", id: "effect_clear_all", command: "effect clear @a", builderFamilies: ["early", "legacy", "mid", "modern"], note: "清除全部效果" },
+  { feature: "effect_clear", id: "effect_clear_one", command: "effect clear @a minecraft:speed", builderFamilies: ["early", "legacy", "mid", "modern"], note: "清除指定效果" },
+
+  // ---- /setblock（方块状态 + 方块实体 NBT）----
+  { feature: "setblock", id: "setblock_basic", command: "setblock ~ ~ ~ minecraft:stone", builderFamilies: ["early", "legacy", "mid", "modern"], note: "基础" },
+  { feature: "setblock", id: "setblock_blockstate", command: "setblock ~ ~ ~ minecraft:oak_log[axis=x]", builderFamilies: ["early", "legacy", "mid", "modern"], note: "方块状态 [axis=x]" },
+  { feature: "setblock", id: "setblock_mode_keep", command: "setblock ~ ~ ~ minecraft:stone keep", builderFamilies: ["early", "legacy", "mid", "modern"], note: "放置模式 keep" },
+  { feature: "setblock_nbt", id: "setblock_nbt_commandblock", command: `setblock ~ ~ ~ minecraft:command_block[facing=up]{Command:"say hi",auto:1b}`, builderFamilies: ["early", "legacy", "mid", "modern"], note: "命令方块 NBT（方块实体，含 Command）" },
+  { feature: "setblock_nbt", id: "setblock_nbt_container", command: `setblock ~ ~ ~ minecraft:chest{Items:[{Slot:0b,id:"minecraft:diamond",count:1}]}`, builderFamilies: ["early", "legacy", "mid", "modern"], note: "★item-in-NBT（1.20.5+ 小写 count）" },
+  { feature: "setblock_nbt", id: "setblock_nbt_container_components", command: `setblock ~ ~ ~ minecraft:chest{Items:[{Slot:0b,id:"minecraft:stone",count:1,components:{"minecraft:enchantment_glint_override":true}}]}`, builderFamilies: ["early", "legacy", "mid", "modern"], note: "★完整 item-in-NBT（含 components，用非文本组件避免序列化分歧）" },
+
+  // ---- /summon（实体 NBT）----
+  { feature: "summon", id: "summon_basic", command: "summon minecraft:pig", builderFamilies: ["early", "legacy", "mid", "modern"], note: "最简：仅实体 id" },
+  { feature: "summon", id: "summon_coords", command: "summon minecraft:pig 0 64 0", builderFamilies: ["early", "legacy", "mid", "modern"], note: "绝对坐标" },
+  { feature: "summon", id: "summon_relative", command: "summon minecraft:pig ~ ~ ~", builderFamilies: ["early", "legacy", "mid", "modern"], note: "相对坐标" },
+  { feature: "summon_nbt", id: "summon_nbt_flags", command: `summon minecraft:zombie ~ ~ ~ {NoAI:1b,Silent:1b,PersistenceRequired:1b}`, builderFamilies: ["early", "legacy", "mid", "modern"], note: "布尔字节标志" },
+  { feature: "summon_nbt", id: "summon_nbt_customname_snbt", command: `summon minecraft:zombie ~ ~ ~ {CustomName:'{"text":"Boss"}'}`, builderFamilies: ["early", "legacy", "mid"], note: "CustomName SNBT 字符串（文本同 give，early/legacy/mid）" },
+  { feature: "summon_nbt", id: "summon_nbt_customname_json", command: `summon minecraft:zombie ~ ~ ~ {CustomName:{"text":"Boss"}}`, builderFamilies: ["modern"], note: "CustomName 裸 JSON（modern 候选）" },
+  { feature: "summon_nbt", id: "summon_nbt_handitems", command: `summon minecraft:zombie ~ ~ ~ {HandItems:[{id:"minecraft:diamond_sword",count:1},{}]}`, builderFamilies: ["early", "legacy", "mid", "modern"], note: "★HandItems 复用 item-in-NBT" },
+  { feature: "summon_nbt", id: "summon_nbt_passenger", command: `summon minecraft:zombie ~ ~ ~ {Passengers:[{id:"minecraft:chicken"}]}`, builderFamilies: ["early", "legacy", "mid", "modern"], note: "嵌套实体 Passengers" },
+
+  // ---- 版本敏感点：新旧两套 NBT 键变体 ----
+  // ⚠ 实测发现：MC 对实体 NBT 的"未知键"是静默忽略而非报错，所以新旧变体在
+  //   1.20.6 与 1.21.5 上"都"判为 valid（仅代表能解析，不代表键被采用）。
+  //   要真正裁决哪套键有效，需语义验证：summon 后用 /data get entity 读回。
+  //   故此处仅作"解析层"记录，builderFamilies 留空，留待后续语义探针。
+  { feature: "summon_attributes", id: "summon_attr_new", command: `summon minecraft:zombie ~ ~ ~ {attributes:[{id:"minecraft:max_health",base:40}]}`, builderFamilies: [], note: "新属性 NBT（小写 attributes/id/base）—— 需语义验证" },
+  { feature: "summon_attributes", id: "summon_attr_old", command: `summon minecraft:zombie ~ ~ ~ {Attributes:[{Name:"minecraft:generic.max_health",Base:40}]}`, builderFamilies: [], note: "旧属性 NBT（Attributes/Name/Base）—— 需语义验证" },
+  { feature: "summon_effects", id: "summon_effects_new", command: `summon minecraft:zombie ~ ~ ~ {active_effects:[{id:"minecraft:speed",duration:200,amplifier:1}]}`, builderFamilies: [], note: "新效果 NBT（active_effects 字符串 id）—— 需语义验证" },
+  { feature: "summon_effects", id: "summon_effects_old", command: `summon minecraft:zombie ~ ~ ~ {ActiveEffects:[{Id:1,Duration:200,Amplifier:1}]}`, builderFamilies: [], note: "旧效果 NBT（ActiveEffects/数字 Id）—— 需语义验证" },
 ];
 
 /**
- * 把响应文本分类为 valid / invalid / unknown。
- * - 语法合法但无玩家：包含 "No player was found"
- * - 语法合法且执行：包含 "Gave"/"Given"
- * - 语法非法：包含 "<--[HERE]" 错误指示，或常见报错关键词
+ * 把响应文本分类为 valid / invalid（跨指令通用，面向"语法"而非"运行结果"）。
+ *
+ * 核心原理：Minecraft 服务器先用 Brigadier 解析语法，再执行命令。
+ *   - 语法非法 → 解析阶段报错，错误文本一律带 "<--[HERE]" 位置标记。
+ *   - 语法合法 → 进入执行阶段，无论成功还是运行期失败，都说明语法已被接受。
+ *
+ * 因此判定只看是否解析失败，不看运行结果。以下都属"语法合法"：
+ *   - 成功：    "Gave ...", "Summoned new ...", "Changed the block ..."
+ *   - 空响应：  /say 等无回显
+ *   - 运行期失败（与语法无关）：
+ *               "No player was found", "No entity was found", "Could not set the block"
+ *
+ * 这样同一个分类器即可用于 give / say / tp / effect / setblock / summon 等所有指令。
  */
 export function classifyResponse(response) {
   const r = (response || "").trim();
-  if (!r) return "unknown";
-  if (/No player was found|That player does not exist/i.test(r)) return "valid";
-  if (/\bGave\b|\bGiven\b/i.test(r)) return "valid";
+  if (!r) return "valid"; // 空响应（如 /say）：语法已通过解析，仅无回显
+
+  // 1. Brigadier 解析错误的位置标记 —— 跨指令最可靠的"语法非法"信号
   if (/<--\[HERE\]/.test(r)) return "invalid";
-  if (/Unknown|Expected|Incorrect|Unexpected|Invalid|Failed to|Could not|cannot|can't|not allowed|Error/i.test(r)) {
+
+  // 2. 少数不带 HERE 标记的解析失败（措辞稳定，且不会出现在合法运行期回显中）
+  if (/Unknown command|Unknown or incomplete command|Incorrect argument for command|^Expected |^Malformed /i.test(r)) {
     return "invalid";
   }
-  return "unknown";
+
+  // 3. 其余均视为语法合法（成功执行 / 运行期目标缺失 / 模式无操作）
+  return "valid";
 }

@@ -1,29 +1,29 @@
-# 1.21.5  (builder 族: modern)
-give 对照: PASS=21  FAIL=0  UNKNOWN=0
+# 1.20.6  (builder 族: early)
+give 对照: PASS=16  FAIL=0  UNKNOWN=0
 指令调查: valid=34  invalid=0  unknown=0  (6 个指令)
 
 ## give 全部特性（* 表示该版本族 builder 实际输出）
 [PASS] basic: basic_plain=valid*
-[PASS] custom_name: custom_name_json=valid*  custom_name_snbt_string=valid
-[PASS] item_name: item_name_json=valid*  item_name_snbt_string=valid
-[PASS] lore: lore_json_arrays=valid*  lore_snbt_strings=valid
+[PASS] custom_name: custom_name_json=invalid  custom_name_snbt_string=valid*
+[PASS] item_name: item_name_json=invalid  item_name_snbt_string=valid*
+[PASS] lore: lore_json_arrays=invalid  lore_snbt_strings=valid*
 [PASS] rarity: rarity_epic=valid*
 [PASS] enchant_glint: glint_true=valid*
-[PASS] enchantments: ench_levels=invalid  ench_flat=valid*
-[PASS] attribute_modifiers: attr_array_type_unquoted_plain=valid*  attr_array_type_quoted_generic=invalid  attr_array_type_ns_quoted=invalid  attr_array_type_ns_unquoted=invalid  attr_array_op_quoted=valid  attr_wrapper_type_quoted_generic=invalid  attr_wrapper_id_numeric=invalid  attr_wrapper_id_quoted_number=invalid  attr_wrapper_with_slot=invalid
+[PASS] enchantments: ench_levels=valid  ench_flat=valid*
+[N/A] attribute_modifiers: attr_array_type_unquoted_plain=invalid  attr_array_type_quoted_generic=invalid  attr_array_type_ns_quoted=invalid  attr_array_type_ns_unquoted=invalid  attr_array_op_quoted=invalid  attr_wrapper_type_quoted_generic=invalid  attr_wrapper_id_numeric=invalid  attr_wrapper_id_quoted_number=invalid  attr_wrapper_with_slot=invalid
 [PASS] unbreakable: unbreakable_empty=valid*
 [PASS] damage: damage_int=valid*
 [PASS] max_damage: max_damage_int=valid*
 [PASS] max_stack_size: max_stack_size_int=valid*
 [PASS] repair_cost: repair_cost_int=valid*
 [PASS] food: food_basic=valid*  food_can_always_eat=valid*  food_can_always_eat_byte=valid*  food_eat_seconds=valid  food_effects_inside=valid
-[PASS] consumable: consumable_seconds=valid*  consumable_on_consume_effects=valid*  consumable_sound_particles=valid*
+[N/A] consumable: consumable_seconds=invalid  consumable_on_consume_effects=invalid  consumable_sound_particles=invalid
 [PASS] tool: tool_rules_blocks_stripped=valid  tool_blocks_namespaced=invalid  tool_rules_f_byte=valid*  tool_full=valid*
-[PASS] can_place_on: can_place_on_blocks_obj=invalid  can_place_on_predicates=invalid  can_place_on_predicates_stripped=invalid  can_place_on_predicates_multi=invalid  can_place_on_quoted_array=valid*
-[PASS] can_break: can_break_blocks_obj=invalid  can_break_predicates=invalid  can_break_quoted_array=valid*
-[PASS] glider: glider_empty=valid*
-[PASS] death_protection: death_protection_empty=valid*  death_protection_effects=valid*
-[PASS] tooltip_display: tooltip_hidden=invalid  tooltip_hidden_quoted=valid*  tooltip_hide_bool=valid
+[PASS] can_place_on: can_place_on_blocks_obj=invalid  can_place_on_predicates=valid*  can_place_on_predicates_stripped=valid  can_place_on_predicates_multi=valid  can_place_on_quoted_array=invalid
+[PASS] can_break: can_break_blocks_obj=invalid  can_break_predicates=valid*  can_break_quoted_array=invalid
+[N/A] glider: glider_empty=invalid
+[N/A] death_protection: death_protection_empty=invalid  death_protection_effects=invalid
+[N/A] tooltip_display: tooltip_hidden=invalid  tooltip_hidden_quoted=invalid  tooltip_hide_bool=invalid
 
 ## 其它指令语法调查（* 表示该版本族拟采用的变体）
 ### /say
@@ -58,8 +58,8 @@ give 对照: PASS=21  FAIL=0  UNKNOWN=0
   [valid] summon_coords*  绝对坐标
   [valid] summon_relative*  相对坐标
   [valid] summon_nbt_flags*  布尔字节标志
-  [valid] summon_nbt_customname_snbt  CustomName SNBT 字符串（文本同 give，early/legacy/mid）
-  [valid] summon_nbt_customname_json*  CustomName 裸 JSON（modern 候选）
+  [valid] summon_nbt_customname_snbt*  CustomName SNBT 字符串（文本同 give，early/legacy/mid）
+  [valid] summon_nbt_customname_json  CustomName 裸 JSON（modern 候选）
   [valid] summon_nbt_handitems*  ★HandItems 复用 item-in-NBT
   [valid] summon_nbt_passenger*  嵌套实体 Passengers
   [valid] summon_attr_new  新属性 NBT（小写 attributes/id/base）
