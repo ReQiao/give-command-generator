@@ -469,6 +469,150 @@ function base(version) {
   expect("1.20.5 enchantments flat", cmd.includes("enchantments={unbreaking:3}"), true);
 }
 
+// ====== setblock / summon builders ======
+
+import { buildSetblockCommand } from "./commands/setblock.ts";
+import { buildSummonCommand } from "./commands/summon.ts";
+
+// --- setblock: basic block ---
+{
+  const cmd = buildSetblockCommand({ version: "java_1_21_11_plus", x: "~", y: "~", z: "~", block: "stone" });
+  expect("setblock basic", cmd, "setblock ~ ~ ~ minecraft:stone");
+}
+
+// --- setblock: blockstate + mode ---
+{
+  const cmd = buildSetblockCommand({ version: "java_1_21_11_plus", x: "0", y: "64", z: "0", block: "oak_log", blockstate: "axis=x", mode: "keep" });
+  expect("setblock blockstate+keep", cmd, "setblock 0 64 0 minecraft:oak_log[axis=x] keep");
+}
+
+// --- setblock: command_block NBT ---
+{
+  const cmd = buildSetblockCommand({
+    version: "java_1_21_11_plus", x: "~", y: "~", z: "~", block: "command_block", blockstate: "facing=up",
+    commandBlock: { command: "say hi", auto: true, trackOutput: false },
+  });
+  expect("setblock command_block nbt", cmd, `setblock ~ ~ ~ minecraft:command_block[facing=up]{Command:"say hi",auto:1b,TrackOutput:0b}`);
+}
+
+// --- setblock: chest Items ---
+{
+  const cmd = buildSetblockCommand({
+    version: "java_1_21_11_plus", x: "~", y: "~", z: "~", block: "chest",
+    containerItems: [{ slot: 0, item: { id: "diamond", count: 5 } }],
+  });
+  expect("setblock chest items", cmd, `setblock ~ ~ ~ minecraft:chest{Items:[{Slot:0b,id:"minecraft:diamond",count:5}]}`);
+}
+
+// --- setblock: chest item with components ---
+{
+  const cmd = buildSetblockCommand({
+    version: "java_1_21_11_plus", x: "~", y: "~", z: "~", block: "chest",
+    containerItems: [{ slot: 0, item: { id: "stone", count: 1, components: { "minecraft:enchantment_glint_override": "1b" } } }],
+  });
+  expect("setblock chest item+components", cmd.includes('"minecraft:enchantment_glint_override":1b'), true);
+  expect("setblock chest item+components count lowercase", cmd.includes("count:1"), true);
+}
+
+// --- setblock: withSlash ---
+{
+  const cmd = buildSetblockCommand({ version: "java_1_21_11_plus", x: "~", y: "~", z: "~", block: "stone", withSlash: true });
+  expect("setblock withSlash", cmd, "/setblock ~ ~ ~ minecraft:stone");
+}
+
+// --- summon: basic ---
+{
+  const cmd = buildSummonCommand({ version: "java_1_21_11_plus", entityType: "pig" });
+  expect("summon basic no pos", cmd, "summon minecraft:pig");
+}
+
+// --- summon: with coordinates ---
+{
+  const cmd = buildSummonCommand({ version: "java_1_21_11_plus", entityType: "pig", x: "~", y: "~", z: "~" });
+  expect("summon with pos", cmd, "summon minecraft:pig ~ ~ ~");
+}
+
+// --- summon: NoAI + Silent + PersistenceRequired ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_11_plus", entityType: "zombie", x: "0", y: "64", z: "0",
+    noAI: true, silent: true, persistenceRequired: true,
+  });
+  expect("summon flags", cmd, "summon minecraft:zombie 0 64 0 {NoAI:1b,Silent:1b,PersistenceRequired:1b}");
+}
+
+// --- summon: CustomName (SNBT string) ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_11_plus", entityType: "pig", x: "~", y: "~", z: "~",
+    customName: [{ text: "Boss" }],
+  });
+  expect("summon customName snbt string", cmd.includes(`CustomName:'{"text":"Boss"}'`), true);
+}
+
+// --- summon: attributes modern (1.21.5+) ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_5", entityType: "zombie", x: "~", y: "~", z: "~",
+    attributes: [{ id: "max_health", base: 40 }],
+  });
+  expect("summon attr modern key", cmd.includes('attributes:[{id:"minecraft:max_health",base:40d}]'), true);
+}
+
+// --- summon: attributes legacy (1.20.6) ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_1", entityType: "zombie", x: "~", y: "~", z: "~",
+    attributes: [{ id: "max_health", base: 40 }],
+  });
+  expect("summon attr legacy key", cmd.includes('Attributes:[{Name:"minecraft:generic.max_health",Base:40d}]'), true);
+}
+
+// --- summon: active_effects ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_11_plus", entityType: "zombie", x: "~", y: "~", z: "~",
+    effects: [{ id: "speed", duration: 200, amplifier: 1, showParticles: false }],
+  });
+  expect("summon effects", cmd.includes('active_effects:[{id:"minecraft:speed",duration:200,amplifier:1b,show_particles:0b}]'), true);
+}
+
+// --- summon: equipment modern ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_5", entityType: "zombie", x: "~", y: "~", z: "~",
+    equipment: { mainhand: { id: "diamond_sword", count: 1 } },
+  });
+  expect("summon equipment modern", cmd.includes('equipment:{mainhand:{id:"minecraft:diamond_sword",count:1}}'), true);
+}
+
+// --- summon: HandItems legacy ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_1", entityType: "zombie", x: "~", y: "~", z: "~",
+    equipment: { mainhand: { id: "diamond_sword", count: 1 } },
+  });
+  expect("summon equipment legacy HandItems", cmd.includes('HandItems:[{id:"minecraft:diamond_sword",count:1},{}]'), true);
+}
+
+// --- summon: Passengers ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_11_plus", entityType: "oak_boat", x: "~", y: "~", z: "~",
+    passengers: [{ entityType: "chicken", noAI: true }],
+  });
+  expect("summon passengers", cmd.includes('Passengers:[{id:"minecraft:chicken",NoAI:1b}]'), true);
+}
+
+// --- summon: tags ---
+{
+  const cmd = buildSummonCommand({
+    version: "java_1_21_11_plus", entityType: "pig", x: "~", y: "~", z: "~",
+    tags: ["myTag", "anotherTag"],
+  });
+  expect("summon tags", cmd.includes('Tags:["myTag","anotherTag"]'), true);
+}
+
 // --- summary ---
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

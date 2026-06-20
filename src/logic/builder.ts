@@ -49,3 +49,17 @@ export { createDefaultForm, normalizeForm } from "./form";
 
 // 指令构建器
 export { buildGiveCommand } from "./commands/give";
+export { buildSetblockCommand } from "./commands/setblock";
+export type { SetblockForm, SetblockMode, ContainerSlot, SetblockCommandBlockOptions } from "./commands/setblock";
+export { buildSummonCommand } from "./commands/summon";
+export type { SummonForm, SummonPassenger } from "./commands/summon";
+export {
+  serializeItem,
+  serializeContainerItem,
+  serializeCustomName,
+  serializeAttributes,
+  serializeEffects,
+  serializeEquipment,
+  isModernNbtFamily,
+} from "./commands/nbt";
+export type { NbtItem, NbtAttribute, NbtEffect, NbtEquipment } from "./commands/nbt";
