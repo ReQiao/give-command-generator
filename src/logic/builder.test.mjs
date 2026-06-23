@@ -613,6 +613,136 @@ import { buildSummonCommand } from "./commands/summon.ts";
   expect("summon tags", cmd.includes('Tags:["myTag","anotherTag"]'), true);
 }
 
+// ====== say / effect / tp builders ======
+
+import { buildSayCommand } from "./commands/say.ts";
+import { buildEffectGiveCommand, buildEffectClearCommand } from "./commands/effect.ts";
+import { buildTpCommand } from "./commands/tp.ts";
+
+// ---- /say ----
+{
+  expect("say basic", buildSayCommand({ message: "hello world" }), "say hello world");
+  expect("say selector", buildSayCommand({ message: "@a" }), "say @a");
+  expect("say withSlash", buildSayCommand({ message: "hi", withSlash: true }), "/say hi");
+}
+
+// ---- /effect give ----
+{
+  // 最简：仅效果 id
+  expect(
+    "effect give minimal",
+    buildEffectGiveCommand({ target: "@a", effect: "speed" }),
+    "effect give @a minecraft:speed",
+  );
+  // 带时长
+  expect(
+    "effect give with duration",
+    buildEffectGiveCommand({ target: "@a", effect: "minecraft:speed", duration: 30 }),
+    "effect give @a minecraft:speed 30",
+  );
+  // 带等级
+  expect(
+    "effect give with amplifier",
+    buildEffectGiveCommand({ target: "@a", effect: "speed", duration: 30, amplifier: 2 }),
+    "effect give @a minecraft:speed 30 2",
+  );
+  // 隐藏粒子
+  expect(
+    "effect give hide particles",
+    buildEffectGiveCommand({ target: "@a", effect: "speed", duration: 30, amplifier: 2, hideParticles: true }),
+    "effect give @a minecraft:speed 30 2 true",
+  );
+  // 无限时长
+  expect(
+    "effect give infinite",
+    buildEffectGiveCommand({ target: "@a", effect: "speed", duration: "infinite", amplifier: 1 }),
+    "effect give @a minecraft:speed infinite 1",
+  );
+  // withSlash
+  expect(
+    "effect give withSlash",
+    buildEffectGiveCommand({ target: "@a", effect: "speed", withSlash: true }),
+    "/effect give @a minecraft:speed",
+  );
+  // amplifier 只有 0 时也要写出（因为后面可能有 hideParticles）
+  expect(
+    "effect give amplifier 0 with hideParticles",
+    buildEffectGiveCommand({ target: "@a", effect: "speed", duration: 60, amplifier: 0, hideParticles: false }),
+    "effect give @a minecraft:speed 60 0 false",
+  );
+}
+
+// ---- /effect clear ----
+{
+  expect(
+    "effect clear all",
+    buildEffectClearCommand({ target: "@a" }),
+    "effect clear @a",
+  );
+  expect(
+    "effect clear one",
+    buildEffectClearCommand({ target: "@a", effect: "speed" }),
+    "effect clear @a minecraft:speed",
+  );
+  expect(
+    "effect clear withSlash",
+    buildEffectClearCommand({ target: "@a", withSlash: true }),
+    "/effect clear @a",
+  );
+}
+
+// ---- /tp ----
+{
+  // 绝对坐标
+  expect(
+    "tp absolute coords",
+    buildTpCommand({ targets: "@s", x: "0", y: "64", z: "0" }),
+    "tp @s 0 64 0",
+  );
+  // 相对坐标
+  expect(
+    "tp relative coords",
+    buildTpCommand({ targets: "@s", x: "~", y: "~", z: "~" }),
+    "tp @s ~ ~ ~",
+  );
+  // 本地坐标
+  expect(
+    "tp local coords",
+    buildTpCommand({ targets: "@s", x: "^", y: "^", z: "^1" }),
+    "tp @s ^ ^ ^1",
+  );
+  // 带旋转角
+  expect(
+    "tp with rotation",
+    buildTpCommand({ targets: "@s", x: "0", y: "64", z: "0", yRot: "90", xRot: "45" }),
+    "tp @s 0 64 0 90 45",
+  );
+  // facing 坐标
+  expect(
+    "tp facing coords",
+    buildTpCommand({ targets: "@s", x: "0", y: "64", z: "0", facingX: "10", facingY: "70", facingZ: "10" }),
+    "tp @s 0 64 0 facing 10 70 10",
+  );
+  // 传送到实体
+  expect(
+    "tp to entity",
+    buildTpCommand({ targets: "@s", destination: "@e[type=pig,limit=1]" }),
+    "tp @s @e[type=pig,limit=1]",
+  );
+  // teleport 别名
+  expect(
+    "teleport alias",
+    buildTpCommand({ targets: "@s", x: "0", y: "64", z: "0", useTeleportAlias: true }),
+    "teleport @s 0 64 0",
+  );
+  // withSlash
+  expect(
+    "tp withSlash",
+    buildTpCommand({ targets: "@s", x: "~", y: "~", z: "~", withSlash: true }),
+    "/tp @s ~ ~ ~",
+  );
+}
+
 // --- summary ---
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

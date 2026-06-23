@@ -49,6 +49,12 @@ export { createDefaultForm, normalizeForm } from "./form";
 
 // 指令构建器
 export { buildGiveCommand } from "./commands/give";
+export { buildSayCommand } from "./commands/say";
+export type { SayForm } from "./commands/say";
+export { buildEffectGiveCommand, buildEffectClearCommand } from "./commands/effect";
+export type { EffectGiveForm, EffectClearForm } from "./commands/effect";
+export { buildTpCommand } from "./commands/tp";
+export type { TpCoordsForm, TpEntityForm } from "./commands/tp";
 export { buildSetblockCommand } from "./commands/setblock";
 export type { SetblockForm, SetblockMode, ContainerSlot, SetblockCommandBlockOptions } from "./commands/setblock";
 export { buildSummonCommand } from "./commands/summon";
