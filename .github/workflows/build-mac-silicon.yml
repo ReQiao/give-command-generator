@@ -1,0 +1,36 @@
+name: build-mac-silicon
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - run: npm ci
+
+      - run: npm run tauri build -- --target aarch64-apple-darwin
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: mac-arm64-build
+          path: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/**/*.app
+            src-tauri/target/aarch64-apple-darwin/release/bundle/**/*.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/**/*.tar.gz

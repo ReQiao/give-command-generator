@@ -1279,7 +1279,7 @@ dependencies = [
 
 [[package]]
 name = "give-command-generator"
-version = "0.1.0"
+version = "3.4.0"
 dependencies = [
  "serde",
  "serde_json",

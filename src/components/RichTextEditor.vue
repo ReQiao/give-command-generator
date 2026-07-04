@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from "vue";
+import CustomSelect from "./CustomSelect.vue";
+import NumberInput from "./NumberInput.vue";
 import {
   colorLerp,
   shadowColorInt,
   type RichLine,
   type TextComponent,
 } from "../logic/builder";
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 const props = defineProps<{
   title: string;
@@ -47,6 +54,16 @@ const presets = [
   "#1ad9ff",
   "#7aa2ff",
   "#4de4c9",
+];
+const textModeOptions: SelectOption[] = [
+  { label: "单色", value: "单色" },
+  { label: "渐变", value: "渐变" },
+];
+const shadowModeOptions: SelectOption[] = [
+  { label: "关闭", value: "关闭" },
+  { label: "固定颜色", value: "固定颜色" },
+  { label: "跟随文字颜色", value: "跟随文字颜色" },
+  { label: "独立渐变", value: "独立渐变" },
 ];
 
 onMounted(() => {
@@ -313,10 +330,7 @@ function hexToRgba(hex: string, alpha: number): string {
 
           <div v-if="activeTab === 'text'" class="color-page">
             <label>模式</label>
-            <select v-model="textMode">
-              <option>单色</option>
-              <option>渐变</option>
-            </select>
+            <CustomSelect v-model="textMode" :options="textModeOptions" />
             <label>起始颜色</label>
             <input v-model="textStart" type="color" />
             <label>结束颜色</label>
@@ -325,18 +339,13 @@ function hexToRgba(hex: string, alpha: number): string {
 
           <div v-else class="color-page">
             <label>模式</label>
-            <select v-model="shadowMode">
-              <option>关闭</option>
-              <option>固定颜色</option>
-              <option>跟随文字颜色</option>
-              <option>独立渐变</option>
-            </select>
+            <CustomSelect v-model="shadowMode" :options="shadowModeOptions" />
             <label>起始颜色</label>
             <input v-model="shadowStart" type="color" />
             <label>结束颜色</label>
             <input v-model="shadowEnd" type="color" />
             <label>透明度</label>
-            <input v-model.number="shadowAlpha" max="100" min="0" type="number" />
+            <NumberInput v-model="shadowAlpha" :max="100" :min="0" />
           </div>
 
           <div class="preset-row">

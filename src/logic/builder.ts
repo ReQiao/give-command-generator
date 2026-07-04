@@ -13,7 +13,20 @@ import {
   type PairRow,
 } from "../data/catalog";
 
-export type GiveVersion = "java_1_21_11_plus" | "bedrock";
+export type GiveVersion =
+  | "java_1_20_5"
+  | "java_1_21"
+  | "java_1_21_1"
+  | "java_1_21_2"
+  | "java_1_21_3"
+  | "java_1_21_4"
+  | "java_1_21_5"
+  | "java_1_21_6"
+  | "java_1_21_9"
+  | "java_1_21_11_plus"
+  | "java_26_1"
+  | "java_26_2_plus"
+  | "bedrock";
 
 export interface TextComponent {
   text: string;
@@ -170,7 +183,7 @@ export function normalizeForm(value: unknown): GiveForm {
   return {
     ...fallback,
     ...data,
-    version: data.version === "bedrock" ? "bedrock" : "java_1_21_11_plus",
+    version: normalizeVersion(data.version),
     count: normalizeInt(data.count, fallback.count, 1),
     bedrockDataValue: normalizeInt(data.bedrockDataValue, fallback.bedrockDataValue, 0),
     damage: normalizeInt(data.damage, fallback.damage, 0),
@@ -194,17 +207,76 @@ export function normalizeForm(value: unknown): GiveForm {
   };
 }
 
+interface ModernProfile {
+  textAsSnbtString: boolean;
+  adventurePredicateWrapper: boolean;
+  supportsTooltipDisplay: boolean;
+  supportsConsumable: boolean;
+  supportsGlider: boolean;
+  supportsDeathProtection: boolean;
+  supportsAttributeModifiers: boolean;
+}
+
+const MODERN_PROFILE: ModernProfile = {
+  textAsSnbtString: false,
+  adventurePredicateWrapper: false,
+  supportsTooltipDisplay: true,
+  supportsConsumable: true,
+  supportsGlider: true,
+  supportsDeathProtection: true,
+  supportsAttributeModifiers: true,
+};
+
+const JAVA_1_21_2_PROFILE: ModernProfile = {
+  textAsSnbtString: true,
+  adventurePredicateWrapper: true,
+  supportsTooltipDisplay: false,
+  supportsConsumable: true,
+  supportsGlider: true,
+  supportsDeathProtection: true,
+  supportsAttributeModifiers: true,
+};
+
+const JAVA_1_20_5_PROFILE: ModernProfile = {
+  textAsSnbtString: true,
+  adventurePredicateWrapper: true,
+  supportsTooltipDisplay: false,
+  supportsConsumable: false,
+  supportsGlider: false,
+  supportsDeathProtection: false,
+  supportsAttributeModifiers: false,
+};
+
 export function buildGiveCommand(form: GiveForm): string {
   if (form.version === "bedrock") {
     return buildBedrock(form);
   }
+  if (isJava121LegacyFamily(form.version)) {
+    return buildJava121Legacy(form);
+  }
+  if (isJava1205Family(form.version)) {
+    return buildModernFamily(form, JAVA_1_20_5_PROFILE);
+  }
+  if (isJava1212Family(form.version)) {
+    return buildModernFamily(form, JAVA_1_21_2_PROFILE);
+  }
 
+  return buildModernFamily(form, MODERN_PROFILE);
+}
+
+function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
   const parts: string[] = [];
   const add = (name: string, value: string) => parts.push(`${name}=${value}`);
 
-  if (form.displayName.length) add("custom_name", compact(form.displayName[0] ?? []));
-  if (form.itemName.length) add("item_name", compact(form.itemName[0] ?? []));
-  if (form.lore.length) add("lore", compact(form.lore));
+  if (form.displayName.length) {
+    add("custom_name", profile.textAsSnbtString ? snbtJsonString(form.displayName[0] ?? []) : compact(form.displayName[0] ?? []));
+  }
+  if (form.itemName.length) {
+    add("item_name", profile.textAsSnbtString ? snbtJsonString(form.itemName[0] ?? []) : compact(form.itemName[0] ?? []));
+  }
+  if (form.lore.length) {
+    add("lore", profile.textAsSnbtString ? `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]` : compact(form.lore));
+  }
 
   const rarity = pairValue(RARITIES, form.rarity);
   if (rarity !== "none") add("rarity", rarity);
@@ -218,32 +290,40 @@ export function buildGiveCommand(form: GiveForm): string {
     .map((row) => `${componentId(mapCatalog(ENCHANTS, row.id))}:${normalizeInt(row.level, 1, 1)}`);
   if (enchants.length) add("enchantments", `{${enchants.join(",")}}`);
 
-  const attributes = form.attributes
-    .filter((row) => String(row.type ?? "").trim())
-    .map((row) => {
-      const fields = [
-        `type:${componentId(mapCatalog(ATTRIBUTES, row.type))}`,
-        `amount:${fmtNumber(row.amount)}`,
-      ];
-      const slot = pairValue(SLOTS, row.slot || "任意");
-      if (slot && slot !== "any") fields.push(`slot:${slot}`);
-      fields.push(`id:${quote(row.id || cryptoId())}`);
-      fields.push(`operation:${pairValue(OPERATIONS, row.operation || "加算")}`);
-      return `{${fields.join(",")}}`;
-    });
-  if (attributes.length) add("attribute_modifiers", `[${attributes.join(",")}]`);
+  if (profile.supportsAttributeModifiers) {
+    const attributes = form.attributes
+      .filter((row) => String(row.type ?? "").trim())
+      .map((row) => {
+        const fields = [
+          `type:${componentId(mapCatalog(ATTRIBUTES, row.type))}`,
+          `amount:${fmtNumber(row.amount)}`,
+        ];
+        const slot = pairValue(SLOTS, row.slot || "任意");
+        if (slot && slot !== "any") fields.push(`slot:${slot}`);
+        fields.push(`id:${quote(row.id || cryptoId())}`);
+        fields.push(`operation:${pairValue(OPERATIONS, row.operation || "加算")}`);
+        return `{${fields.join(",")}}`;
+      });
+    if (attributes.length) add("attribute_modifiers", `[${attributes.join(",")}]`);
+  }
 
   const place = form.blockLimits.filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
   const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
-  if (place.length) add("can_place_on", `[${place.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
-  if (brk.length) add("can_break", `[${brk.map((row) => `{blocks:${mapCatalog(BLOCKS, row.block)}}`).join(",")}]`);
+  const placePredicates = blockPredicateList(place);
+  const breakPredicates = blockPredicateList(brk);
+  const wrapPredicates = (preds: string[]) =>
+    profile.adventurePredicateWrapper ? `{predicates:[${preds.join(",")}]}` : `[${preds.join(",")}]`;
+  if (placePredicates.length) add("can_place_on", wrapPredicates(placePredicates));
+  if (breakPredicates.length) add("can_break", wrapPredicates(breakPredicates));
 
   if (form.unbreakable) add("unbreakable", "{}");
-  if (form.glider) add("glider", "{}");
+  if (profile.supportsGlider && form.glider) add("glider", "{}");
 
-  const deathEffects = buildEffectGroups(form.deathEffects);
-  if (form.deathProtection || deathEffects) {
-    add("death_protection", deathEffects ? `{death_effects:[${deathEffects}]}` : "{}");
+  if (profile.supportsDeathProtection) {
+    const deathEffects = buildEffectGroups(form.deathEffects);
+    if (form.deathProtection || deathEffects) {
+      add("death_protection", deathEffects ? `{death_effects:[${deathEffects}]}` : "{}");
+    }
   }
 
   if (form.damageEnabled) add("damage", String(normalizeInt(form.damage, 0, 0)));
@@ -251,8 +331,10 @@ export function buildGiveCommand(form: GiveForm): string {
   if (form.stackEnabled) add("max_stack_size", String(normalizeInt(form.maxStackSize, 1, 1)));
   if (form.repairEnabled) add("repair_cost", String(normalizeInt(form.repairCost, 0, 0)));
 
-  const hidden = splitCsv(form.hiddenComponents);
-  if (hidden.length) add("tooltip_display", `{hidden_components:[${hidden.map((value) => namespaced(value)).join(",")}]}`);
+  if (profile.supportsTooltipDisplay) {
+    const hidden = splitCsv(form.hiddenComponents);
+    if (hidden.length) add("tooltip_display", `{hidden_components:[${hidden.map((value) => quote(namespaced(value))).join(",")}]}`);
+  }
 
   if (form.foodEnabled) {
     const fields = [
@@ -263,19 +345,89 @@ export function buildGiveCommand(form: GiveForm): string {
     add("food", `{${fields.join(",")}}`);
   }
 
-  const consumeEffects = buildEffectGroups(form.consumeEffects);
-  if (form.consumableEnabled || consumeEffects) {
-    const fields: string[] = [];
-    if (form.consumableEnabled) {
-      fields.push(`consume_seconds:${fmtNumber(form.consumeSeconds)}`);
-      if (form.consumeSound.trim()) fields.push(`sound:${quote(namespaced(form.consumeSound))}`);
-      if (form.consumeParticles !== "默认") {
-        fields.push(`has_consume_particles:${form.consumeParticles === "是" ? "1b" : "0b"}`);
+  if (profile.supportsConsumable) {
+    const consumeEffects = buildEffectGroups(form.consumeEffects);
+    if (form.consumableEnabled || consumeEffects) {
+      const fields: string[] = [];
+      if (form.consumableEnabled) {
+        fields.push(`consume_seconds:${fmtNumber(form.consumeSeconds)}`);
+        if (form.consumeSound.trim()) fields.push(`sound:${quote(namespaced(form.consumeSound))}`);
+        if (form.consumeParticles !== "默认") {
+          fields.push(`has_consume_particles:${form.consumeParticles === "是" ? "1b" : "0b"}`);
+        }
       }
+      if (consumeEffects) fields.push(`on_consume_effects:[${consumeEffects}]`);
+      add("consumable", `{${fields.join(",")}}`);
     }
-    if (consumeEffects) fields.push(`on_consume_effects:[${consumeEffects}]`);
-    add("consumable", `{${fields.join(",")}}`);
   }
+
+  const toolRules = buildToolRules(form.toolRules);
+  if (form.toolEnabled || toolRules) {
+    const fields: string[] = [];
+    if (form.toolEnabled) {
+      fields.push(`default_mining_speed:${fmtNumber(form.defaultMiningSpeed)}`);
+      fields.push(`damage_per_block:${normalizeInt(form.damagePerBlock, 0, 0)}`);
+    }
+    if (toolRules) fields.push(`rules:[${toolRules}]`);
+    add("tool", `{${fields.join(",")}}`);
+  }
+
+  const body = parts.length ? `[${parts.join(",")}]` : "";
+  const slash = form.withSlash ? "/" : "";
+  return `${slash}give ${normalizeTarget(form.target)} ${mapCatalog(ITEMS, form.item)}${body} ${normalizeInt(form.count, 1, 1)}`;
+}
+
+function buildJava121Legacy(form: GiveForm): string {
+  const parts: string[] = [];
+  const add = (name: string, value: string) => parts.push(`${name}=${value}`);
+
+  if (form.displayName.length) add("custom_name", snbtJsonString(form.displayName[0] ?? []));
+  if (form.itemName.length) add("item_name", snbtJsonString(form.itemName[0] ?? []));
+  if (form.lore.length) add("lore", `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]`);
+
+  const rarity = pairValue(RARITIES, form.rarity);
+  if (rarity !== "none") add("rarity", rarity);
+
+  if (form.glint !== "\u9ed8\u8ba4") {
+    add("enchantment_glint_override", form.glint === "\u5f00\u542f" ? "true" : "false");
+  }
+
+  const enchants = form.enchantments
+    .filter((row) => String(row.id ?? "").trim())
+    .map((row) => `${componentId(mapCatalog(ENCHANTS, row.id))}:${normalizeInt(row.level, 1, 1)}`);
+  if (enchants.length) add("enchantments", `{levels:{${enchants.join(",")}}}`);
+
+  const attributes = form.attributes
+    .filter((row) => String(row.type ?? "").trim())
+    .map((row) => {
+      const fields = [
+        `type:${quote(legacyAttributeType(row.type))}`,
+        `amount:${fmtNumber(row.amount)}`,
+      ];
+      const slot = pairValue(SLOTS, row.slot || "any");
+      if (slot && slot !== "any") fields.push(`slot:${slot}`);
+      fields.push(`id:${quote(row.id || cryptoId())}`);
+      fields.push(`operation:${pairValue(OPERATIONS, row.operation || "add_value")}`);
+      return `{${fields.join(",")}}`;
+    });
+  if (attributes.length) add("attribute_modifiers", `{modifiers:[${attributes.join(",")}]}`);
+
+  const place = form.blockLimits.filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
+  const brk = form.blockLimits.filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)));
+  const placePredicates = blockPredicateList(place);
+  const breakPredicates = blockPredicateList(brk);
+  if (placePredicates.length) add("can_place_on", `{predicates:[${placePredicates.join(",")}]}`);
+  if (breakPredicates.length) add("can_break", `{predicates:[${breakPredicates.join(",")}]}`);
+
+  if (form.unbreakable) add("unbreakable", "{}");
+
+  if (form.damageEnabled) add("damage", String(normalizeInt(form.damage, 0, 0)));
+  if (form.maxDamageEnabled) add("max_damage", String(normalizeInt(form.maxDamage, 1, 1)));
+  if (form.stackEnabled) add("max_stack_size", String(normalizeInt(form.maxStackSize, 1, 1)));
+  if (form.repairEnabled) add("repair_cost", String(normalizeInt(form.repairCost, 0, 0)));
+
+  const legacyFood = buildJava121Food(form);
+  if (legacyFood) add("food", legacyFood);
 
   const toolRules = buildToolRules(form.toolRules);
   if (form.toolEnabled || toolRules) {
@@ -312,6 +464,41 @@ function buildBedrock(form: GiveForm): string {
   const suffix = Object.keys(components).length ? ` ${compact(components)}` : "";
   const slash = form.withSlash ? "/" : "";
   return `${slash}give ${normalizeTarget(form.target)} ${componentId(mapCatalog(ITEMS, form.item))} ${normalizeInt(form.count, 1, 1)} ${normalizeInt(form.bedrockDataValue, 0, 0)}${suffix}`;
+}
+
+function buildJava121Food(form: GiveForm): string {
+  const foodEffects = buildJava121FoodEffects(form.consumeEffects);
+  if (!form.foodEnabled && !form.consumableEnabled && !foodEffects) return "";
+
+  const fields = [
+    `nutrition:${normalizeInt(form.nutrition, 0, 0)}`,
+    `saturation:${fmtNumber(form.saturation)}`,
+  ];
+  if (form.alwaysEat !== "\u9ed8\u8ba4") fields.push(`can_always_eat:${form.alwaysEat === "\u662f" ? "1b" : "0b"}`);
+  if (form.consumableEnabled) fields.push(`eat_seconds:${fmtNumber(form.consumeSeconds)}`);
+  if (foodEffects) fields.push(`effects:[${foodEffects}]`);
+  return `{${fields.join(",")}}`;
+}
+
+function buildJava121FoodEffects(groups: EffectGroup[]): string {
+  const out: string[] = [];
+  for (const group of groups || []) {
+    if (group.type !== "apply_effects") continue;
+    const probability = `${percentToProbability(group.probability_percent ?? 100)}f`;
+    for (const effect of group.effects || []) {
+      const id = componentId(typeof effect === "string" ? effect : effect.id);
+      if (!id) continue;
+      const fields = [`id:${id}`];
+      if (typeof effect !== "string") {
+        fields.push(`duration:${normalizeInt(effect.duration, 0, 0)}`);
+        fields.push(`amplifier:${normalizeInt(effect.amplifier, 0, 0)}`);
+        fields.push(`ShowParticles:${boolByte(effect.show_particles ?? true)}`);
+        fields.push(`ShowIcon:${boolByte(effect.show_icon ?? true)}`);
+      }
+      out.push(`{effect:{${fields.join(",")}},probability:${probability}}`);
+    }
+  }
+  return out.join(",");
 }
 
 function buildEffectGroups(groups: EffectGroup[]): string {
@@ -364,8 +551,18 @@ function buildToolRules(rules: ToolRuleRow[]): string {
   return out.join(",");
 }
 
+function blockPredicateList(rows: BlockLimitRow[]): string[] {
+  return rows
+    .filter((row) => String(row.block ?? "").trim())
+    .map((row) => `{blocks:${quote(mapCatalog(BLOCKS, row.block))}}`);
+}
+
 export function compact(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function snbtJsonString(value: unknown): string {
+  return `'${JSON.stringify(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
 export function quote(value: string): string {
@@ -387,6 +584,33 @@ export function componentId(value: string): string {
   const text = String(value ?? "").trim();
   if (!text) return "";
   return stripMinecraftNamespace(namespaced(text));
+}
+
+function legacyAttributeType(value: string): string {
+  const id = componentId(mapCatalog(ATTRIBUTES, value));
+  if (id.includes(".")) return id;
+  const mapped: Record<string, string> = {
+    armor: "generic.armor",
+    armor_toughness: "generic.armor_toughness",
+    attack_damage: "generic.attack_damage",
+    attack_knockback: "generic.attack_knockback",
+    attack_speed: "generic.attack_speed",
+    block_break_speed: "generic.block_break_speed",
+    block_interaction_range: "player.block_interaction_range",
+    entity_interaction_range: "player.entity_interaction_range",
+    fall_damage_multiplier: "generic.fall_damage_multiplier",
+    knockback_resistance: "generic.knockback_resistance",
+    luck: "generic.luck",
+    max_absorption: "generic.max_absorption",
+    max_health: "generic.max_health",
+    mining_efficiency: "player.mining_efficiency",
+    oxygen_bonus: "generic.oxygen_bonus",
+    safe_fall_distance: "generic.safe_fall_distance",
+    sneaking_speed: "player.sneaking_speed",
+    submerged_mining_speed: "player.submerged_mining_speed",
+    water_movement_efficiency: "generic.water_movement_efficiency",
+  };
+  return mapped[id] ?? `generic.${id}`;
 }
 
 export function boolByte(value: boolean): string {
@@ -483,6 +707,40 @@ export function shadowColorInt(hexColor: string, alphaPercent: number): number {
 function normalizeTarget(value: string): string {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : "@a";
+}
+
+function normalizeVersion(value: unknown): GiveVersion {
+  const text = String(value ?? "").trim();
+  if (
+    text === "java_1_20_5" ||
+    text === "java_1_21" ||
+    text === "java_1_21_1" ||
+    text === "java_1_21_2" ||
+    text === "java_1_21_3" ||
+    text === "java_1_21_4" ||
+    text === "java_1_21_5" ||
+    text === "java_1_21_6" ||
+    text === "java_1_21_9" ||
+    text === "java_1_21_11_plus" ||
+    text === "java_26_1" ||
+    text === "java_26_2_plus" ||
+    text === "bedrock"
+  ) {
+    return text;
+  }
+  return "java_1_21_11_plus";
+}
+
+export function isJava121LegacyFamily(version: GiveVersion): boolean {
+  return version === "java_1_21" || version === "java_1_21_1";
+}
+
+export function isJava1205Family(version: GiveVersion): boolean {
+  return version === "java_1_20_5";
+}
+
+export function isJava1212Family(version: GiveVersion): boolean {
+  return version === "java_1_21_2" || version === "java_1_21_3" || version === "java_1_21_4";
 }
 
 function normalizeInt(value: unknown, fallback: number, min: number): number {

@@ -1,6 +1,8 @@
 # Give指令生成器
 
-一个面向 Minecraft 的 `/give` 指令生成器，当前支持 **Java 1.21.11+** 与 **基岩版** 两种模式。
+一个面向 Minecraft 的 `/give` 指令生成器，可以把Minecraft从MC变成我的世界，当前支持 **Java 1.21.11+** 与 **基岩版** 两种模式。
+
+**本版本对项目进行了大规模重构与功能扩展，已全面转为 `Tauri v2 + Vue 3 + TypeScript` 架构**
 
 这是一个基于 **Tauri v2 + Vue 3 + TypeScript** 的桌面应用，目标是解决 MC 新手以及指令熟手在编辑 `/give` 指令 JSON 和物品组件时步骤繁琐、容易写错的问题。界面为中文深蓝玻璃风 UI，支持富文本、渐变颜色、阴影颜色、模板导入导出、自动保存和多版本指令生成。
 
@@ -8,9 +10,9 @@
 
 ## 功能特性
 
+- 几乎完整的物品，附魔，属性数据库
 - 中文界面
 - 深蓝玻璃风 UI
-- Tauri 桌面窗口，不需要部署网站
 - Java 1.21.11+ `/give` 组件语法
 - 基岩版 `/give` 基础组件语法
 - 版本选择：Java 1.21.11+ / 基岩版
@@ -29,11 +31,12 @@
 - 基岩版数据值、物品锁、死亡保留
 - 自动保存草稿
 - JSON 模板导出与导入
+- 内置 JSON 模板
 - 点击“生成指令”后生成最终指令
 - 一键复制指令
 - 深蓝玻璃风弹窗
-- 中文颜色选择器
 - Toast、页面切换、按钮反馈、表格高亮等界面动画
+- "?"悬浮解释选项
 
 ## 当前支持版本
 
@@ -83,7 +86,7 @@ give-generator-animation
 - `give-generator-pyside-autosave`：自动保存的表单草稿
 - `give-generator-animation`：界面动画开关
 - 模板通过软件内的“保存模板”和“读取模板”导出 / 导入 JSON 文件
-- 当前版本没有使用 `%APPDATA%\Give指令生成器\templates\` 作为模板目录
+- 当前版本已停止使用 `%APPDATA%\Give指令生成器\templates\` 作为模板目录
 
 ## Java 版已支持组件
 
@@ -152,19 +155,19 @@ npm run tauri dev
 npm run tauri build
 ```
 
-打包产物通常在：
+打包产物在：
 
 ```text
 src-tauri/target/release/bundle/
 ```
 
-Windows 安装包一般在：
+Windows 安装包在：
 
 ```text
 src-tauri/target/release/bundle/nsis/
 ```
 
-直接运行的程序本体一般在：
+直接运行的程序本体在：
 
 ```text
 src-tauri/target/release/give-command-generator.exe
@@ -179,17 +182,9 @@ Minecraft 指令组件语法会随版本变化。
 
 ## 开发计划
 
-- 补全物品数据库
-- 补全方块数据库
-- 补全附魔中文数据
-- 补全属性中文数据
 - 增加更多 Minecraft Java 版本
 - 增加更多基岩版兼容规则
 - 增加刷怪蛋数据支持
 - 优化模板系统
-- 接入 Tauri 文件系统能力，支持应用数据目录模板管理
 - 优化动画与交互细节
 - 增加更多命令组件
-
-# give-command-generator
-一个专门解决MC新手（指令大蛇也可以）give指令JSON编辑麻烦的Tauri + Vue 3 + TypeScript 桌面工具，支持中文界面、深蓝玻璃风 UI、富文本、渐变颜色、模板保存和多版本生成等功能。

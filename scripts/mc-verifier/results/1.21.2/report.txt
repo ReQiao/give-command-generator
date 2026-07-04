@@ -1,0 +1,25 @@
+# 1.21.2  (builder 族: mid)
+摘要: PASS=20  FAIL=0  UNKNOWN=0
+
+## 全部特性（* 表示该版本族 builder 实际输出）
+[PASS] basic: basic_plain=valid*
+[PASS] custom_name: custom_name_json=invalid  custom_name_snbt_string=valid*
+[PASS] item_name: item_name_json=invalid  item_name_snbt_string=valid*
+[PASS] lore: lore_json_arrays=invalid  lore_snbt_strings=valid*
+[PASS] rarity: rarity_epic=valid*
+[PASS] enchant_glint: glint_true=valid*
+[PASS] enchantments: ench_levels=valid  ench_flat=valid*
+[PASS] attribute_modifiers: attr_array_type_unquoted_plain=valid*  attr_array_type_quoted_generic=invalid  attr_wrapper_type_quoted_generic=invalid  attr_wrapper_id_numeric=invalid  attr_wrapper_id_quoted_number=invalid  attr_wrapper_with_slot=invalid
+[PASS] unbreakable: unbreakable_empty=valid*
+[PASS] damage: damage_int=valid*
+[PASS] max_damage: max_damage_int=valid*
+[PASS] max_stack_size: max_stack_size_int=valid*
+[PASS] repair_cost: repair_cost_int=valid*
+[PASS] food: food_basic=valid*  food_can_always_eat=valid*  food_can_always_eat_byte=valid*  food_eat_seconds=valid  food_effects_inside=valid
+[PASS] consumable: consumable_seconds=valid*  consumable_on_consume_effects=valid*  consumable_sound_particles=valid*
+[PASS] tool: tool_rules_blocks_stripped=valid  tool_blocks_namespaced=invalid  tool_rules_f_byte=valid*  tool_full=valid*
+[PASS] can_place_on: can_place_on_blocks_obj=invalid  can_place_on_predicates=valid*  can_place_on_predicates_stripped=valid  can_place_on_predicates_multi=valid  can_place_on_quoted_array=invalid
+[PASS] can_break: can_break_blocks_obj=invalid  can_break_predicates=valid*  can_break_quoted_array=invalid
+[PASS] glider: glider_empty=valid*
+[PASS] death_protection: death_protection_empty=valid*  death_protection_effects=valid*
+[N/A] tooltip_display: tooltip_hidden=invalid  tooltip_hidden_quoted=invalid  tooltip_hide_bool=invalid
