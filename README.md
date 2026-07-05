@@ -43,10 +43,10 @@
 ### Java 版
 
 ```text
-Java 1.21.11+
+Java 1.20.5+
 ```
 
-当前主要支持新版物品组件格式，例如：
+当前支持新版物品组件格式，例如：
 
 ```mcfunction
 give @a minecraft:stone[custom_name=[{"text":"石头","color":"#7aa2ff"}],unbreakable={}] 1
