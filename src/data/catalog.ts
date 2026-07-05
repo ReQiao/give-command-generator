@@ -1468,7 +1468,7 @@ export const VERSIONS = [
     "java_1_21_9"
   ],
   [
-    "Java 1.21.11+",
+    "Java 1.21.11",
     "java_1_21_11_plus"
   ],
   [

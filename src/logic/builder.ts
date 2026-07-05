@@ -743,6 +743,19 @@ export function isJava1212Family(version: GiveVersion): boolean {
   return version === "java_1_21_2" || version === "java_1_21_3" || version === "java_1_21_4";
 }
 
+export function getModernProfile(version: GiveVersion): ModernProfile {
+  if (version === "bedrock" || isJava121LegacyFamily(version)) {
+    return { textAsSnbtString: false, adventurePredicateWrapper: false, supportsTooltipDisplay: false, supportsConsumable: false, supportsGlider: false, supportsDeathProtection: false, supportsAttributeModifiers: false };
+  }
+  if (isJava1205Family(version)) {
+    return JAVA_1_20_5_PROFILE;
+  }
+  if (isJava1212Family(version)) {
+    return JAVA_1_21_2_PROFILE;
+  }
+  return MODERN_PROFILE;
+}
+
 function normalizeInt(value: unknown, fallback: number, min: number): number {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;

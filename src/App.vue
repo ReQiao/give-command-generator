@@ -28,6 +28,7 @@ import {
   isJava121LegacyFamily,
   isJava1205Family,
   isJava1212Family,
+  getModernProfile,
   normalizeForm,
   pairText,
   type AttributeRow,
@@ -97,6 +98,8 @@ const supportsTooltipDisplay = computed(() =>
   !isJava1205Family(form.version) &&
   !isJava1212Family(form.version)
 );
+const supportsGlider = computed(() => getModernProfile(form.version).supportsGlider);
+const supportsDeathProtection = computed(() => getModernProfile(form.version).supportsDeathProtection);
 const versionOptions = computed(() => pairOptions(VERSIONS, "value"));
 const slotOptions = computed(() => pairOptions(SLOTS));
 const operationOptions = computed(() => pairOptions(OPERATIONS));
@@ -589,8 +592,8 @@ function textOptions(items: string[]): SelectOption[] {
               <span class="field-label">附魔光效<InfoTip text="强制开启或关闭附魔闪光；默认表示交给游戏按组件判断。" /></span>
               <CustomSelect v-model="form.glint" :options="glintOptions" />
               <span></span><label class="check-line"><input v-model="form.unbreakable" type="checkbox" />无法损坏<InfoTip text="物品不会因为使用而损失耐久。" /></label>
-              <span v-if="!legacyJava"></span><label v-if="!legacyJava" class="check-line"><input v-model="form.glider" type="checkbox" />鞘翅飞行<InfoTip text="让物品拥有类似鞘翅的滑翔组件。" /></label>
-              <span v-if="!legacyJava"></span><label v-if="!legacyJava" class="check-line"><input v-model="form.deathProtection" type="checkbox" />死亡保护<InfoTip text="死亡时触发保护组件，可配合死亡效果使用。" /></label>
+              <span v-if="supportsGlider"></span><label v-if="supportsGlider" class="check-line"><input v-model="form.glider" type="checkbox" />鞘翅飞行<InfoTip text="让物品拥有类似鞘翅的滑翔组件。" /></label>
+              <span v-if="supportsDeathProtection"></span><label v-if="supportsDeathProtection" class="check-line"><input v-model="form.deathProtection" type="checkbox" />死亡保护<InfoTip text="死亡时触发保护组件，可配合死亡效果使用。" /></label>
               <span></span><label class="check-line"><input v-model="form.damageEnabled" type="checkbox" />启用当前损耗<InfoTip text="写入当前已经损失的耐久值。" /></label>
               <span class="field-label">当前损耗<InfoTip text="数值越大，物品越接近损坏。" /></span><NumberInput v-model="form.damage" :min="0" />
               <span></span><label class="check-line"><input v-model="form.maxDamageEnabled" type="checkbox" />启用最大耐久<InfoTip text="自定义物品最大耐久。" /></label>
