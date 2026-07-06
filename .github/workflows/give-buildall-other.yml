@@ -119,7 +119,8 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            xdg-utils
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
@@ -155,7 +156,8 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            xdg-utils
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
