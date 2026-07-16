@@ -905,6 +905,50 @@ button#primary,
   padding: 0;
 }
 
+.named-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.named-row button {
+  width: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-color: rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* 富文本编辑器：混淆样式与内嵌原子芯片 */
+.rt-obf {
+  opacity: 0.72;
+  letter-spacing: 1px;
+  font-family: "Consolas", monospace;
+}
+
+.rt-atom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 2px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(122, 162, 255, 0.22);
+  border: 1px solid rgba(122, 162, 255, 0.5);
+  font-size: 0.9em;
+  line-height: 1.6;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* 用 border-bottom 而非 text-decoration 做提示，避免被序列化误判为 underlined */
+.rt-event {
+  border-bottom: 1px dotted rgba(122, 162, 255, 0.9);
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

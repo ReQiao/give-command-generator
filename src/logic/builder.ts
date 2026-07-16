@@ -28,17 +28,112 @@ export type GiveVersion =
   | "java_26_2_plus"
   | "bedrock";
 
-export interface TextComponent {
-  text: string;
+// ---------------- 文本组件模型 ----------------
+// 样式字段：可作用于任意内容类型（文本/翻译/object/…）。
+export type ClickAction =
+  | "open_url"
+  | "run_command"
+  | "suggest_command"
+  | "copy_to_clipboard"
+  | "change_page"
+  | "show_dialog";
+
+export interface ClickEvent {
+  action: ClickAction;
+  value?: string; // url / command / 剪贴板文本 / 页码 / dialog id
+}
+
+export type HoverAction = "show_text" | "show_item" | "show_entity";
+
+export interface HoverEvent {
+  action: HoverAction;
+  text?: RichLine; // show_text
+  itemId?: string; // show_item
+  itemCount?: number;
+  entityType?: string; // show_entity
+  entityUuid?: string;
+  entityName?: RichLine;
+}
+
+export interface TextStyle {
   bold?: boolean;
   italic?: boolean;
   underlined?: boolean;
   strikethrough?: boolean;
+  obfuscated?: boolean;
   color?: string;
-  shadow_color?: number;
+  font?: string;
+  shadow_color?: number | number[];
+  insertion?: string;
+  click_event?: ClickEvent;
+  hover_event?: HoverEvent;
 }
 
-export type RichLine = TextComponent[];
+// 内容类型（可辨识联合）：默认 text，兼容旧模板（无 type 字段视作 text）。
+export interface TextComponent extends TextStyle {
+  type?: "text";
+  text: string;
+}
+
+export interface TranslatableComponent extends TextStyle {
+  type: "translatable";
+  translate: string;
+  fallback?: string;
+  with?: RichComponent[];
+}
+
+export interface ObjectSpriteComponent extends TextStyle {
+  type: "object";
+  object?: "atlas";
+  atlas?: string;
+  sprite: string;
+}
+
+export interface ObjectPlayerComponent extends TextStyle {
+  type: "object";
+  object: "player";
+  player: string;
+  hat?: boolean;
+}
+
+export interface KeybindComponent extends TextStyle {
+  type: "keybind";
+  keybind: string;
+}
+
+export interface SelectorComponent extends TextStyle {
+  type: "selector";
+  selector: string;
+  separator?: RichComponent;
+}
+
+export interface ScoreComponent extends TextStyle {
+  type: "score";
+  score: { name: string; objective: string };
+}
+
+export interface NbtComponent extends TextStyle {
+  type: "nbt";
+  nbt: string;
+  source: "block" | "entity" | "storage";
+  block?: string;
+  entity?: string;
+  storage?: string;
+  interpret?: boolean;
+  separator?: RichComponent;
+}
+
+export type RichComponent =
+  | TextComponent
+  | TranslatableComponent
+  | ObjectSpriteComponent
+  | ObjectPlayerComponent
+  | KeybindComponent
+  | SelectorComponent
+  | ScoreComponent
+  | NbtComponent;
+
+export type RichLine = RichComponent[];
 
 export interface EnchantRow {
   id: string;
@@ -247,35 +342,40 @@ const JAVA_1_20_5_PROFILE: ModernProfile = {
   supportsAttributeModifiers: false,
 };
 
-export function buildGiveCommand(form: GiveForm): string {
+export function buildGiveCommand(form: GiveForm, warnings: string[] = []): string {
   if (form.version === "bedrock") {
     return buildBedrock(form);
   }
   if (isJava121LegacyFamily(form.version)) {
-    return buildJava121Legacy(form);
+    return buildJava121Legacy(form, warnings);
   }
   if (isJava1205Family(form.version)) {
-    return buildModernFamily(form, JAVA_1_20_5_PROFILE);
+    return buildModernFamily(form, JAVA_1_20_5_PROFILE, warnings);
   }
   if (isJava1212Family(form.version)) {
-    return buildModernFamily(form, JAVA_1_21_2_PROFILE);
+    return buildModernFamily(form, JAVA_1_21_2_PROFILE, warnings);
   }
 
-  return buildModernFamily(form, MODERN_PROFILE);
+  return buildModernFamily(form, MODERN_PROFILE, warnings);
 }
 
-function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
+function buildModernFamily(form: GiveForm, profile: ModernProfile, warnings: string[] = []): string {
   const parts: string[] = [];
   const add = (name: string, value: string) => parts.push(`${name}=${value}`);
+  const tp = resolveTextProfile(form.version);
 
   if (form.displayName.length) {
-    add("custom_name", profile.textAsSnbtString ? snbtJsonString(form.displayName[0] ?? []) : compact(form.displayName[0] ?? []));
+    add("custom_name", serializeText(form.displayName[0] ?? [], profile.textAsSnbtString, tp, warnings));
   }
   if (form.itemName.length) {
-    add("item_name", profile.textAsSnbtString ? snbtJsonString(form.itemName[0] ?? []) : compact(form.itemName[0] ?? []));
+    add("item_name", serializeText(form.itemName[0] ?? [], profile.textAsSnbtString, tp, warnings));
   }
   if (form.lore.length) {
-    add("lore", profile.textAsSnbtString ? `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]` : compact(form.lore));
+    if (profile.textAsSnbtString) {
+      add("lore", `[${form.lore.map((line) => serializeText(line, true, tp, warnings)).join(",")}]`);
+    } else {
+      add("lore", `[${form.lore.map((line) => JSON.stringify(jsonRichLine(line, tp, warnings))).join(",")}]`);
+    }
   }
 
   const rarity = pairValue(RARITIES, form.rarity);
@@ -377,13 +477,14 @@ function buildModernFamily(form: GiveForm, profile: ModernProfile): string {
   return `${slash}give ${normalizeTarget(form.target)} ${mapCatalog(ITEMS, form.item)}${body} ${normalizeInt(form.count, 1, 1)}`;
 }
 
-function buildJava121Legacy(form: GiveForm): string {
+function buildJava121Legacy(form: GiveForm, warnings: string[] = []): string {
   const parts: string[] = [];
   const add = (name: string, value: string) => parts.push(`${name}=${value}`);
+  const tp = resolveTextProfile(form.version);
 
-  if (form.displayName.length) add("custom_name", snbtJsonString(form.displayName[0] ?? []));
-  if (form.itemName.length) add("item_name", snbtJsonString(form.itemName[0] ?? []));
-  if (form.lore.length) add("lore", `[${form.lore.map((line) => snbtJsonString(line)).join(",")}]`);
+  if (form.displayName.length) add("custom_name", serializeText(form.displayName[0] ?? [], true, tp, warnings));
+  if (form.itemName.length) add("item_name", serializeText(form.itemName[0] ?? [], true, tp, warnings));
+  if (form.lore.length) add("lore", `[${form.lore.map((line) => serializeText(line, true, tp, warnings)).join(",")}]`);
 
   const rarity = pairValue(RARITIES, form.rarity);
   if (rarity !== "none") add("rarity", rarity);
@@ -561,8 +662,228 @@ export function compact(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function snbtJsonString(value: unknown): string {
-  return `'${JSON.stringify(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+// ---------------- 文本组件序列化 ----------------
+// 版本敏感能力（按 Java 版本先后判定，而非按粗粒度 item 组件 profile）：
+//   object 组件      -> 1.21.9+
+//   click/hover 新式 -> 1.21.5+（否则 camelCase 旧式）
+//   shadow_color 数组 -> 1.21.4+（否则打包整数）
+const JAVA_VERSION_ORDER: GiveVersion[] = [
+  "java_1_20_5",
+  "java_1_21",
+  "java_1_21_1",
+  "java_1_21_2",
+  "java_1_21_3",
+  "java_1_21_4",
+  "java_1_21_5",
+  "java_1_21_6",
+  "java_1_21_9",
+  "java_1_21_11_plus",
+  "java_26_1",
+  "java_26_2_plus",
+];
+
+function versionAtLeast(version: GiveVersion, min: GiveVersion): boolean {
+  const iv = JAVA_VERSION_ORDER.indexOf(version);
+  const im = JAVA_VERSION_ORDER.indexOf(min);
+  return iv >= 0 && im >= 0 && iv >= im;
+}
+
+export interface TextProfile {
+  supportsObjectComponent: boolean;
+  eventFormatModern: boolean;
+  supportsShadowArray: boolean;
+}
+
+export function resolveTextProfile(version: GiveVersion): TextProfile {
+  return {
+    supportsObjectComponent: versionAtLeast(version, "java_1_21_9"),
+    eventFormatModern: versionAtLeast(version, "java_1_21_5"),
+    supportsShadowArray: versionAtLeast(version, "java_1_21_4"),
+  };
+}
+
+function normalizeShadow(shadow: number | number[], tp: TextProfile): number | number[] {
+  if (Array.isArray(shadow)) {
+    if (tp.supportsShadowArray) return shadow;
+    // [r,g,b,a]（0~1 浮点）-> 打包 ARGB 整数（旧版本回退）
+    const [r = 0, g = 0, b = 0, a = 1] = shadow;
+    const R = Math.round(r * 255) & 0xff;
+    const G = Math.round(g * 255) & 0xff;
+    const B = Math.round(b * 255) & 0xff;
+    const A = Math.round(a * 255) & 0xff;
+    const value = (A << 24) | (R << 16) | (G << 8) | B;
+    return value >= 2 ** 31 ? value - 2 ** 32 : value;
+  }
+  return shadow;
+}
+
+function shapeClickEvent(ev: ClickEvent, tp: TextProfile): { key: string; value: Record<string, unknown> } | null {
+  if (!ev || !ev.action) return null;
+  const val = ev.value ?? "";
+  if (tp.eventFormatModern) {
+    const out: Record<string, unknown> = { action: ev.action };
+    switch (ev.action) {
+      case "open_url": out.url = val; break;
+      case "run_command": out.command = val; break;
+      case "suggest_command": out.command = val; break;
+      case "copy_to_clipboard": out.value = val; break;
+      case "change_page": out.page = normalizeInt(val, 1, 1); break;
+      case "show_dialog": out.dialog = val; break;
+    }
+    return { key: "click_event", value: out };
+  }
+  // 旧式 clickEvent{action,value}（show_dialog 为 1.21.6+，旧版不支持则丢弃）
+  if (ev.action === "show_dialog") return null;
+  const value = ev.action === "change_page" ? String(normalizeInt(val, 1, 1)) : val;
+  return { key: "clickEvent", value: { action: ev.action, value } };
+}
+
+function shapeHoverEvent(
+  ev: HoverEvent,
+  tp: TextProfile,
+  warnings: string[],
+): { key: string; value: Record<string, unknown> } | null {
+  if (!ev || !ev.action) return null;
+  if (tp.eventFormatModern) {
+    const out: Record<string, unknown> = { action: ev.action };
+    if (ev.action === "show_text") {
+      out.value = ev.text ? jsonRichLine(ev.text, tp, warnings) : "";
+    } else if (ev.action === "show_item") {
+      out.id = namespaced(ev.itemId || "stone");
+      if (ev.itemCount !== undefined) out.count = ev.itemCount;
+    } else if (ev.action === "show_entity") {
+      out.id = namespaced(ev.entityType || "pig");
+      if (ev.entityUuid) out.uuid = ev.entityUuid;
+      if (ev.entityName) out.name = jsonRichLine(ev.entityName, tp, warnings);
+    }
+    return { key: "hover_event", value: out };
+  }
+  // 旧式 hoverEvent{action,contents:{...}}
+  const out: Record<string, unknown> = { action: ev.action };
+  if (ev.action === "show_text") {
+    out.contents = ev.text ? jsonRichLine(ev.text, tp, warnings) : "";
+  } else if (ev.action === "show_item") {
+    const contents: Record<string, unknown> = { id: namespaced(ev.itemId || "stone") };
+    if (ev.itemCount !== undefined) contents.count = ev.itemCount;
+    out.contents = contents;
+  } else if (ev.action === "show_entity") {
+    const contents: Record<string, unknown> = { type: namespaced(ev.entityType || "pig") };
+    if (ev.entityUuid) contents.id = ev.entityUuid;
+    if (ev.entityName) contents.name = jsonRichLine(ev.entityName, tp, warnings);
+    out.contents = contents;
+  }
+  return { key: "hoverEvent", value: out };
+}
+
+function applyStyle(out: Record<string, unknown>, style: TextStyle, tp: TextProfile, warnings: string[]): void {
+  if (style.bold !== undefined) out.bold = style.bold;
+  if (style.italic !== undefined) out.italic = style.italic;
+  if (style.underlined !== undefined) out.underlined = style.underlined;
+  if (style.strikethrough !== undefined) out.strikethrough = style.strikethrough;
+  if (style.obfuscated !== undefined) out.obfuscated = style.obfuscated;
+  if (style.color !== undefined) out.color = style.color;
+  if (style.font !== undefined) out.font = style.font;
+  if (style.shadow_color !== undefined) out.shadow_color = normalizeShadow(style.shadow_color, tp);
+  if (style.insertion !== undefined) out.insertion = style.insertion;
+  if (style.click_event) {
+    const ce = shapeClickEvent(style.click_event, tp);
+    if (ce) out[ce.key] = ce.value;
+  }
+  if (style.hover_event) {
+    const he = shapeHoverEvent(style.hover_event, tp, warnings);
+    if (he) out[he.key] = he.value;
+  }
+}
+
+// 把一个运行整形为纯 JSON 对象（键名精确、按版本门控）。不合法/不支持返回 null（剥离）。
+function componentToJson(run: RichComponent, tp: TextProfile, warnings: string[]): Record<string, unknown> | null {
+  if (!run || typeof run !== "object") return null;
+  const anyRun = run as unknown as Record<string, unknown>;
+  const type = (anyRun.type as string) ?? "text";
+  const out: Record<string, unknown> = {};
+
+  switch (type) {
+    case "translatable": {
+      const r = run as TranslatableComponent;
+      out.type = "translatable";
+      out.translate = r.translate ?? "";
+      if (r.fallback !== undefined) out.fallback = r.fallback;
+      if (Array.isArray(r.with) && r.with.length) {
+        out.with = r.with.map((c) => componentToJson(c, tp, warnings)).filter((v) => v !== null);
+      }
+      break;
+    }
+    case "object": {
+      if (!tp.supportsObjectComponent) {
+        warnings.push("内嵌图标/头像（object 组件）需要 Java 1.21.9+，已忽略");
+        return null;
+      }
+      out.type = "object";
+      if ((anyRun.object as string) === "player") {
+        const r = run as ObjectPlayerComponent;
+        out.object = "player";
+        out.player = r.player ?? "";
+        if (r.hat !== undefined) out.hat = r.hat;
+      } else {
+        const r = run as ObjectSpriteComponent;
+        out.object = "atlas";
+        out.atlas = r.atlas || "minecraft:blocks";
+        out.sprite = r.sprite ?? "";
+      }
+      break;
+    }
+    case "keybind": {
+      out.keybind = (run as KeybindComponent).keybind ?? "";
+      break;
+    }
+    case "selector": {
+      const r = run as SelectorComponent;
+      out.selector = r.selector ?? "";
+      if (r.separator) {
+        const sep = componentToJson(r.separator, tp, warnings);
+        if (sep) out.separator = sep;
+      }
+      break;
+    }
+    case "score": {
+      const r = run as ScoreComponent;
+      out.score = { name: r.score?.name ?? "", objective: r.score?.objective ?? "" };
+      break;
+    }
+    case "nbt": {
+      const r = run as NbtComponent;
+      out.nbt = r.nbt ?? "";
+      out.source = r.source ?? "block";
+      if (r.source === "block" && r.block) out.block = r.block;
+      if (r.source === "entity" && r.entity) out.entity = r.entity;
+      if (r.source === "storage" && r.storage) out.storage = namespaced(r.storage);
+      if (r.interpret !== undefined) out.interpret = r.interpret;
+      if (r.separator) {
+        const sep = componentToJson(r.separator, tp, warnings);
+        if (sep) out.separator = sep;
+      }
+      break;
+    }
+    default: {
+      // text（含无 type 的旧模板）
+      out.text = String(anyRun.text ?? "");
+    }
+  }
+
+  applyStyle(out, run as TextStyle, tp, warnings);
+  return out;
+}
+
+function jsonRichLine(line: RichLine, tp: TextProfile, warnings: string[]): unknown[] {
+  if (!Array.isArray(line)) return [];
+  return line.map((run) => componentToJson(run, tp, warnings)).filter((v) => v !== null);
+}
+
+// 序列化单行文本组件：asSnbt 时包成单引号 SNBT 字符串（early/legacy/mid 族），否则裸 JSON（modern 族）。
+function serializeText(line: RichLine, asSnbt: boolean, tp: TextProfile, warnings: string[]): string {
+  const json = JSON.stringify(jsonRichLine(line, tp, warnings));
+  if (!asSnbt) return json;
+  return `'${json.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
 export function quote(value: string): string {

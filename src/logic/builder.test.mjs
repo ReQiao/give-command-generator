@@ -469,6 +469,132 @@ function base(version) {
   expect("1.20.5 enchantments flat", cmd.includes("enchantments={unbreaking:3}"), true);
 }
 
+// --- 36. font emitted (modern) ---
+{
+  const f = base("java_1_21_11_plus");
+  f.displayName = [[{ text: "A", font: "minecraft:illageralt" }]];
+  const cmd = buildGiveCommand(f);
+  expect("font emitted", cmd.includes('"font":"minecraft:illageralt"'), true);
+}
+
+// --- 37. obfuscated emitted ---
+{
+  const f = base("java_1_21_11_plus");
+  f.displayName = [[{ text: "A", obfuscated: true }]];
+  const cmd = buildGiveCommand(f);
+  expect("obfuscated emitted", cmd.includes('"obfuscated":true'), true);
+}
+
+// --- 38. named color passthrough ---
+{
+  const f = base("java_1_21_11_plus");
+  f.displayName = [[{ text: "A", color: "red" }]];
+  const cmd = buildGiveCommand(f);
+  expect("named color emitted", cmd.includes('"color":"red"'), true);
+}
+
+// --- 39. object sprite + player on 1.21.11+ ---
+{
+  const f = base("java_1_21_11_plus");
+  f.displayName = [[
+    { type: "object", object: "atlas", atlas: "minecraft:blocks", sprite: "block/stone" },
+    { type: "object", object: "player", player: "Notch", hat: true },
+  ]];
+  const cmd = buildGiveCommand(f);
+  expect("object sprite present", cmd.includes('{"type":"object","object":"atlas","atlas":"minecraft:blocks","sprite":"block/stone"}'), true);
+  expect("object player present", cmd.includes('{"type":"object","object":"player","player":"Notch","hat":true}'), true);
+}
+
+// --- 40. object stripped on 1.21.6 (<1.21.9) with warning ---
+{
+  const f = base("java_1_21_6");
+  f.displayName = [[{ text: "x" }, { type: "object", sprite: "item/diamond" }]];
+  const warnings = [];
+  const cmd = buildGiveCommand(f, warnings);
+  expect("1.21.6 object stripped", !cmd.includes('"type":"object"'), true);
+  expect("1.21.6 object warning", warnings.length > 0, true);
+  expect("1.21.6 keeps text", cmd.includes('{"text":"x"}'), true);
+}
+
+// --- 41. object stripped on 1.21 legacy too ---
+{
+  const f = base("java_1_21");
+  f.displayName = [[{ type: "object", sprite: "item/diamond" }]];
+  const cmd = buildGiveCommand(f);
+  expect("1.21 object stripped", !cmd.includes("object"), true);
+}
+
+// --- 42. click_event modern snake_case (1.21.5+) ---
+{
+  const f = base("java_1_21_11_plus");
+  f.displayName = [[{ text: "c", click_event: { action: "run_command", value: "say hi" } }]];
+  const cmd = buildGiveCommand(f);
+  expect("modern click_event snake_case", cmd.includes('"click_event":{"action":"run_command","command":"say hi"}'), true);
+}
+
+// --- 43. click_event legacy camelCase (1.21) ---
+{
+  const f = base("java_1_21");
+  f.displayName = [[{ text: "c", click_event: { action: "run_command", value: "/say hi" } }]];
+  const cmd = buildGiveCommand(f);
+  expect("legacy clickEvent camelCase", cmd.includes('"clickEvent":{"action":"run_command","value":"/say hi"}'), true);
+}
+
+// --- 44. hover_event modern show_text ---
+{
+  const f = base("java_1_21_11_plus");
+  f.displayName = [[{ text: "h", hover_event: { action: "show_text", text: [{ text: "tip" }] } }]];
+  const cmd = buildGiveCommand(f);
+  expect("modern hover_event value", cmd.includes('"hover_event":{"action":"show_text","value":[{"text":"tip"}]}'), true);
+}
+
+// --- 45. hover_event legacy contents ---
+{
+  const f = base("java_1_21");
+  f.displayName = [[{ text: "h", hover_event: { action: "show_text", text: [{ text: "tip" }] } }]];
+  const cmd = buildGiveCommand(f);
+  expect("legacy hoverEvent contents", cmd.includes('"hoverEvent":{"action":"show_text","contents":[{"text":"tip"}]}'), true);
+}
+
+// --- 46. translatable with args ---
+{
+  const f = base("java_1_21_11_plus");
+  f.lore = [[{ type: "translatable", translate: "item.minecraft.stone", with: [{ text: "arg" }] }]];
+  const cmd = buildGiveCommand(f);
+  expect("translatable emitted", cmd.includes('"translate":"item.minecraft.stone"'), true);
+  expect("translatable with args", cmd.includes('"with":[{"text":"arg"}]'), true);
+}
+
+// --- 47. keybind / selector / score / nbt ---
+{
+  const f = base("java_1_21_11_plus");
+  f.lore = [
+    [{ type: "keybind", keybind: "key.jump" }],
+    [{ type: "selector", selector: "@p" }],
+    [{ type: "score", score: { name: "@s", objective: "kills" } }],
+    [{ type: "nbt", nbt: "Health", source: "entity", entity: "@s", interpret: true }],
+  ];
+  const cmd = buildGiveCommand(f);
+  expect("keybind emitted", cmd.includes('{"keybind":"key.jump"}'), true);
+  expect("selector emitted", cmd.includes('{"selector":"@p"}'), true);
+  expect("score emitted", cmd.includes('{"score":{"name":"@s","objective":"kills"}}'), true);
+  expect("nbt emitted", cmd.includes('"nbt":"Health","source":"entity","entity":"@s","interpret":true'), true);
+}
+
+// --- 48. shadow_color array kept on 1.21.4+, converted to int below ---
+{
+  const f = base("java_1_21_4");
+  f.displayName = [[{ text: "s", shadow_color: [1, 0, 0, 1] }]];
+  const cmd = buildGiveCommand(f);
+  expect("1.21.4 shadow array kept", cmd.includes('"shadow_color":[1,0,0,1]'), true);
+}
+{
+  const f = base("java_1_21_2");
+  f.displayName = [[{ text: "s", shadow_color: [1, 0, 0, 1] }]];
+  const cmd = buildGiveCommand(f);
+  expect("1.21.2 shadow array -> int", cmd.includes('"shadow_color":-65536'), true);
+}
+
 // --- summary ---
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

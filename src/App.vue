@@ -495,9 +495,9 @@ function textOptions(items: string[]): SelectOption[] {
         <Transition name="tab-page" mode="out-in">
           <section :key="activeTab" class="tab-page">
             <div v-if="activeTab === '文本'" class="text-tab">
-              <RichTextEditor v-model="form.displayName" title="显示名称" @toast="showToast" />
-              <RichTextEditor v-model="form.itemName" title="物品名称" @toast="showToast" />
-              <RichTextEditor v-model="form.lore" multiline title="物品描述" @toast="showToast" />
+              <RichTextEditor v-model="form.displayName" :version="form.version" title="显示名称" @toast="showToast" />
+              <RichTextEditor v-model="form.itemName" :version="form.version" title="物品名称" @toast="showToast" />
+              <RichTextEditor v-model="form.lore" :version="form.version" multiline title="物品描述" @toast="showToast" />
             </div>
 
             <div v-else-if="activeTab === '附魔'" class="table-tab">
