@@ -333,6 +333,7 @@ button#primary,
 
 .info-bubble.center::after {
   left: 50%;
+  margin-left: -4.5px;
 }
 
 .info-bubble.right::after {

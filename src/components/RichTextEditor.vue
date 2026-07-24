@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import CatalogCombo from "./CatalogCombo.vue";
 import CustomSelect from "./CustomSelect.vue";
+import InfoTip from "./InfoTip.vue";
 import NumberInput from "./NumberInput.vue";
 import { BLOCKS, ITEMS } from "../data/catalog";
 import {
@@ -19,6 +20,7 @@ import {
 interface SelectOption {
   label: string;
   value: string;
+  description?: string;
 }
 
 const props = defineProps<{
@@ -83,10 +85,10 @@ const shadowModeOptions: SelectOption[] = [
 const fontChoice = ref("");
 const fontOptions: SelectOption[] = [
   { label: "默认字体", value: "" },
-  { label: "统一字体 uniform", value: "minecraft:uniform" },
-  { label: "标准银河字母 alt", value: "minecraft:alt" },
-  { label: "illager 符文 illageralt", value: "minecraft:illageralt" },
-  { label: "自定义…", value: "__custom__" },
+  { label: "统一字体", value: "minecraft:uniform", description: "等宽字体，兼容所有字符" },
+  { label: "标准银河字母", value: "minecraft:alt", description: "附魔台上的神秘符文" },
+  { label: "灾厄符文", value: "minecraft:illageralt", description: "幻术师使用的符文字体" },
+  { label: "自定义…", value: "__custom__", description: "填写资源包提供的字体 ID" },
 ];
 const customFont = ref("");
 
@@ -98,8 +100,8 @@ const spritePick = ref("");
 const spritePath = ref("block/stone");
 const spriteAtlas = ref("minecraft:blocks");
 const spriteKindOptions: SelectOption[] = [
-  { label: "方块贴图 block/", value: "block" },
-  { label: "物品贴图 item/", value: "item" },
+  { label: "方块贴图", value: "block", description: "贴图路径以 block/ 开头" },
+  { label: "物品贴图", value: "item", description: "贴图路径以 item/ 开头" },
 ];
 const playerName = ref("");
 const playerHat = ref(true);
@@ -118,18 +120,18 @@ const hoverEntityUuid = ref("");
 const hoverEntityName = ref("");
 const clickActionOptions: SelectOption[] = [
   { label: "无", value: "" },
-  { label: "打开网址 open_url", value: "open_url" },
-  { label: "运行命令 run_command", value: "run_command" },
-  { label: "填入命令 suggest_command", value: "suggest_command" },
-  { label: "复制到剪贴板 copy_to_clipboard", value: "copy_to_clipboard" },
-  { label: "翻书页 change_page", value: "change_page" },
-  { label: "打开对话框 show_dialog", value: "show_dialog" },
+  { label: "打开网址", value: "open_url", description: "在浏览器中打开链接" },
+  { label: "运行命令", value: "run_command", description: "以玩家身份执行命令" },
+  { label: "填入聊天栏", value: "suggest_command", description: "把命令填进输入框但不发送" },
+  { label: "复制到剪贴板", value: "copy_to_clipboard", description: "点击后复制指定文本" },
+  { label: "翻到书页", value: "change_page", description: "仅成书内有效" },
+  { label: "打开对话框", value: "show_dialog", description: "打开指定对话框（1.21.6+）" },
 ];
 const hoverActionOptions: SelectOption[] = [
   { label: "无", value: "" },
-  { label: "显示文本 show_text", value: "show_text" },
-  { label: "显示物品 show_item", value: "show_item" },
-  { label: "显示实体 show_entity", value: "show_entity" },
+  { label: "显示文本", value: "show_text", description: "悬停时弹出一段文字" },
+  { label: "显示物品", value: "show_item", description: "悬停时弹出物品提示框" },
+  { label: "显示实体", value: "show_entity", description: "悬停时弹出实体信息" },
 ];
 const clickValueLabel = computed(() => {
   switch (clickAction.value) {
@@ -146,11 +148,11 @@ const clickValueLabel = computed(() => {
 const compModalOpen = ref(false);
 const compType = ref("translatable");
 const compTypeOptions: SelectOption[] = [
-  { label: "翻译文本 translatable", value: "translatable" },
-  { label: "按键 keybind", value: "keybind" },
-  { label: "选择器 selector", value: "selector" },
-  { label: "计分板 score", value: "score" },
-  { label: "NBT 读取 nbt", value: "nbt" },
+  { label: "翻译文本", value: "translatable", description: "按玩家语言自动翻译" },
+  { label: "按键提示", value: "keybind", description: "显示玩家的按键绑定" },
+  { label: "实体选择器", value: "selector", description: "显示匹配到的实体名字" },
+  { label: "计分板分数", value: "score", description: "显示某个计分项的分数" },
+  { label: "读取 NBT", value: "nbt", description: "读取实体/方块/存储中的数据" },
 ];
 const transKey = ref("");
 const transFallback = ref("");
@@ -165,9 +167,9 @@ const nbtSource = ref("entity");
 const nbtTarget = ref("@s");
 const nbtInterpret = ref(false);
 const nbtSourceOptions: SelectOption[] = [
-  { label: "实体 entity", value: "entity" },
-  { label: "方块 block", value: "block" },
-  { label: "存储 storage", value: "storage" },
+  { label: "实体", value: "entity", description: "从实体读取数据" },
+  { label: "方块", value: "block", description: "从方块实体读取数据" },
+  { label: "存储", value: "storage", description: "从命令存储读取数据" },
 ];
 const nbtTargetLabel = computed(() => {
   switch (nbtSource.value) {
@@ -948,7 +950,7 @@ function hexToRgba(hex: string, alpha: number): string {
             <label>选择字体</label>
             <CustomSelect v-model="fontChoice" :options="fontOptions" />
             <template v-if="fontChoice === '__custom__'">
-              <label>自定义字体 ID</label>
+              <label>自定义字体 ID<InfoTip text="命名空间格式的字体 ID，如 minecraft:uniform；需资源包提供对应字体。" /></label>
               <input v-model="customFont" type="text" placeholder="例如 minecraft:uniform" />
             </template>
           </div>
@@ -969,11 +971,11 @@ function hexToRgba(hex: string, alpha: number): string {
           <div class="color-page">
             <label>贴图来源</label>
             <CustomSelect v-model="spriteKind" :options="spriteKindOptions" />
-            <label>选择方块 / 物品（自动填贴图路径）</label>
+            <label>选择方块 / 物品<InfoTip text="选中后会自动填写下方的贴图路径，你也可以手动修改。" /></label>
             <CatalogCombo v-model="spritePick" :catalog="spriteKind === 'block' ? BLOCKS : ITEMS" placeholder="搜索方块/物品" />
-            <label>贴图路径 sprite</label>
+            <label>贴图路径<InfoTip text="材质包中的贴图位置，如 block/stone、item/diamond。" /></label>
             <input v-model="spritePath" type="text" placeholder="例如 block/stone" />
-            <label>图集 atlas</label>
+            <label>图集<InfoTip text="贴图所在的图集，一般保持 minecraft:blocks 即可。" /></label>
             <input v-model="spriteAtlas" type="text" placeholder="minecraft:blocks" />
           </div>
           <div class="modal-actions">
@@ -1010,17 +1012,17 @@ function hexToRgba(hex: string, alpha: number): string {
         <div class="modal-card color-card">
           <h2>交互事件</h2>
           <div class="color-page">
-            <label>插入文本 insertion（Shift+点击填入聊天栏）</label>
+            <label>插入文本<InfoTip text="玩家 Shift+点击这段文字时，把这段内容填入聊天输入框。留空则不设置。" /></label>
             <input v-model="insertionText" type="text" placeholder="留空则不设置" />
 
-            <label>点击事件 click_event</label>
+            <label>点击动作<InfoTip text="鼠标点击这段文字时触发的动作。" /></label>
             <CustomSelect v-model="clickAction" :options="clickActionOptions" />
             <template v-if="clickAction">
               <label>{{ clickValueLabel }}</label>
               <input v-model="clickValue" type="text" />
             </template>
 
-            <label>悬停事件 hover_event</label>
+            <label>悬停提示<InfoTip text="鼠标悬停在这段文字上时，弹出显示的内容。" /></label>
             <CustomSelect v-model="hoverAction" :options="hoverActionOptions" />
             <template v-if="hoverAction === 'show_text'">
               <label>悬停文本</label>
@@ -1060,41 +1062,41 @@ function hexToRgba(hex: string, alpha: number): string {
             <CustomSelect v-model="compType" :options="compTypeOptions" />
 
             <template v-if="compType === 'translatable'">
-              <label>翻译键 translate</label>
+              <label>翻译键<InfoTip text="语言文件里的键名，如 item.minecraft.diamond；游戏会按玩家语言替换成对应文字。" /></label>
               <input v-model="transKey" type="text" placeholder="例如 item.minecraft.diamond" />
-              <label>缺省文本 fallback（可选）</label>
+              <label>缺省文本（可选）<InfoTip text="当找不到对应翻译时显示的文字。" /></label>
               <input v-model="transFallback" type="text" placeholder="翻译缺失时显示" />
-              <label>参数 with（多个用 | 分隔，可选）</label>
+              <label>参数（可选）<InfoTip text="填入翻译文本中占位符（%s）的内容，多个用竖线 | 分隔。" /></label>
               <input v-model="transWith" type="text" placeholder="参数1|参数2" />
             </template>
 
             <template v-else-if="compType === 'keybind'">
-              <label>按键 keybind</label>
+              <label>按键动作<InfoTip text="要显示的按键动作 ID，如 key.jump（跳跃）、key.attack（攻击）；实际显示玩家绑定的按键。" /></label>
               <input v-model="keybindKey" type="text" placeholder="key.jump" />
             </template>
 
             <template v-else-if="compType === 'selector'">
-              <label>选择器 selector</label>
+              <label>选择器<InfoTip text="目标选择器，如 @p（最近玩家）、@s（自己）、@e（所有实体）；显示匹配实体的名字。" /></label>
               <input v-model="selectorValue" type="text" placeholder="@p" />
-              <label>分隔符 separator（可选）</label>
+              <label>分隔符（可选）<InfoTip text="匹配到多个实体时，名字之间用什么分隔，如逗号加空格。" /></label>
               <input v-model="selectorSep" type="text" placeholder="例如 , " />
             </template>
 
             <template v-else-if="compType === 'score'">
-              <label>目标 name</label>
+              <label>目标<InfoTip text="计分对象，如 @s、玩家名，或计分板里的假名。" /></label>
               <input v-model="scoreName" type="text" placeholder="@s / 玩家名" />
-              <label>计分项 objective</label>
+              <label>计分项<InfoTip text="计分板 objective 的名称，如 kills；显示该对象在此计分项上的分数。" /></label>
               <input v-model="scoreObjective" type="text" placeholder="例如 kills" />
             </template>
 
             <template v-else>
-              <label>NBT 路径</label>
+              <label>数据路径<InfoTip text="要读取的 NBT 路径，如 Health、Inventory[0].id。" /></label>
               <input v-model="nbtPath" type="text" placeholder="例如 Health" />
-              <label>来源 source</label>
+              <label>来源</label>
               <CustomSelect v-model="nbtSource" :options="nbtSourceOptions" />
               <label>{{ nbtTargetLabel }}</label>
               <input v-model="nbtTarget" type="text" />
-              <label class="check-line"><input v-model="nbtInterpret" type="checkbox" />解析为 JSON 文本（interpret）</label>
+              <label class="check-line"><input v-model="nbtInterpret" type="checkbox" />把读到的内容当作富文本解析<InfoTip text="开启后，会把读取到的 NBT 当成 JSON 文本组件来解析显示（对应 interpret）。" /></label>
             </template>
           </div>
           <div class="modal-actions">
