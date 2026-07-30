@@ -1,4 +1,4 @@
-# Give指令生成器
+# Soul Lantern（灵魂灯笼）
 
 一个面向 Minecraft 的 `/give` 指令生成器，当前支持 **Java 1.21.11+** 与 **基岩版** 两种模式。
 
@@ -170,7 +170,7 @@ src-tauri/target/release/bundle/nsis/
 直接运行的程序本体在：
 
 ```text
-src-tauri/target/release/give-command-generator.exe
+src-tauri/target/release/soul-lantern.exe
 ```
 
 ## 注意事项

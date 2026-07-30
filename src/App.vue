@@ -419,8 +419,8 @@ function textOptions(items: string[]): SelectOption[] {
   <main :class="shellClass">
     <section class="card top-card">
       <div class="brand-group">
-        <div class="logo">⛏</div>
-        <h1>Give指令生成器</h1>
+        <div class="logo">🏮</div>
+        <h1>灵魂灯笼</h1>
       </div>
       <div class="top-form">
         <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>

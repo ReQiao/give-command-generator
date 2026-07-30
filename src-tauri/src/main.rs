@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    give_command_generator_lib::run()
+    soul_lantern_lib::run()
 }
