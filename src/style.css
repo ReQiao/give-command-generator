@@ -129,9 +129,26 @@ h1 {
 }
 
 .side-panel {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  overflow: auto;
+}
+
+.side-panel .status-text {
+  margin-top: auto;
+}
+
+.item-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.pick-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .tab-panel {
@@ -623,38 +640,6 @@ button#primary,
   transform: translateY(-4px);
 }
 
-.item-list {
-  min-height: 0;
-  max-height: 100%;
-  overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 4px;
-  background: rgba(0, 0, 0, 0.16);
-}
-
-.item-list button {
-  display: block;
-  width: 100%;
-  min-height: 0;
-  margin: 2px 0;
-  border: 0;
-  border-radius: 10px;
-  padding: 8px 10px;
-  color: #e7ecff;
-  text-align: left;
-  font-weight: 400;
-  background: transparent;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.item-list button.selected,
-.item-list button:hover {
-  background: rgba(122, 162, 255, 0.22);
-}
-
 .status-text,
 .sub-text {
   margin: 0;
@@ -891,6 +876,141 @@ button#primary,
 
 .color-card {
   width: min(640px, calc(100vw - 48px));
+}
+
+/* ---- 物品选择弹窗 ---- */
+
+.picker-card {
+  display: flex;
+  width: min(860px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 头部/搜索/分类/脚注都不参与压缩，否则卡片到达 max-height 后
+   它们会被 flex-shrink 压扁（分类行曾被压到 11px），只让网格伸缩 */
+.picker-head,
+.picker-search,
+.picker-cats,
+.picker-foot {
+  flex: none;
+}
+
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.picker-head h2 {
+  margin: 0;
+}
+
+.picker-close {
+  min-height: 32px;
+  padding: 2px 12px;
+  font-size: 15pt;
+  line-height: 1;
+}
+
+.picker-search {
+  width: 100%;
+}
+
+.picker-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.picker-cats button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  color: #aeb7da;
+  font-size: 10pt;
+}
+
+.picker-cats button small {
+  color: rgba(174, 183, 218, 0.6);
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+
+.picker-cats button.active {
+  border-color: rgba(122, 162, 255, 0.4);
+  color: #e7ecff;
+  background: rgba(122, 162, 255, 0.2);
+}
+
+.picker-cats button.active small {
+  color: rgba(231, 236, 255, 0.72);
+}
+
+.picker-grid {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  overflow-y: auto;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.picker-grid button {
+  display: flex;
+  min-height: 46px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.picker-grid button .picker-name {
+  overflow: hidden;
+  width: 100%;
+  font-size: 10.5pt;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-grid button small {
+  overflow: hidden;
+  width: 100%;
+  color: rgba(174, 183, 218, 0.66);
+  font-size: 8.5pt;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-grid button.selected {
+  border-color: rgba(77, 228, 201, 0.5);
+  background: rgba(77, 228, 201, 0.16);
+}
+
+.picker-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 24px 8px;
+  color: #aeb7da;
+  text-align: center;
+}
+
+.picker-foot {
+  margin: 0;
+  color: #aeb7da;
+  font-size: 9.5pt;
 }
 
 .preset-row {
@@ -1175,14 +1295,6 @@ button#primary,
     min-width: 0;
     min-height: auto;
     padding: 12px;
-  }
-
-  .side-panel {
-    grid-template-rows: none;
-  }
-
-  .item-list {
-    max-height: 45vh;
   }
 
   .tab-page {

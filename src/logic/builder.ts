@@ -178,7 +178,6 @@ export interface GiveForm {
   version: GiveVersion;
   target: string;
   item: string;
-  itemSearch: string;
   count: number;
   withSlash: boolean;
   templateName: string;
@@ -226,7 +225,6 @@ export function createDefaultForm(): GiveForm {
     version: "java_1_21_11_plus",
     target: "@a",
     item: "石头",
-    itemSearch: "",
     count: 1,
     withSlash: false,
     templateName: "未命名模板",

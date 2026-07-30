@@ -7,6 +7,7 @@ import CatalogCombo from "./components/CatalogCombo.vue";
 import CustomSelect from "./components/CustomSelect.vue";
 import EffectEditor from "./components/EffectEditor.vue";
 import InfoTip from "./components/InfoTip.vue";
+import ItemPickerModal from "./components/ItemPickerModal.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import {
@@ -63,6 +64,7 @@ const toastText = ref("");
 const modal = reactive({ open: false, title: "", message: "", error: false });
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedBuiltinTemplate = ref("");
+const itemPickerOpen = ref(false);
 const generateButtonText = ref("生成指令");
 const copyButtonText = ref("复制指令");
 const rowFlash = reactive<Record<string, boolean>>({});
@@ -92,7 +94,6 @@ const visibleTabs = computed(() => {
   return ["文本", "附魔", "属性", "方块", "基础", "死亡效果", "食物工具"];
 });
 
-const filteredItems = computed(() => ITEMS.filter((row) => matches(row, form.itemSearch)));
 const filteredBlocks = computed(() => BLOCKS.filter((row) => matches(row, blockSearch.value)));
 const shellClass = computed(() => ({ "app-shell": true, "no-motion": !animationEnabled.value }));
 const legacyJava = computed(() => isJava121LegacyFamily(form.version));
@@ -467,11 +468,11 @@ function textOptions(items: string[]): SelectOption[] {
           <span class="field-label">目标<InfoTip text="@a 是所有玩家，@p 是最近玩家，@s 是自己，@e 是全部实体。" /></span>
           <CatalogCombo v-model="form.target" :catalog="targetCatalog" placeholder="@a" />
 
-          <span class="field-label">物品搜索<InfoTip text="按中文、英文 ID 或关键词过滤左侧物品列表。" /></span>
-          <input v-model="form.itemSearch" placeholder="搜索物品或直接输入英文ID" />
-
-          <span class="field-label">物品<InfoTip text="可以输入中文名、minecraft:ID 或不带 minecraft: 的 ID，按 Tab 可补全。" /></span>
-          <CatalogCombo v-model="form.item" :catalog="ITEMS" placeholder="选择或输入物品" />
+          <span class="field-label">物品<InfoTip text="可以输入中文名、minecraft:ID 或不带 minecraft: 的 ID，按 Tab 可补全；也可以点「选择」从分类列表里挑。" /></span>
+          <div class="item-field">
+            <CatalogCombo v-model="form.item" :catalog="ITEMS" placeholder="选择或输入物品" />
+            <button class="pick-btn" type="button" @click="itemPickerOpen = true">选择…</button>
+          </div>
 
           <span class="field-label">数量<InfoTip text="生成物品数量。可以直接输入，也可以用右侧箭头微调。" /></span>
           <NumberInput v-model="form.count" :min="1" />
@@ -481,18 +482,6 @@ function textOptions(items: string[]): SelectOption[] {
 
           <span></span>
           <label class="check-line"><input v-model="animationEnabled" type="checkbox" />启用界面动画</label>
-        </div>
-
-        <div class="item-list" :class="{ flash: rowFlash.item }">
-          <button
-            v-for="row in filteredItems"
-            :key="row[0]"
-            :class="{ selected: form.item === row[1] }"
-            type="button"
-            @click="selectItem(row[1])"
-          >
-            {{ row[1] }}
-          </button>
         </div>
 
         <p class="status-text">{{ status }}</p>
@@ -710,6 +699,13 @@ function textOptions(items: string[]): SelectOption[] {
     <Transition name="toast">
       <div v-if="toastText" class="toast">{{ toastText }}</div>
     </Transition>
+
+    <ItemPickerModal
+      v-model:open="itemPickerOpen"
+      :catalog="ITEMS"
+      :current="form.item"
+      @select="selectItem"
+    />
 
     <Transition name="modal-fade">
       <div v-if="modal.open" class="modal-overlay">
