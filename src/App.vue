@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { isTauri } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import CatalogCombo from "./components/CatalogCombo.vue";
 import CustomSelect from "./components/CustomSelect.vue";
 import EffectEditor from "./components/EffectEditor.vue";
@@ -323,16 +326,32 @@ async function copy() {
   }
 }
 
-function saveTemplate() {
+async function saveTemplate() {
   const payload = JSON.stringify(form, null, 2);
+  const filename = `${(form.templateName.trim() || "未命名模板").replace(/[\\/:*?"<>|]/g, "_")}.json`;
+
+  if (isTauri()) {
+    try {
+      const path = await save({
+        defaultPath: filename,
+        filters: [{ name: "JSON 模板", extensions: ["json"] }],
+      });
+      if (!path) return;
+      await writeTextFile(path, payload);
+      showToast(`模板已保存到 ${path}`, 4000);
+    } catch (error) {
+      showMessage("保存失败", error instanceof Error ? error.message : String(error), true);
+    }
+    return;
+  }
+
   const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
   const link = document.createElement("a");
-  const filename = `${(form.templateName.trim() || "未命名模板").replace(/[\\/:*?"<>|]/g, "_")}.json`;
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
-  showToast("模板已保存");
+  showToast("模板已保存到浏览器默认下载目录");
 }
 
 function loadTemplate() {
@@ -372,13 +391,13 @@ function showMessage(title: string, message: string, error = false) {
   modal.open = true;
 }
 
-function showToast(message: string) {
+function showToast(message: string, duration = 1800) {
   toastText.value = message;
   if (toastTimer !== undefined) window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
     toastText.value = "";
     toastTimer = undefined;
-  }, 1800);
+  }, duration);
 }
 
 function pulseButton(target: { value: string }, text: string, original: string) {

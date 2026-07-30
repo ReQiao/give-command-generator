@@ -852,11 +852,13 @@ button#primary,
   right: 26px;
   bottom: 26px;
   z-index: 20;
+  max-width: min(480px, calc(100vw - 52px));
   border: 1px solid rgba(122, 162, 255, 0.3);
   border-radius: 14px;
   padding: 10px 16px;
   color: #e7ecff;
   font-weight: 700;
+  word-break: break-all;
   background: rgba(17, 26, 51, 0.94);
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
 }
