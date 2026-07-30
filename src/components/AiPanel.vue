@@ -12,8 +12,33 @@ import { dispatchIntents } from "../logic/dispatch";
 import type { GiveVersion } from "../logic/builder";
 import InfoTip from "./InfoTip.vue";
 
-const props = defineProps<{ version: GiveVersion }>();
+const props = defineProps<{ version: GiveVersion; animate?: boolean }>();
 const emit = defineEmits<{ (e: "toast", message: string, duration?: number): void }>();
+
+// ---------------- 启动特效 ----------------
+// 切进 AI 模式时点亮「灵魂灯笼」：能量环扩散 + 灰烬上浮 + 一道扫光。
+// 纯 CSS 动画，只在挂载时放一次；期间面板照常可用，不挡任何操作。
+const prefersReducedMotion =
+  typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** 关掉界面动画、或系统要求减弱动效时，直接不渲染特效层。 */
+const showIgnition = ref(props.animate !== false && !prefersReducedMotion);
+
+/** 上浮的灰烬：位置/延时/时长/漂移各自随机，避免看出是同一套循环。 */
+const embers = Array.from({ length: 18 }, (_, i) => ({
+  key: i,
+  left: `${Math.random() * 100}%`,
+  delay: `${Math.random() * 620}ms`,
+  duration: `${1100 + Math.random() * 900}ms`,
+  drift: `${(Math.random() - 0.5) * 60}px`,
+  size: `${3 + Math.random() * 4}px`,
+}));
+
+if (showIgnition.value) {
+  // 特效放完就把节点摘掉，别在 DOM 里留一层常驻的 overlay。
+  setTimeout(() => {
+    showIgnition.value = false;
+  }, 2200);
+}
 
 interface AiResponse {
   ok: boolean;
@@ -150,7 +175,28 @@ function copyAll() {
 </script>
 
 <template>
-  <section class="card ai-card">
+  <section class="card ai-card" :class="{ igniting: showIgnition }">
+    <!-- 启动特效层：纯装饰，pointer-events:none，不拦任何点击 -->
+    <div v-if="showIgnition" class="ai-ignite" aria-hidden="true">
+      <span class="ai-ring"></span>
+      <span class="ai-ring"></span>
+      <span class="ai-ring"></span>
+      <span class="ai-sweep"></span>
+      <span
+        v-for="e in embers"
+        :key="e.key"
+        class="ai-ember"
+        :style="{
+          left: e.left,
+          width: e.size,
+          height: e.size,
+          animationDelay: e.delay,
+          animationDuration: e.duration,
+          '--drift': e.drift,
+        }"
+      ></span>
+    </div>
+
     <div v-if="!desktop" class="ai-notice">
       AI 生成与一键部署需要在桌面版里使用（浏览器里没有本地存档访问能力）。
     </div>

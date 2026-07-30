@@ -451,7 +451,7 @@ function textOptions(items: string[]): SelectOption[] {
             :aria-selected="mode === 'manual'"
             :class="{ active: mode === 'manual' }"
             @click="mode = 'manual'"
-          >自己填</button>
+          >手动模式</button>
           <button
             type="button"
             role="tab"
@@ -482,7 +482,7 @@ function textOptions(items: string[]): SelectOption[] {
       </div>
     </section>
 
-    <AiPanel v-if="mode === 'ai'" :version="form.version" @toast="showToast" />
+    <AiPanel v-if="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
 
     <section v-show="mode === 'manual'" class="split-layout">
       <aside class="card side-panel">
