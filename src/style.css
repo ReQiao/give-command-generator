@@ -74,6 +74,19 @@ button {
   min-width: max-content;
 }
 
+.logo {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 14px;
+  color: white;
+  font-size: 18pt;
+  font-weight: 700;
+  background: linear-gradient(135deg, #7aa2ff, #4de4c9);
+  box-shadow: 0 10px 28px rgba(77, 228, 201, 0.18);
+}
+
 h1 {
   margin: 0;
   font-size: 15pt;

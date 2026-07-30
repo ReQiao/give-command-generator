@@ -419,6 +419,7 @@ function textOptions(items: string[]): SelectOption[] {
   <main :class="shellClass">
     <section class="card top-card">
       <div class="brand-group">
+        <div class="logo"></div>
         <h1>Give指令生成器</h1>
       </div>
       <div class="top-form">
