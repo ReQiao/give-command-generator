@@ -726,11 +726,8 @@ button#primary,
 .inline-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.inline-row {
   flex-wrap: wrap;
+  gap: 8px;
 }
 
 .inline-row input,
@@ -1109,5 +1106,107 @@ button#primary,
 
   .top-form {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    font-size: 11pt;
+  }
+
+  body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: auto;
+  }
+
+  #app {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    gap: 10px;
+    padding: 10px;
+    overflow: visible;
+  }
+
+  .app-shell > * {
+    min-width: 0;
+  }
+
+  .top-card {
+    flex-wrap: wrap;
+    min-width: 0;
+    padding: 12px;
+  }
+
+  .top-form {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .brand-group {
+    min-width: 0;
+  }
+
+  .top-form label {
+    margin-left: 0;
+  }
+
+  .template-input,
+  .builtin-template-select {
+    width: 100%;
+    flex: 1 1 160px;
+  }
+
+  .split-layout {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .side-panel,
+  .tab-panel {
+    min-width: 0;
+    min-height: auto;
+    padding: 12px;
+  }
+
+  .side-panel {
+    grid-template-rows: none;
+  }
+
+  .item-list {
+    max-height: 45vh;
+  }
+
+  .tab-page {
+    flex: none;
+    overflow: visible;
+  }
+
+  .form-grid,
+  .basic-grid,
+  .color-page {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid label,
+  .basic-grid label,
+  .color-page label {
+    margin-top: 4px;
+  }
+
+  button {
+    min-height: 44px;
+  }
+
+  .tab-strip button {
+    min-height: 42px;
   }
 }
