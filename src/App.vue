@@ -8,6 +8,7 @@ import CustomSelect from "./components/CustomSelect.vue";
 import EffectEditor from "./components/EffectEditor.vue";
 import InfoTip from "./components/InfoTip.vue";
 import ItemPickerModal from "./components/ItemPickerModal.vue";
+import AiPanel from "./components/AiPanel.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import {
@@ -65,6 +66,8 @@ const modal = reactive({ open: false, title: "", message: "", error: false });
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedBuiltinTemplate = ref("");
 const itemPickerOpen = ref(false);
+/** 手动填表 / AI 自然语言，两种模式共用顶部的版本选择。 */
+const mode = ref<"manual" | "ai">("manual");
 const generateButtonText = ref("生成指令");
 const copyButtonText = ref("复制指令");
 const rowFlash = reactive<Record<string, boolean>>({});
@@ -441,8 +444,28 @@ function textOptions(items: string[]): SelectOption[] {
       <div class="brand-group">
         <div class="logo"></div>
         <h1>Give指令生成器</h1>
+        <div class="mode-switch" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="mode === 'manual'"
+            :class="{ active: mode === 'manual' }"
+            @click="mode = 'manual'"
+          >自己填</button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="mode === 'ai'"
+            :class="{ active: mode === 'ai' }"
+            @click="mode = 'ai'"
+          >AI 模式</button>
+        </div>
       </div>
-      <div class="top-form">
+      <div v-if="mode === 'ai'" class="top-form ai-top-form">
+        <span class="field-label">版本<InfoTip text="AI 生成的指令会按这个版本的语法构建。" /></span>
+        <CustomSelect v-model="form.version" :options="versionOptions" />
+      </div>
+      <div v-else class="top-form">
         <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>
         <input v-model="form.templateName" class="template-input" />
         <CustomSelect
@@ -459,7 +482,9 @@ function textOptions(items: string[]): SelectOption[] {
       </div>
     </section>
 
-    <section class="split-layout">
+    <AiPanel v-if="mode === 'ai'" :version="form.version" @toast="showToast" />
+
+    <section v-show="mode === 'manual'" class="split-layout">
       <aside class="card side-panel">
         <div class="form-grid">
           <span class="field-label">版本<InfoTip text="选择 Java 组件语法或基岩版基础 give 语法。Java 功能更多，基岩版更偏基础参数。" /></span>
@@ -691,7 +716,7 @@ function textOptions(items: string[]): SelectOption[] {
       </section>
     </section>
 
-    <section class="card preview-card" :class="{ flash: rowFlash.preview }">
+    <section v-show="mode === 'manual'" class="card preview-card" :class="{ flash: rowFlash.preview }">
       <label>生成结果</label>
       <textarea id="preview" v-model="preview" placeholder="点击“生成指令”后，最终指令会显示在这里。" spellcheck="false"></textarea>
     </section>

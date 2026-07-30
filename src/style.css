@@ -1239,6 +1239,221 @@ button#primary,
   }
 }
 
+/* ---------------- 模式切换（自己填 / AI） ---------------- */
+.mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.mode-switch button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 9.5pt;
+  font-weight: 700;
+}
+
+.mode-switch button.active {
+  color: #071020;
+  background: linear-gradient(90deg, #7aa2ff, #4de4c9);
+}
+
+/* AI 模式顶栏只有一个版本选择，不该像手动模式那样铺满整行 */
+.ai-top-form {
+  width: auto;
+}
+
+.ai-top-form .field-label {
+  white-space: nowrap;
+}
+
+.ai-top-form .custom-select {
+  width: clamp(180px, 20vw, 240px);
+}
+
+/* ---------------- AI 模式面板 ---------------- */
+.ai-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+}
+
+.ai-notice {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 196, 105, 0.35);
+  border-radius: 12px;
+  color: #ffd79a;
+  font-size: 9.5pt;
+  background: rgba(255, 196, 105, 0.1);
+}
+
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-key input {
+  width: clamp(160px, 22vw, 260px);
+}
+
+.ai-input {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px;
+  border-radius: 14px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.ai-examples {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-examples-label {
+  color: var(--muted, #93a4c8);
+  font-size: 9pt;
+}
+
+.ai-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 9pt;
+  font-weight: 500;
+}
+
+.ai-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 122, 138, 0.35);
+  border-radius: 12px;
+  color: #ffb3bd;
+  font-size: 9.5pt;
+  background: rgba(255, 122, 138, 0.1);
+}
+
+.ai-explain {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 9.5pt;
+  line-height: 1.6;
+  background: rgba(122, 162, 255, 0.1);
+}
+
+.ai-results,
+.ai-failures {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-results li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-results code {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #e7ecff;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5pt;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.ai-failures li {
+  color: #ffb3bd;
+  font-size: 9pt;
+}
+
+.ai-deploy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-deploy-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ai-deploy-row select {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.ai-deployed {
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 9.5pt;
+  line-height: 1.6;
+  background: rgba(77, 228, 201, 0.1);
+}
+
+.ai-deployed p {
+  margin: 0 0 8px;
+}
+
+.ai-deploy-cmds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-deploy-cmds code {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5pt;
+  overflow-wrap: anywhere;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.ai-deploy-path {
+  margin: 8px 0 0;
+  color: var(--muted, #93a4c8);
+  font-size: 8.5pt;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 720px) {
   :root {
     font-size: 11pt;
