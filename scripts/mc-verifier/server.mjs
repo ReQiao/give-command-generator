@@ -28,6 +28,11 @@ function prepareWorkDir(version) {
     "max-players=0",
     "spawn-protection=0",
     "enable-command-block=false",
+    // 留空 generator-settings 时 26.x 会打一条
+    // "No key layers in MapLike[{}]" 的 ERROR 日志，但世界仍按经典超平坦生成
+    // （实测地表草方块在 y=-60），可以忽略。
+    // 注意：不要试图用 generator-settings 显式指定 layers 来消掉这条日志——
+    // 实测传 JSON 会让区块生成阶段直接把服务器带崩。
     "level-type=minecraft:flat",
     "generate-structures=false",
     "view-distance=3",

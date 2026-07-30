@@ -210,7 +210,120 @@ const SEMANTIC_PROBES = [
     query: `data get entity @e[tag=sem_J1,limit=1]`,
     cleanup: `kill @e[tag=sem_J1]`,
   },
+
+  // =========================================================
+  // K. 「落地检测」组合技真值（AI 机制指南的依据）
+  //
+  // 爆炸箭 / 地雷 / 落地触发陷阱这类需求，原版没有直接对应的物品或指令，
+  // 只能靠「实体落地状态 + 选择器 nbt 过滤 + 循环命令方块」组合实现。
+  // 要把这套做法写进 AI 的 prompt，键名与选择器写法必须先实测为真。
+  //
+  // 关键坑（本组探针实测所得）：箭与掉落物用的是**两个不同的键**——
+  //   箭插地   → inGround:1b（此时 OnGround 仍为 0b，用 OnGround 会永远匹配不到）
+  //   掉落物落地 → OnGround:1b（掉落物根本没有 inGround 字段）
+  // 这正是 AI 最容易张冠李戴的地方，故两者都留了正反面探针。
+  //
+  // 坐标：超平坦地表 y=-60（草方块），故在 y=-58 落生，1 秒内即可落地，
+  // 比从 y=100 自由落体再等 9 秒更快也更稳。
+  // =========================================================
+  {
+    id: "K1_arrow_inground",
+    note: "箭插在地上：确认 inGround 键名/类型，并确认此时 OnGround 仍为 0b",
+    setup: [`summon minecraft:arrow 10 -58 0 {Tags:["sem_K1"]}`],
+    settleMs: 1500,
+    query: `data get entity @e[tag=sem_K1,limit=1]`,
+    cleanup: `kill @e[tag=sem_K1]`,
+  },
+  {
+    id: "K2_arrow_selector_inground",
+    note: "选择器按 nbt={inGround:1b} 过滤已插地的箭 —— 期望 Test passed",
+    setup: [`summon minecraft:arrow 11 -58 0 {Tags:["sem_K2"]}`],
+    settleMs: 1500,
+    // execute if entity 不带 run 时会回 "Test passed. Count: N" / "Test failed"，
+    // 可直接经 RCON 读到判定结果；用 run say 则不会回显，无法判读。
+    query: `execute if entity @e[type=minecraft:arrow,tag=sem_K2,nbt={inGround:1b}]`,
+    cleanup: `kill @e[tag=sem_K2]`,
+  },
+  {
+    id: "K2b_arrow_selector_onground_trap",
+    note: "反面：对插地的箭用 nbt={OnGround:1b} 过滤 —— 期望 Test failed（AI 常犯的张冠李戴）",
+    setup: [`summon minecraft:arrow 12 -58 0 {Tags:["sem_K2b"]}`],
+    settleMs: 1500,
+    query: `execute if entity @e[type=minecraft:arrow,tag=sem_K2b,nbt={OnGround:1b}]`,
+    cleanup: `kill @e[tag=sem_K2b]`,
+  },
+  {
+    id: "K2c_arrow_inflight_excluded",
+    note: "反面：飞行中的箭不应被 inGround:1b 命中 —— 期望 Test failed（否则一射出就触发）",
+    setup: [`summon minecraft:arrow 13 100 0 {Tags:["sem_K2c"]}`],
+    settleMs: 1200,
+    query: `execute if entity @e[type=minecraft:arrow,tag=sem_K2c,nbt={inGround:1b}]`,
+    cleanup: `kill @e[tag=sem_K2c]`,
+  },
+  {
+    id: "K3_item_onground",
+    note: "掉落物落地：确认 OnGround 键名与 Item 子 compound 结构（Item 大写、id/count 小写）",
+    setup: [`summon minecraft:item 14 -58 0 {Item:{id:"minecraft:tnt",count:1},Tags:["sem_K3"]}`],
+    settleMs: 1500,
+    query: `data get entity @e[tag=sem_K3,limit=1]`,
+    cleanup: `kill @e[tag=sem_K3]`,
+  },
+  {
+    id: "K4_item_selector_onground",
+    note: "选择器同时按 OnGround 与 Item.id 过滤掉落物 —— 期望 Test passed",
+    setup: [`summon minecraft:item 15 -58 0 {Item:{id:"minecraft:tnt",count:1},Tags:["sem_K4"]}`],
+    settleMs: 1500,
+    query: `execute if entity @e[type=minecraft:item,tag=sem_K4,nbt={OnGround:1b,Item:{id:"minecraft:tnt"}}]`,
+    cleanup: `kill @e[tag=sem_K4]`,
+  },
+  {
+    id: "K4b_item_selector_wrong_id",
+    note: "反面：Item.id 不匹配时不应命中 —— 期望 Test failed（确认过滤真的按物品区分）",
+    setup: [`summon minecraft:item 16 -58 0 {Item:{id:"minecraft:tnt",count:1},Tags:["sem_K4b"]}`],
+    settleMs: 1500,
+    query: `execute if entity @e[type=minecraft:item,tag=sem_K4b,nbt={OnGround:1b,Item:{id:"minecraft:diamond"}}]`,
+    cleanup: `kill @e[tag=sem_K4b]`,
+  },
+  {
+    id: "K5_tnt_fuse",
+    note: "summon 出的 TNT 引信键名与类型（fuse 小写 short）",
+    setup: [`summon minecraft:tnt 17 -58 0 {fuse:200s,Tags:["sem_K5"]}`],
+    query: `data get entity @e[tag=sem_K5,limit=1]`,
+    cleanup: `kill @e[tag=sem_K5]`,
+  },
+  {
+    id: "K6_explosive_arrow_chain",
+    note: "完整爆炸箭链路：在插地箭的位置生成 TNT —— 期望 Summoned new Primed TNT",
+    setup: [`summon minecraft:arrow 18 -58 0 {Tags:["sem_K6"]}`],
+    settleMs: 1500,
+    query: `execute at @e[type=minecraft:arrow,tag=sem_K6,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:200s}`,
+    cleanup: `kill @e[tag=sem_K6]`,
+  },
+  {
+    id: "K7_command_block_roundtrip",
+    note: "循环命令方块能否原样承载这类嵌套引号命令（一键部署的 datapack 走同一批命令）",
+    setup: [
+      `setblock 20 -58 0 minecraft:repeating_command_block{Command:"execute at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",auto:1b}`,
+    ],
+    query: `data get block 20 -58 0 Command`,
+    cleanup: `setblock 20 -58 0 minecraft:air`,
+  },
 ];
+
+/** 会话级前置命令：不 forceload 的话，出生区块可能不 tick，实体落不下去也查不到。 */
+const SESSION_SETUP = ["forceload add 0 0"];
+
+/**
+ * 按 --only=<前缀,前缀...> 过滤要跑的探针（不传则跑全部）。
+ * 只想复验某一组时很有用，例如 --only=K 只跑落地检测那组。
+ */
+function selectProbes() {
+  const arg = process.argv.slice(2).find((a) => a.startsWith("--only="));
+  if (!arg) return SEMANTIC_PROBES;
+  const prefixes = arg.slice("--only=".length).split(",").map((s) => s.trim()).filter(Boolean);
+  if (!prefixes.length) return SEMANTIC_PROBES;
+  return SEMANTIC_PROBES.filter((p) => prefixes.some((prefix) => p.id.startsWith(prefix)));
+}
 
 async function connectWithRetry(rcon, attempts = 6, delayMs = 1500) {
   let lastErr;
@@ -239,7 +352,17 @@ async function runVersion(version) {
     log(`  RCON 已连接。等待出生区块加载 ...`);
     await sleep(2000); // 给 spawn chunk 加载时间
 
-    for (const probe of SEMANTIC_PROBES) {
+    // send() 在超时时会静默返回空串而不是抛错，链路断了也看不出来——
+    // 先用 list 冒烟一次，把"整轮探针全是空响应"这种假结果挡在开跑之前。
+    const smoke = (await rcon.send("list")).trim();
+    if (!smoke) throw new Error("RCON 已连接但 list 无响应，链路不可用（探针结果会全是空值）");
+    log(`  RCON 冒烟测试通过：${smoke}`);
+
+    for (const cmd of SESSION_SETUP) {
+      log(`  setup(session)> ${cmd} → ${(await rcon.send(cmd)).trim().slice(0, 120)}`);
+    }
+
+    for (const probe of selectProbes()) {
       log(`\n--- [${probe.id}] ---`);
       log(`    ${probe.note}`);
       const record = { id: probe.id, note: probe.note, setup: [], query: null, cleanup: null };
@@ -251,7 +374,8 @@ async function runVersion(version) {
         record.setup.push({ cmd, response: res.trim() });
       }
 
-      await sleep(300); // 等服务器处理 summon/setblock
+      // 默认 300ms 够服务器处理 summon/setblock；需要实体自然下落的探针用 settleMs 延长。
+      await sleep(probe.settleMs ?? 300);
 
       const queryRes = await rcon.send(probe.query);
       log(`  query> ${probe.query}`);
@@ -273,8 +397,30 @@ async function runVersion(version) {
     await server.stop();
   }
 
+  // 与已有结果按 id 合并：用 --only 只复跑某一组时，不该抹掉其余探针的历史真值。
   const outPath = path.join(outDir, "semantic.json");
-  fs.writeFileSync(outPath, JSON.stringify({ version, results }, null, 2));
+  const merged = new Map();
+  if (fs.existsSync(outPath)) {
+    try {
+      for (const r of JSON.parse(fs.readFileSync(outPath, "utf8")).results ?? []) merged.set(r.id, r);
+    } catch {
+      log(`  (已有 semantic.json 无法解析，将整体覆盖)`);
+    }
+  }
+  // 空响应代表这一跑没探到（服务器/RCON 抖动），不是"该字段为空"这一事实，
+  // 因此不能用它覆盖历史上已经探到的真值——否则一次抖动就把真值抹平。
+  let kept = 0;
+  for (const r of results) {
+    const gotData = Boolean(r.query?.response?.trim());
+    if (!gotData && merged.get(r.id)?.query?.response?.trim()) {
+      kept++;
+      continue;
+    }
+    merged.set(r.id, r);
+  }
+  if (kept) log(`  (${kept} 条本次为空响应，已保留此前实测结果)`);
+  const ordered = SEMANTIC_PROBES.map((p) => merged.get(p.id)).filter(Boolean);
+  fs.writeFileSync(outPath, JSON.stringify({ version, results: ordered }, null, 2));
   log(`\n  语义探针结果已写入 ${outPath}`);
   return results;
 }

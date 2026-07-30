@@ -1,0 +1,185 @@
+{
+  "version": "26.2",
+  "results": [
+    {
+      "id": "K1_arrow_inground",
+      "note": "箭插在地上：确认 inGround 键名/类型，并确认此时 OnGround 仍为 0b",
+      "setup": [
+        {
+          "cmd": "summon minecraft:arrow 10 -58 0 {Tags:[\"sem_K1\"]}",
+          "response": "Summoned new Arrow"
+        }
+      ],
+      "query": {
+        "cmd": "data get entity @e[tag=sem_K1,limit=1]",
+        "response": "Arrow has the following entity data: {Motion: [0.0d, 0.0d, 0.0d], damage: 2.0d, PierceLevel: 0b, item: {count: 1, id: \"minecraft:arrow\"}, shake: 0b, inGround: 1b, pickup: 0b, Invulnerable: 0b, LeftOwner: 1b, fall_distance: 0.0d, Air: 300s, OnGround: 0b, PortalCooldown: 0, Rotation: [0.0f, -77.920395f], life: 16s, inBlockState: {Properties: {snowy: \"false\"}, Name: \"minecraft:grass_block\"}, SoundEvent: \"minecraft:entity.arrow.hit\", crit: 0b, Pos: [10.5d, -59.94999999925494d, 0.5d], HasBeenShot: 1b, Fire: 0s, UUID: [I; -1704937993, -1113174253, -1898281854, 997191440], Tags: [\"sem_K1\"]}"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K1]",
+        "response": "Killed Arrow"
+      }
+    },
+    {
+      "id": "K2_arrow_selector_inground",
+      "note": "选择器按 nbt={inGround:1b} 过滤已插地的箭 —— 期望 Test passed",
+      "setup": [
+        {
+          "cmd": "summon minecraft:arrow 11 -58 0 {Tags:[\"sem_K2\"]}",
+          "response": "Summoned new Arrow"
+        }
+      ],
+      "query": {
+        "cmd": "execute if entity @e[type=minecraft:arrow,tag=sem_K2,nbt={inGround:1b}]",
+        "response": "Test passed. Count: 1"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K2]",
+        "response": "Killed Arrow"
+      }
+    },
+    {
+      "id": "K2b_arrow_selector_onground_trap",
+      "note": "反面：对插地的箭用 nbt={OnGround:1b} 过滤 —— 期望 Test failed（AI 常犯的张冠李戴）",
+      "setup": [
+        {
+          "cmd": "summon minecraft:arrow 12 -58 0 {Tags:[\"sem_K2b\"]}",
+          "response": "Summoned new Arrow"
+        }
+      ],
+      "query": {
+        "cmd": "execute if entity @e[type=minecraft:arrow,tag=sem_K2b,nbt={OnGround:1b}]",
+        "response": "Test failed"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K2b]",
+        "response": "Killed Arrow"
+      }
+    },
+    {
+      "id": "K2c_arrow_inflight_excluded",
+      "note": "反面：飞行中的箭不应被 inGround:1b 命中 —— 期望 Test failed（否则一射出就触发）",
+      "setup": [
+        {
+          "cmd": "summon minecraft:arrow 13 100 0 {Tags:[\"sem_K2c\"]}",
+          "response": "Summoned new Arrow"
+        }
+      ],
+      "query": {
+        "cmd": "execute if entity @e[type=minecraft:arrow,tag=sem_K2c,nbt={inGround:1b}]",
+        "response": "Test failed"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K2c]",
+        "response": "Killed Arrow"
+      }
+    },
+    {
+      "id": "K3_item_onground",
+      "note": "掉落物落地：确认 OnGround 键名与 Item 子 compound 结构（Item 大写、id/count 小写）",
+      "setup": [
+        {
+          "cmd": "summon minecraft:item 14 -58 0 {Item:{id:\"minecraft:tnt\",count:1},Tags:[\"sem_K3\"]}",
+          "response": "Summoned new TNT"
+        }
+      ],
+      "query": {
+        "cmd": "data get entity @e[tag=sem_K3,limit=1]",
+        "response": "TNT has the following entity data: {Motion: [0.0d, -0.12d, 0.0d], Health: 5s, Invulnerable: 0b, fall_distance: 0.0d, Air: 300s, OnGround: 1b, PortalCooldown: 0, Rotation: [0.0f, 0.0f], Item: {count: 1, id: \"minecraft:tnt\"}, Pos: [14.5d, -60.0d, 0.5d], PickupDelay: 0s, Fire: 0s, UUID: [I; 1116588015, 186467641, -1839652696, 1835016120], Tags: [\"sem_K3\"], Age: 30s}"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K3]",
+        "response": "Killed TNT"
+      }
+    },
+    {
+      "id": "K4_item_selector_onground",
+      "note": "选择器同时按 OnGround 与 Item.id 过滤掉落物 —— 期望 Test passed",
+      "setup": [
+        {
+          "cmd": "summon minecraft:item 15 -58 0 {Item:{id:\"minecraft:tnt\",count:1},Tags:[\"sem_K4\"]}",
+          "response": "Summoned new TNT"
+        }
+      ],
+      "query": {
+        "cmd": "execute if entity @e[type=minecraft:item,tag=sem_K4,nbt={OnGround:1b,Item:{id:\"minecraft:tnt\"}}]",
+        "response": "Test passed. Count: 1"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K4]",
+        "response": "Killed TNT"
+      }
+    },
+    {
+      "id": "K4b_item_selector_wrong_id",
+      "note": "反面：Item.id 不匹配时不应命中 —— 期望 Test failed（确认过滤真的按物品区分）",
+      "setup": [
+        {
+          "cmd": "summon minecraft:item 16 -58 0 {Item:{id:\"minecraft:tnt\",count:1},Tags:[\"sem_K4b\"]}",
+          "response": "Summoned new TNT"
+        }
+      ],
+      "query": {
+        "cmd": "execute if entity @e[type=minecraft:item,tag=sem_K4b,nbt={OnGround:1b,Item:{id:\"minecraft:diamond\"}}]",
+        "response": "Test failed"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K4b]",
+        "response": "Killed TNT"
+      }
+    },
+    {
+      "id": "K5_tnt_fuse",
+      "note": "summon 出的 TNT 引信键名与类型（fuse 小写 short）",
+      "setup": [
+        {
+          "cmd": "summon minecraft:tnt 17 -58 0 {fuse:200s,Tags:[\"sem_K5\"]}",
+          "response": "Summoned new Primed TNT"
+        }
+      ],
+      "query": {
+        "cmd": "data get entity @e[tag=sem_K5,limit=1]",
+        "response": "Primed TNT has the following entity data: {Motion: [0.0d, 0.0d, 0.0d], Invulnerable: 0b, fall_distance: 0.0d, Air: 300s, OnGround: 0b, PortalCooldown: 0, Rotation: [0.0f, 0.0f], fuse: 200s, Pos: [17.5d, -58.0d, 0.5d], block_state: {Properties: {unstable: \"false\"}, Name: \"minecraft:tnt\"}, Fire: 0s, UUID: [I; 1494634092, 1514882004, -1501309348, 1271359238], Tags: [\"sem_K5\"]}"
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K5]",
+        "response": "Killed Primed TNT"
+      }
+    },
+    {
+      "id": "K6_explosive_arrow_chain",
+      "note": "完整爆炸箭链路：在插地箭的位置生成 TNT —— 期望 Summoned new Primed TNT",
+      "setup": [
+        {
+          "cmd": "summon minecraft:arrow 18 -58 0 {Tags:[\"sem_K6\"]}",
+          "response": ""
+        }
+      ],
+      "query": {
+        "cmd": "execute at @e[type=minecraft:arrow,tag=sem_K6,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:200s}",
+        "response": ""
+      },
+      "cleanup": {
+        "cmd": "kill @e[tag=sem_K6]",
+        "response": ""
+      }
+    },
+    {
+      "id": "K7_command_block_roundtrip",
+      "note": "循环命令方块能否原样承载这类嵌套引号命令（一键部署的 datapack 走同一批命令）",
+      "setup": [
+        {
+          "cmd": "setblock 20 -58 0 minecraft:repeating_command_block{Command:\"execute at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}\",auto:1b}",
+          "response": "Changed the block at 20, -58, 0"
+        }
+      ],
+      "query": {
+        "cmd": "data get block 20 -58 0 Command",
+        "response": "20, -58, 0 has the following block data: \"execute at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}\""
+      },
+      "cleanup": {
+        "cmd": "setblock 20 -58 0 minecraft:air",
+        "response": "Changed the block at 20, -58, 0"
+      }
+    }
+  ]
+}
