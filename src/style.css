@@ -855,8 +855,18 @@ button#primary,
   background: rgba(3, 8, 22, 0.82);
 }
 
+/*
+ * 弹窗尺寸用 clamp(下限, 视口占比, 上限) 而不是固定 px，
+ * 这样窗口在下限～上限之间会随窗口比例连续缩放，不会一超过某个
+ * 断点就冻结成定值。三档 min/preferred/max 按弹窗用途分：
+ *   .modal-card（提示/确认对话框）  — 小
+ *   .color-card（颜色/字体/图标等编辑器内弹窗）— 中
+ *   .picker-card（物品选择，内容量大）— 大
+ */
 .modal-card {
-  width: min(560px, calc(100vw - 48px));
+  width: clamp(280px, 90vw, 480px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   padding: 18px;
 }
 
@@ -875,15 +885,15 @@ button#primary,
 }
 
 .color-card {
-  width: min(640px, calc(100vw - 48px));
+  width: clamp(320px, 58vw, 620px);
 }
 
 /* ---- 物品选择弹窗 ---- */
 
 .picker-card {
   display: flex;
-  width: min(860px, calc(100vw - 32px));
-  max-height: min(720px, calc(100vh - 48px));
+  width: clamp(340px, 86vw, 1040px);
+  max-height: clamp(420px, 86vh, 760px);
   flex-direction: column;
   gap: 10px;
 }
@@ -1320,5 +1330,25 @@ button#primary,
 
   .tab-strip button {
     min-height: 42px;
+  }
+
+  /* 手机端窗口本来就窄，弹窗几乎贴边留出一点呼吸空间即可，
+     不再套用桌面的 clamp 比例（那样在窄屏上反而挤出更多空白）。 */
+  .modal-overlay {
+    padding: 8px;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-height: calc(100vh - 16px);
+  }
+
+  .color-card {
+    width: 100%;
+  }
+
+  .picker-card {
+    width: 100%;
+    max-height: calc(100vh - 16px);
   }
 }
