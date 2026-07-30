@@ -51,7 +51,7 @@ button {
 .modal-card {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.13));
   box-shadow: 0 22px 52px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(18px);
 }
@@ -864,7 +864,7 @@ button#primary,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(3, 8, 22, 0.62);
+  background: rgba(3, 8, 22, 0.82);
 }
 
 .modal-card {
