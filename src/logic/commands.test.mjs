@@ -17,6 +17,7 @@ import { buildExecuteCommand, sub } from "./commands/execute.ts";
 import { buildScoreboardCommand } from "./commands/scoreboard.ts";
 import { buildAttributeCommand } from "./commands/attribute.ts";
 import { dispatchIntent, dispatchIntents } from "./dispatch.ts";
+import { buildSystemPrompt, parseAiContent } from "./ai/prompt.ts";
 
 let passed = 0;
 let failed = 0;
@@ -452,6 +453,86 @@ console.log("\n[dispatch]");
   );
   expect("批量分派保持顺序与长度", results.length, 3);
   expect("批量分派中单条失败不影响其他", results[2].command, "enchant @s minecraft:sharpness");
+}
+
+// ---------------- AI prompt / 解析 ----------------
+console.log("\n[ai prompt]");
+{
+  const prompt = buildSystemPrompt(MODERN);
+  // 这两条是实测真值，写错会让 AI 生成永远匹配不到的选择器（见 mc-verifier K 组探针）
+  expect("提示词教了箭用 inGround", prompt.includes("inGround:1b"), true);
+  expect("提示词教了掉落物用 OnGround", prompt.includes("OnGround:1b"), true);
+  expect("提示词点明两者不可混用", prompt.includes("用 OnGround 过滤箭会永远匹配不到"), true);
+  expect("提示词注入了附魔 id 表", prompt.includes("minecraft:sharpness"), true);
+  expect("提示词注入了药水效果 id 表", prompt.includes("minecraft:jump_boost"), true);
+  expect("提示词声明了目标版本", prompt.includes(MODERN), true);
+}
+{
+  const r = parseAiContent('{"intents":[{"command":"say","form":{"message":"hi"}}],"explanation":"打个招呼"}');
+  expect("解析 intents", r.intents.length, 1);
+  expect("解析 explanation", r.explanation, "打个招呼");
+}
+{
+  // 模型有时会把 JSON 包在代码块里
+  const r = parseAiContent('```json\n{"intents":[],"explanation":"x"}\n```');
+  expect("容忍 ```json 代码块包裹", r.explanation, "x");
+}
+expectThrows("非 JSON 应报错", () => parseAiContent("对不起，我做不到"));
+expectThrows("缺 intents 数组应报错", () => parseAiContent('{"explanation":"x"}'));
+
+// ---------------- 端到端：AI 响应 → 命令字符串 ----------------
+console.log("\n[端到端：爆炸箭 / 地雷]");
+{
+  // 模拟 AI 按提示词产出的「爆炸箭」意图，验证整条链路落地成实测可用的命令
+  const ai = parseAiContent(
+    JSON.stringify({
+      intents: [
+        { command: "give", form: { item: "minecraft:bow", count: 1, enchantments: [{ id: "minecraft:power", level: 5 }] } },
+        {
+          command: "execute",
+          form: {
+            subcommands: ["at @e[type=minecraft:arrow,nbt={inGround:1b}]"],
+            run: "summon minecraft:tnt ~ ~ ~ {fuse:0s}",
+          },
+        },
+      ],
+      explanation: "把第二条放进循环命令方块",
+    }),
+  );
+  const [giveCmd, executeCmd] = dispatchIntents(ai.intents, MODERN).map((r) => r.command);
+  // 1.21.5+ 的附魔是扁平写法，levels:{} 外层只属于 1.21/1.21.1（见 probes.mjs ench_flat / ench_levels）
+  expect(
+    "AI 意图 → 附power的弓",
+    giveCmd,
+    "give @a minecraft:bow[enchantments={power:5}] 1",
+  );
+  expect(
+    "AI 意图 → 箭落地生成 TNT（选择器与实测真值一致）",
+    executeCmd,
+    "execute at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",
+  );
+}
+{
+  // 地雷：掉落物落地即引爆，并把触发过的掉落物清掉（否则每 tick 重复触发）
+  const r = dispatchIntent(
+    {
+      command: "setblock",
+      form: {
+        x: "~", y: "~", z: "~",
+        block: "repeating_command_block",
+        commandBlock: {
+          command: "execute at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:\"minecraft:tnt\"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",
+          auto: true,
+        },
+      },
+    },
+    MODERN,
+  );
+  expect(
+    "地雷命令方块（嵌套引号正确转义，与实测读回一致）",
+    r.command,
+    'setblock ~ ~ ~ minecraft:repeating_command_block{Command:"execute at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:\\"minecraft:tnt\\"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",auto:1b}',
+  );
 }
 
 // --- summary ---
