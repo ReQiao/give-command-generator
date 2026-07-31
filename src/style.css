@@ -1141,19 +1141,6 @@ button#primary,
   filter: blur(2px);
 }
 
-.mode-fade-enter-active,
-.mode-fade-leave-active {
-  transition:
-    opacity 200ms ease,
-    transform 200ms ease;
-}
-
-.mode-fade-enter-from,
-.mode-fade-leave-to {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
 .toast-enter-active,
 .toast-leave-active {
   transition:

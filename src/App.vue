@@ -497,7 +497,6 @@ function textOptions(items: string[]): SelectOption[] {
 
     <AiPanel v-if="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
 
-    <Transition name="mode-fade" :duration="animationEnabled ? 200 : 0">
     <section v-show="mode === 'manual'" class="split-layout">
       <aside class="card side-panel">
         <div class="form-grid">
@@ -729,9 +728,7 @@ function textOptions(items: string[]): SelectOption[] {
         </Transition>
       </section>
     </section>
-    </Transition>
 
-    <Transition name="mode-fade" :duration="animationEnabled ? 200 : 0">
     <section v-show="mode === 'manual'" class="card preview-card" :class="{ flash: rowFlash.preview }">
       <label>生成结果</label>
       <textarea id="preview" v-model="preview" placeholder="点击“生成指令”后，最终指令会显示在这里。" spellcheck="false"></textarea>
@@ -742,7 +739,6 @@ function textOptions(items: string[]): SelectOption[] {
         @toast="showToast"
       />
     </section>
-    </Transition>
 
     <Transition name="toast">
       <div v-if="toastText" class="toast">{{ toastText }}</div>
