@@ -16,7 +16,7 @@ const props = defineProps<{ version: GiveVersion; animate?: boolean }>();
 const emit = defineEmits<{ (e: "toast", message: string, duration?: number): void }>();
 
 // ---------------- 启动特效 ----------------
-// 切进 AI 模式时点亮「灵魂灯笼」：能量环扩散 + 灰烬上浮 + 一道扫光。
+// 切进 AI 模式时点亮「灵魂灯笼」：灰烬上浮 + 一道扫光。
 // 纯 CSS 动画，只在挂载时放一次；期间面板照常可用，不挡任何操作。
 const prefersReducedMotion =
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -178,9 +178,6 @@ function copyAll() {
   <section class="card ai-card" :class="{ igniting: showIgnition }">
     <!-- 启动特效层：纯装饰，pointer-events:none，不拦任何点击 -->
     <div v-if="showIgnition" class="ai-ignite" aria-hidden="true">
-      <span class="ai-ring"></span>
-      <span class="ai-ring"></span>
-      <span class="ai-ring"></span>
       <span class="ai-sweep"></span>
       <span
         v-for="e in embers"

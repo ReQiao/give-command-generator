@@ -1110,6 +1110,19 @@ button#primary,
   filter: blur(2px);
 }
 
+.mode-fade-enter-active,
+.mode-fade-leave-active {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.mode-fade-enter-from,
+.mode-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition:
@@ -1314,41 +1327,6 @@ button#primary,
   }
   100% {
     box-shadow: inset 0 0 0 1px rgba(122, 162, 255, 0), 0 0 0 rgba(77, 228, 201, 0);
-  }
-}
-
-/* 从中心扩散的能量环 */
-.ai-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 160px;
-  height: 160px;
-  margin: -80px 0 0 -80px;
-  border: 2px solid rgba(122, 162, 255, 0.65);
-  border-radius: 50%;
-  opacity: 0;
-  animation: ai-ring-expand 1400ms cubic-bezier(0.16, 0.84, 0.44, 1) forwards;
-}
-
-.ai-ring:nth-child(2) {
-  border-color: rgba(77, 228, 201, 0.6);
-  animation-delay: 160ms;
-}
-
-.ai-ring:nth-child(3) {
-  border-color: rgba(180, 210, 255, 0.4);
-  animation-delay: 320ms;
-}
-
-@keyframes ai-ring-expand {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.2);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(4.2);
   }
 }
 
