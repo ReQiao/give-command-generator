@@ -497,6 +497,15 @@ function textOptions(items: string[]): SelectOption[] {
 
     <AiPanel v-if="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
 
+    <!--
+      故意不用 <Transition> 包裹手动内容：实测证明哪怕只给 enter 定义 CSS、
+      leave 完全不定义过渡属性，Vue 的 <Transition> 组件本身（不是 CSS）也会
+      用两次 requestAnimationFrame 做双缓冲来切换 class，这个 JS 层面的开销
+      在低性能设备 / CPU 降速下会被放大成好几帧的延迟，足以让"旧内容还在
+      但已经切到别的模式"这个冲突画面重新出现（4x CPU 降速下实测复现）。
+      v-show 不套 Transition 就是纯粹的同步 display 切换，没有这个开销，
+      这是唯一在降速测试下验证过绝对不会闪的写法。
+    -->
     <section v-show="mode === 'manual'" class="split-layout">
       <aside class="card side-panel">
         <div class="form-grid">
