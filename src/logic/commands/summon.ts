@@ -8,7 +8,7 @@
  * 这里只负责组装。真值表见 nbt.ts 文件头。
  */
 
-import { boolByte, isModernNbtFamily, namespaced, quote, type GiveVersion, type RichLine } from "../builder";
+import { boolByte, fmtNumber, isModernNbtFamily, namespaced, quote, type GiveVersion, type RichLine } from "../builder";
 import {
   serializeAttributes,
   serializeCustomName,
@@ -43,6 +43,14 @@ export interface SummonForm {
   invulnerable?: boolean;
   noGravity?: boolean;
   glowing?: boolean;
+  /** 出生朝向 [yaw, pitch]（度）。只影响朝向，不影响移动方向。 */
+  rotation?: [number, number];
+  /**
+   * 当前生命值。改 max_health 属性只会改「上限」，不改「当前值」——
+   * 不配这个字段，生物仍按旧上限（通常 20）的血量生成，看起来像没生效。
+   * 想要生物一出生就满新血量，必须把这个设成和 max_health 属性相同的值。
+   */
+  health?: number;
   tags?: string[];
   attributes?: NbtAttribute[];
   effects?: NbtEffect[];
@@ -81,6 +89,8 @@ function buildNbtParts(form: SummonForm, modern: boolean): string[] {
   if (form.invulnerable) parts.push(`Invulnerable:${boolByte(true)}`);
   if (form.noGravity) parts.push(`NoGravity:${boolByte(true)}`);
   if (form.glowing) parts.push(`Glowing:${boolByte(true)}`);
+  if (form.rotation) parts.push(`Rotation:[${fmtNumber(form.rotation[0])}f,${fmtNumber(form.rotation[1])}f]`);
+  if (form.health !== undefined) parts.push(`Health:${fmtNumber(form.health)}f`);
 
   if (form.tags && form.tags.length > 0) {
     parts.push(`Tags:[${form.tags.map((t) => quote(t)).join(",")}]`);
@@ -92,7 +102,7 @@ function buildNbtParts(form: SummonForm, modern: boolean): string[] {
     parts.push(serializeEffects(form.effects));
   }
   if (form.equipment) {
-    parts.push(...serializeEquipment(form.equipment, modern));
+    parts.push(...serializeEquipment(form.equipment, modern, form.version));
   }
   if (form.passengers && form.passengers.length > 0) {
     parts.push(`Passengers:[${form.passengers.map((p) => buildPassengerNbt(p, form.version)).join(",")}]`);

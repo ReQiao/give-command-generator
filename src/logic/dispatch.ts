@@ -25,6 +25,7 @@ import { buildEnchantCommand, type EnchantForm } from "./commands/enchant";
 import { buildExecuteCommand, type ExecuteForm } from "./commands/execute";
 import { buildScoreboardCommand, type ScoreboardForm } from "./commands/scoreboard";
 import { buildAttributeCommand, type AttributeForm } from "./commands/attribute";
+import { buildParticleCommand, type ParticleForm } from "./commands/particle";
 
 /** 版本由分派器统一注入，AI 不需要（也不应该）自己填。 */
 type Versionless<T> = Omit<T, "version"> & { version?: GiveVersion };
@@ -43,7 +44,8 @@ export type CommandIntent =
   | { command: "enchant"; form: EnchantForm }
   | { command: "execute"; form: ExecuteForm }
   | { command: "scoreboard"; form: ScoreboardForm }
-  | { command: "attribute"; form: Versionless<AttributeForm> };
+  | { command: "attribute"; form: Versionless<AttributeForm> }
+  | { command: "particle"; form: ParticleForm };
 
 export interface DispatchResult {
   /** 原始意图（便于 UI 回显 / 调试）。 */
@@ -99,9 +101,13 @@ export function dispatchIntent(intent: CommandIntent, version: GiveVersion): Dis
       case "attribute":
         command = buildAttributeCommand({ ...intent.form, version });
         break;
+      case "particle":
+        command = buildParticleCommand(intent.form);
+        break;
       default: {
         const _exhaustive: never = intent;
-        return { intent, command: null, error: `未知指令类型: ${JSON.stringify(_exhaustive)}` };
+        const badCommand = (_exhaustive as { command?: unknown })?.command;
+        return { intent, command: null, error: `未知指令类型: ${JSON.stringify(badCommand)}` };
       }
     }
     return { intent, command, error: null };

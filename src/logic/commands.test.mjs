@@ -16,6 +16,7 @@ import { buildEnchantCommand } from "./commands/enchant.ts";
 import { buildExecuteCommand, sub } from "./commands/execute.ts";
 import { buildScoreboardCommand } from "./commands/scoreboard.ts";
 import { buildAttributeCommand } from "./commands/attribute.ts";
+import { buildParticleCommand } from "./commands/particle.ts";
 import { dispatchIntent, dispatchIntents } from "./dispatch.ts";
 import { buildSystemPrompt, parseAiContent } from "./ai/prompt.ts";
 
@@ -227,6 +228,39 @@ expect(
   buildSummonCommand({ version: MODERN, entityType: "pig", passengers: [{ entityType: "chicken" }] }),
   'summon minecraft:pig ~ ~ ~ {Passengers:[{id:"minecraft:chicken"}]}',
 );
+expect(
+  "血量：health 单独生效（Health 浮点数）",
+  buildSummonCommand({ version: MODERN, entityType: "zombie", health: 40 }),
+  "summon minecraft:zombie ~ ~ ~ {Health:40f}",
+);
+expect(
+  "血量：attributes(max_health) + health 搭配使用，同时改上限和当前值",
+  buildSummonCommand({ version: MODERN, entityType: "zombie", attributes: [{ id: "max_health", base: 40 }], health: 40 }),
+  'summon minecraft:zombie ~ ~ ~ {Health:40f,attributes:[{id:"minecraft:max_health",base:40d}]}',
+);
+expect(
+  "朝向：Rotation:[yaw,pitch]",
+  buildSummonCommand({ version: MODERN, entityType: "zombie", rotation: [90, 0] }),
+  "summon minecraft:zombie ~ ~ ~ {Rotation:[90f,0f]}",
+);
+expect(
+  "装备附魔 1.21.5+（enchantments 组件，无 levels 包装）",
+  buildSummonCommand({
+    version: MODERN,
+    entityType: "zombie",
+    equipment: { mainhand: { id: "diamond_sword", enchantments: [{ id: "sharpness", level: 5 }] } },
+  }),
+  'summon minecraft:zombie ~ ~ ~ {equipment:{mainhand:{id:"minecraft:diamond_sword",count:1,components:{"minecraft:enchantments":{sharpness:5}}}}}',
+);
+expect(
+  "装备附魔 java_1_21（levels 包装）",
+  buildSummonCommand({
+    version: "java_1_21",
+    entityType: "zombie",
+    equipment: { mainhand: { id: "diamond_sword", enchantments: [{ id: "sharpness", level: 5 }] } },
+  }),
+  'summon minecraft:zombie ~ ~ ~ {HandItems:[{id:"minecraft:diamond_sword",count:1,components:{"minecraft:enchantments":{levels:{sharpness:5}}}},{}]}',
+);
 
 // ---------------- fill ----------------
 console.log("\n[fill]");
@@ -415,6 +449,38 @@ expect(
   "attribute @s minecraft:max_health get 0.5",
 );
 
+// ---------------- particle ----------------
+console.log("\n[particle]");
+expect("最简单形式（无坐标无扩展参数）", buildParticleCommand({ name: "flame" }), "particle minecraft:flame");
+expect(
+  "带位置和扩展参数",
+  buildParticleCommand({ name: "flame", x: "~", y: "~1", z: "~", dx: 0.3, dy: 0.3, dz: 0.3, speed: 0.02, count: 20 }),
+  "particle minecraft:flame ~ ~1 ~ 0.3 0.3 0.3 0.02 20",
+);
+expect(
+  "force 模式",
+  buildParticleCommand({
+    name: "totem_of_undying", x: "~", y: "~1", z: "~",
+    dx: 0.5, dy: 0.5, dz: 0.5, speed: 0, count: 100, mode: "force",
+  }),
+  "particle minecraft:totem_of_undying ~ ~1 ~ 0.5 0.5 0.5 0 100 force",
+);
+expect(
+  "viewers 指定观众（自动补 normal）",
+  buildParticleCommand({ name: "flame", x: "~", y: "~", z: "~", count: 5, viewers: "@a" }),
+  "particle minecraft:flame ~ ~ ~ 0 0 0 1 5 normal @a",
+);
+expect(
+  "参数化粒子（dust 带颜色）：只给花括号前的部分加前缀",
+  buildParticleCommand({ name: "dust{color:[1.0,0.2,0.2],scale:1.5}", x: "~", y: "~", z: "~", count: 10 }),
+  'particle minecraft:dust{color:[1.0,0.2,0.2],scale:1.5} ~ ~ ~ 0 0 0 1 10',
+);
+expect(
+  "withSlash",
+  buildParticleCommand({ name: "flame", withSlash: true }),
+  "/particle minecraft:flame",
+);
+
 // ---------------- dispatch ----------------
 console.log("\n[dispatch]");
 {
@@ -454,6 +520,15 @@ console.log("\n[dispatch]");
   expect("批量分派保持顺序与长度", results.length, 3);
   expect("批量分派中单条失败不影响其他", results[2].command, "enchant @s minecraft:sharpness");
 }
+{
+  const r = dispatchIntent({ command: "particle", form: { name: "flame", count: 5 } }, MODERN);
+  expect("particle 意图分派成功", r.command, "particle minecraft:flame ~ ~ ~ 0 0 0 1 5");
+}
+{
+  // 未知 command 的报错信息应该是可读的具体值，不是整个意图对象的 JSON dump
+  const r = dispatchIntent({ command: "no_such_thing", form: {} }, MODERN);
+  expect("未知指令类型报错信息可读", r.error, '未知指令类型: "no_such_thing"');
+}
 
 // ---------------- AI prompt / 解析 ----------------
 console.log("\n[ai prompt]");
@@ -466,6 +541,25 @@ console.log("\n[ai prompt]");
   expect("提示词注入了附魔 id 表", prompt.includes("minecraft:sharpness"), true);
   expect("提示词注入了药水效果 id 表", prompt.includes("minecraft:jump_boost"), true);
   expect("提示词声明了目标版本", prompt.includes(MODERN), true);
+  // 血量应该用 attribute，不要用 effect 凑——这是本轮用户反馈修的核心问题之一
+  expect("提示词教了血量要用 attribute + health 而不是 effect", prompt.includes("绝不要用 effect_give"), true);
+  expect("提示词提到 health 字段要和 attributes 搭配", prompt.includes('health: 40'), true);
+  // effect 无限时长
+  expect("提示词教了 effect 无限用 infinite 而不是塞极大整数", prompt.includes('"infinite"'), true);
+  // particle
+  expect("提示词包含 particle 用法", prompt.includes("particle minecraft:flame"), true);
+  // 朝向
+  expect("提示词教了 summon rotation 朝向", prompt.includes("rotation: [yaw, pitch]"), true);
+  expect("提示词教了 execute facing/rotated 用法", prompt.includes("facing entity"), true);
+  // 判定/锚点实体
+  expect("提示词教了 marker 判定实体", prompt.includes("minecraft:marker"), true);
+  expect("提示词教了盔甲架 Marker 标签", prompt.includes("Marker:1b"), true);
+  // 特殊计分板判据
+  expect("提示词教了 used 统计判据", prompt.includes("minecraft.used:minecraft"), true);
+  expect("提示词教了 sneak_time 统计判据", prompt.includes("minecraft.custom:minecraft.sneak_time"), true);
+  expect("提示词给了拔刀剑组合范例", prompt.includes("拔刀剑"), true);
+  // 装备附魔要走结构化字段，不要求 AI 手拼 SNBT
+  expect("提示词教了装备附魔走结构化 enchantments 字段", prompt.includes("equipment.<slot>.enchantments"), true);
 }
 {
   const r = parseAiContent('{"intents":[{"command":"say","form":{"message":"hi"}}],"explanation":"打个招呼"}');
@@ -476,6 +570,24 @@ console.log("\n[ai prompt]");
   // 模型有时会把 JSON 包在代码块里
   const r = parseAiContent('```json\n{"intents":[],"explanation":"x"}\n```');
   expect("容忍 ```json 代码块包裹", r.explanation, "x");
+}
+{
+  // 复现用户反馈的「未知指令类型: explanation」bug：模型偶尔把 explanation
+  // 错放进 intents 数组里（没有 command 字段）。应静默兜底捞出来当 explanation，
+  // 而不是当成一条非法指令传给 dispatch 报错。
+  const r = parseAiContent(
+    '{"intents":[{"command":"say","form":{"message":"hi"}},{"explanation":"这是解释"}],"explanation":""}',
+  );
+  expect("explanation 误入 intents 数组时会被过滤掉，不进入 intents", r.intents.length, 1);
+  expect("过滤掉的 explanation 被兜底捞出来用", r.explanation, "这是解释");
+}
+{
+  // 顶层 explanation 优先于误入数组里的那个
+  const r = parseAiContent(
+    '{"intents":[{"explanation":"数组里的"}],"explanation":"顶层的"}',
+  );
+  expect("顶层 explanation 优先", r.explanation, "顶层的");
+  expect("误入数组的项被丢弃", r.intents.length, 0);
 }
 expectThrows("非 JSON 应报错", () => parseAiContent("对不起，我做不到"));
 expectThrows("缺 intents 数组应报错", () => parseAiContent('{"explanation":"x"}'));
@@ -532,6 +644,35 @@ console.log("\n[端到端：爆炸箭 / 地雷]");
     "地雷命令方块（嵌套引号正确转义，与实测读回一致）",
     r.command,
     'setblock ~ ~ ~ minecraft:repeating_command_block{Command:"execute at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:\\"minecraft:tnt\\"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",auto:1b}',
+  );
+}
+{
+  // 复现用户报告的场景：召唤一只 40 血、拿附魔钻石剑、不会动的僵尸。
+  // 验证 health + attributes 搭配、equipment.enchantments 结构化字段的完整链路。
+  const ai = parseAiContent(
+    JSON.stringify({
+      intents: [
+        {
+          command: "summon",
+          form: {
+            entityType: "minecraft:zombie",
+            noAI: true,
+            health: 40,
+            attributes: [{ id: "max_health", base: 40 }],
+            equipment: {
+              mainhand: { id: "minecraft:diamond_sword", enchantments: [{ id: "minecraft:sharpness", level: 5 }] },
+            },
+          },
+        },
+      ],
+      explanation: "40 血用属性+当前值同时设置，剑的附魔走结构化字段",
+    }),
+  );
+  const [summonCmd] = dispatchIntents(ai.intents, MODERN).map((r) => r.command);
+  expect(
+    "端到端：40 血不会动的僵尸 + 附魔剑",
+    summonCmd,
+    'summon minecraft:zombie ~ ~ ~ {NoAI:1b,Health:40f,attributes:[{id:"minecraft:max_health",base:40d}],equipment:{mainhand:{id:"minecraft:diamond_sword",count:1,components:{"minecraft:enchantments":{sharpness:5}}}}}',
   );
 }
 

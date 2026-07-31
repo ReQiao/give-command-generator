@@ -16,7 +16,9 @@
 
 import {
   boolByte,
+  componentId,
   fmtNumber,
+  isJava121LegacyFamily,
   namespaced,
   quote,
   richLineToSnbtString,
@@ -30,18 +32,41 @@ export { isModernNbtFamily } from "../builder";
 // Item-in-NBT（容器 Items[] / 实体 HandItems[] / 实体 equipment{}）
 // -----------------------------------------------------------------------
 
+export interface NbtEnchantment {
+  id: string;
+  level: number;
+}
+
 export interface NbtItem {
   id: string;
   count?: number;
+  /** 附魔列表；序列化规则与 /give 完全一致（按版本自动切换 levels 包装），
+   *  调用方（包括 AI 意图）不需要手写 enchantments 组件的原始 SNBT。 */
+  enchantments?: NbtEnchantment[];
   /** 已序列化的 SNBT 值，例如 `'{"text":"x"}'` 或 `1b` */
   components?: Record<string, string>;
 }
 
-/** 序列化一个 item-in-NBT（不含 Slot，由调用方决定是否加）。 */
-export function serializeItem(item: NbtItem): string {
+/** 附魔组件值（不含 key），1.20.5~1.21.1 需要 levels 包装，其余版本直接铺开。 */
+function serializeEnchantmentsValue(enchants: NbtEnchantment[], version: GiveVersion): string {
+  const entries = enchants
+    .filter((e) => String(e.id ?? "").trim())
+    .map(({ id, level }) => `${componentId(id)}:${level}`)
+    .join(",");
+  return isJava121LegacyFamily(version) ? `{levels:{${entries}}}` : `{${entries}}`;
+}
+
+/**
+ * 序列化一个 item-in-NBT（不含 Slot，由调用方决定是否加）。
+ * version 缺省时不处理 enchantments（容器物品目前不需要）。
+ */
+export function serializeItem(item: NbtItem, version?: GiveVersion): string {
   const parts: string[] = [`id:${quote(namespaced(item.id))}`, `count:${item.count ?? 1}`];
-  const comps = item.components;
-  if (comps && Object.keys(comps).length > 0) {
+  const comps: Record<string, string> = { ...(item.components ?? {}) };
+  if (version && item.enchantments && item.enchantments.length > 0) {
+    comps.enchantments = serializeEnchantmentsValue(item.enchantments, version);
+  }
+  if (Object.keys(comps).length > 0) {
     const inner = Object.entries(comps)
       .map(([k, v]) => `${quote(namespaced(k))}:${v}`)
       .join(",");
@@ -51,8 +76,8 @@ export function serializeItem(item: NbtItem): string {
 }
 
 /** 序列化容器 slot（chest / barrel / hopper 等）。Slot 大写 byte，置于首位。 */
-export function serializeContainerItem(slot: number, item: NbtItem): string {
-  return `{Slot:${slot}b,${serializeItem(item).slice(1)}`;
+export function serializeContainerItem(slot: number, item: NbtItem, version?: GiveVersion): string {
+  return `{Slot:${slot}b,${serializeItem(item, version).slice(1)}`;
 }
 
 // -----------------------------------------------------------------------
@@ -145,16 +170,17 @@ const EQUIPMENT_SLOTS: Array<keyof NbtEquipment> = ["mainhand", "offhand", "head
  * 序列化实体装备，返回 0~2 个 NBT 片段。
  *   1.20.5~1.21.4：HandItems:[mainhand,offhand] + ArmorItems:[feet,legs,chest,head]
  *   1.21.5+：      equipment:{mainhand:{...},...}
+ * version 传入时装备物品上的 enchantments 会按版本正确序列化（见 serializeItem）。
  */
-export function serializeEquipment(eq: NbtEquipment, modern: boolean): string[] {
+export function serializeEquipment(eq: NbtEquipment, modern: boolean, version?: GiveVersion): string[] {
   if (modern) {
     const filled = EQUIPMENT_SLOTS.filter((slot) => eq[slot]);
     if (filled.length === 0) return [];
-    const inner = filled.map((slot) => `${slot}:${serializeItem(eq[slot]!)}`).join(",");
+    const inner = filled.map((slot) => `${slot}:${serializeItem(eq[slot]!, version)}`).join(",");
     return [`equipment:{${inner}}`];
   }
   // 旧格式是定长数组，空槽位必须占位 {}；整组都空时干脆不输出该键。
-  const slot = (key: keyof NbtEquipment) => (eq[key] ? serializeItem(eq[key]!) : "{}");
+  const slot = (key: keyof NbtEquipment) => (eq[key] ? serializeItem(eq[key]!, version) : "{}");
   const parts: string[] = [];
   if (eq.mainhand || eq.offhand) {
     parts.push(`HandItems:[${slot("mainhand")},${slot("offhand")}]`);
