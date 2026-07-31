@@ -142,7 +142,7 @@ async function copyText(text: string) {
       </select>
       <button type="button" :disabled="!desktop" @click="refreshSaves">扫描存档</button>
       <button type="button" :disabled="!desktop" @click="browseSave">浏览选择存档…</button>
-      <button id="primary" type="button" :disabled="!canDeploy" @click="deploy">
+      <button class="primary-btn" type="button" :disabled="!canDeploy" @click="deploy">
         {{ deploying ? "部署中…" : "一键部署" }}
       </button>
     </div>

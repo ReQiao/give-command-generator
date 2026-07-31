@@ -462,30 +462,42 @@ function textOptions(items: string[]): SelectOption[] {
           >AI 模式</button>
         </div>
       </div>
-      <div v-if="mode === 'ai'" class="top-form ai-top-form">
-        <span class="field-label">版本<InfoTip text="AI 生成的指令会按这个版本的语法构建。" /></span>
-        <CustomSelect v-model="form.version" :options="versionOptions" />
-      </div>
-      <div v-else class="top-form">
-        <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>
-        <input v-model="form.templateName" class="template-input" />
-        <CustomSelect
-          class="builtin-template-select"
-          :model-value="selectedBuiltinTemplate"
-          :options="builtinTemplateOptions"
-          @update:model-value="applyBuiltinTemplate"
-        />
-        <button type="button" @click="saveTemplate">保存模板</button>
-        <button type="button" @click="loadTemplate">读取模板</button>
-        <button type="button" @click="copy">{{ copyButtonText }}</button>
-        <button id="primary" type="button" @click="generate">{{ generateButtonText }}</button>
-        <input ref="fileInput" accept="application/json,.json" hidden type="file" @change="handleTemplateFile" />
+      <!--
+        两套顶部工具条一直同时挂载，用 grid 叠在同一格里（跟下面 split-layout/ai-card
+        用的是同一招），只用 opacity+inert 切换可见/可交互——绝不能用 v-if/v-else。
+        原因：manual 工具条按钮多，AI 工具条只有一个版本选择器，两者自然高度不同；
+        如果互斥挂载，切换模式那一刻顶部栏高度会瞬间变化，这一行是 CSS Grid 的
+        "auto" 行，一变高度就挤压/让出下面 1fr 内容行的空间，看起来像整页跳了一下——
+        这个跳动只跟"顶部栏瞬间变了多高"有关，跟界面动画开关完全无关，所以之前
+        单纯做过渡动画/钉 grid-row 都没能根治。两套工具条一直都在，取两者中较高的
+        那个作为顶部栏的固定高度，模式切换时顶部栏高度压根不会变，也就没有可跳的了。
+      -->
+      <div class="top-form-stack">
+        <div class="top-form ai-top-form" :class="{ 'stack-hidden': mode !== 'ai' }" :inert="mode !== 'ai'">
+          <span class="field-label">版本<InfoTip text="AI 生成的指令会按这个版本的语法构建。" /></span>
+          <CustomSelect v-model="form.version" :options="versionOptions" />
+        </div>
+        <div class="top-form" :class="{ 'stack-hidden': mode === 'ai' }" :inert="mode === 'ai'">
+          <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>
+          <input v-model="form.templateName" class="template-input" />
+          <CustomSelect
+            class="builtin-template-select"
+            :model-value="selectedBuiltinTemplate"
+            :options="builtinTemplateOptions"
+            @update:model-value="applyBuiltinTemplate"
+          />
+          <button type="button" @click="saveTemplate">保存模板</button>
+          <button type="button" @click="loadTemplate">读取模板</button>
+          <button type="button" @click="copy">{{ copyButtonText }}</button>
+          <button class="primary-btn" type="button" @click="generate">{{ generateButtonText }}</button>
+          <input ref="fileInput" accept="application/json,.json" hidden type="file" @change="handleTemplateFile" />
+        </div>
       </div>
     </section>
 
     <AiPanel v-if="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
 
-    <Transition name="mode-fade">
+    <Transition name="mode-fade" :duration="animationEnabled ? 200 : 0">
     <section v-show="mode === 'manual'" class="split-layout">
       <aside class="card side-panel">
         <div class="form-grid">
@@ -719,7 +731,7 @@ function textOptions(items: string[]): SelectOption[] {
     </section>
     </Transition>
 
-    <Transition name="mode-fade">
+    <Transition name="mode-fade" :duration="animationEnabled ? 200 : 0">
     <section v-show="mode === 'manual'" class="card preview-card" :class="{ flash: rowFlash.preview }">
       <label>生成结果</label>
       <textarea id="preview" v-model="preview" placeholder="点击“生成指令”后，最终指令会显示在这里。" spellcheck="false"></textarea>
@@ -749,7 +761,7 @@ function textOptions(items: string[]): SelectOption[] {
           <h2>{{ modal.title }}</h2>
           <p>{{ modal.message }}</p>
           <div class="modal-actions">
-            <button id="primary" type="button" @click="modal.open = false">知道了</button>
+            <button class="primary-btn" type="button" @click="modal.open = false">知道了</button>
           </div>
         </div>
       </div>

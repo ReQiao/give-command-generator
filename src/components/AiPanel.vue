@@ -256,7 +256,7 @@ function copyAll() {
     </div>
 
     <div class="ai-actions">
-      <button id="primary" type="button" :disabled="!canGenerate" @click="generate">
+      <button class="primary-btn" type="button" :disabled="!canGenerate" @click="generate">
         {{ busy ? "生成中…" : "AI 生成指令" }}
       </button>
       <button type="button" :disabled="commands.length === 0" @click="copyAll">复制全部</button>

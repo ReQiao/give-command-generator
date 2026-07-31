@@ -106,6 +106,24 @@ h1 {
   font-weight: 900;
 }
 
+/* 两套顶部工具条一直同时挂载、叠在同一个网格格子里，取两者较高的作为固定高度，
+   模式切换时顶部栏高度不会变——避免下面 split-layout/ai-card 共享的那一行网格
+   跟着重新分配空间造成跳动，原理与 split-layout/ai-card 共用 grid-row 一致。 */
+.top-form-stack {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+
+.top-form-stack > .top-form {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.stack-hidden {
+  opacity: 0;
+}
+
 .top-form {
   display: flex;
   align-items: center;
