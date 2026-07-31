@@ -1,8 +1,11 @@
-//! AI 桥接：调用通义千问（DashScope 的 OpenAI 兼容接口）。
+//! AI 桥接：调用任意 OpenAI 兼容的 chat/completions 接口
+//! （通义千问 DashScope、OpenAI 官方、或其他兼容服务，由前端传入接口地址 + 模型名）。
 //!
 //! 分工：
 //!   - 系统提示词由前端用 catalog 构造好后传进来，本模块只负责「注入 key + 联网」。
-//!   - API key 留在后端进程：用户填写 > 环境变量 DASHSCOPE_API_KEY > 内置 key。
+//!   - API key / 接口地址 / 模型名都遵循同一优先级：用户在界面填写 > 环境变量 > 内置默认。
+//!     内置默认指向 DashScope，只是为了不配置也能跑；换成 OpenAI 或其他服务只需在界面
+//!     填对应的接口地址（含完整路径）、模型名、key 即可，不需要改代码。
 //!   - 只把 AI 返回的原始 JSON 文本透传回前端；解析成意图、再确定性地构建命令字符串，
 //!     全部由前端的 logic/dispatch.ts 完成——后端不碰命令语法。
 //!   - 调用成功才扣 1 次余额（失败不扣）。
@@ -57,7 +60,7 @@ fn non_blank(value: Option<String>) -> Option<String> {
 
 /// 解析出可用的 API key：用户传入 > 环境变量 > 内置。
 fn resolve_key(user_key: Option<String>) -> Option<String> {
-    resolve_key_from(user_key, std::env::var("DASHSCOPE_API_KEY").ok())
+    resolve_key_from(user_key, std::env::var("AI_API_KEY").ok())
 }
 
 /// 优先级逻辑本体，env 作为入参传入以便单测（改环境变量在 Rust 2024 是 unsafe，
@@ -68,12 +71,25 @@ fn resolve_key_from(user_key: Option<String>, env_key: Option<String>) -> Option
         .or_else(builtin_key)
 }
 
+/// 解析接口地址 / 模型名：用户传入 > 环境变量 > 内置默认（DashScope）。
+/// 逻辑和 key 一致，抽成通用函数方便单测，且不依赖具体 env 变量名。
+fn resolve_with_default(user_value: Option<String>, env_value: Option<String>, default: &str) -> String {
+    non_blank(user_value)
+        .or_else(|| non_blank(env_value))
+        .unwrap_or_else(|| default.to_string())
+}
+
 /// 自然语言 → AI 指令意图（原始 JSON 文本）。
+///
+/// `endpoint` / `model` 由前端按用户选择的服务商（DashScope / OpenAI / 自定义）传入，
+/// 留空时分别回落到环境变量、再回落到 DashScope 默认值，兼容旧的免配置用法。
 #[tauri::command]
 pub async fn ai_generate(
     system_prompt: String,
     user_text: String,
     api_key: Option<String>,
+    endpoint: Option<String>,
+    model: Option<String>,
     billing: tauri::State<'_, Billing>,
 ) -> Result<AiResponse, ()> {
     // 注意：MutexGuard 不能跨 await 持有，这里只取快照。
@@ -84,13 +100,13 @@ pub async fn ai_generate(
 
     let Some(key) = resolve_key(api_key) else {
         return Ok(AiResponse::err(
-            "未配置 API key。请在界面上填入通义千问（DashScope）的 API key，或设置环境变量 DASHSCOPE_API_KEY。",
+            "未配置 API key。请在界面上填入所选服务商的 API key，或设置环境变量 AI_API_KEY。",
             balance_before,
         ));
     };
 
-    let endpoint = std::env::var("DASHSCOPE_ENDPOINT").unwrap_or_else(|_| DEFAULT_ENDPOINT.to_string());
-    let model = std::env::var("DASHSCOPE_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string());
+    let endpoint = resolve_with_default(endpoint, std::env::var("AI_ENDPOINT").ok(), DEFAULT_ENDPOINT);
+    let model = resolve_with_default(model, std::env::var("AI_MODEL").ok(), DEFAULT_MODEL);
 
     let body = serde_json::json!({
         "model": model,
@@ -200,5 +216,29 @@ mod tests {
         // 内置 key 目前为 None，两处都没有时应明确返回 None，让上层给出可读提示
         assert_eq!(resolve_key_from(None, None), None);
         assert_eq!(resolve_key_from(Some("".into()), Some("  ".into())), None);
+    }
+
+    #[test]
+    fn endpoint_and_model_prefer_user_choice_over_env_and_default() {
+        // 用户在界面选了 OpenAI，就该打 OpenAI 的地址，不管环境变量或默认值是什么
+        assert_eq!(
+            resolve_with_default(
+                Some("https://api.openai.com/v1/chat/completions".into()),
+                Some("https://dashscope.aliyuncs.com/x".into()),
+                DEFAULT_ENDPOINT,
+            ),
+            "https://api.openai.com/v1/chat/completions",
+        );
+        assert_eq!(resolve_with_default(Some("gpt-4o-mini".into()), None, DEFAULT_MODEL), "gpt-4o-mini");
+    }
+
+    #[test]
+    fn endpoint_and_model_fall_back_to_env_then_default() {
+        assert_eq!(
+            resolve_with_default(None, Some("https://example.com/v1/chat/completions".into()), DEFAULT_ENDPOINT),
+            "https://example.com/v1/chat/completions",
+        );
+        assert_eq!(resolve_with_default(Some("  ".into()), None, DEFAULT_MODEL), DEFAULT_MODEL);
+        assert_eq!(resolve_with_default(None, None, DEFAULT_ENDPOINT), DEFAULT_ENDPOINT);
     }
 }

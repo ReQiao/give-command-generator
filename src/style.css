@@ -1444,6 +1444,13 @@ button#primary,
   flex-wrap: wrap;
 }
 
+.ai-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .ai-key {
   display: flex;
   align-items: center;
@@ -1451,7 +1458,11 @@ button#primary,
 }
 
 .ai-key input {
-  width: clamp(160px, 22vw, 260px);
+  width: clamp(120px, 14vw, 180px);
+}
+
+.ai-key .custom-select {
+  width: clamp(150px, 17vw, 210px);
 }
 
 .ai-input {

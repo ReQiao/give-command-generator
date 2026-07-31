@@ -5,11 +5,12 @@
  * 语法安全性来自分层：AI 只产出「意图」，命令字符串由 logic/dispatch.ts 下经服务器
  * 实证的构建器生成，所以即便 AI 想歪了，也不会产出语法非法的命令。
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
 import { dispatchIntents } from "../logic/dispatch";
 import type { GiveVersion } from "../logic/builder";
+import CustomSelect from "./CustomSelect.vue";
 import InfoTip from "./InfoTip.vue";
 
 const props = defineProps<{ version: GiveVersion; animate?: boolean }>();
@@ -62,6 +63,44 @@ interface DeployResult {
 
 const desktop = isTauri();
 
+/**
+ * 后端调用的是通用的 OpenAI 兼容 chat/completions 接口，不绑定某一家服务商。
+ * 这里只是给几个常见服务商预填接口地址 + 默认模型，方便切换；选「自定义」时
+ * 两个输入框保持可编辑，填其他任何 OpenAI 兼容服务（接口地址需带完整路径）都行。
+ */
+const PROVIDER_PRESETS = {
+  dashscope: {
+    label: "通义千问 Qwen（DashScope）",
+    endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    model: "qwen-plus",
+  },
+  openai: {
+    label: "OpenAI",
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-4o-mini",
+  },
+  custom: {
+    label: "自定义 / 其他 OpenAI 兼容接口",
+    endpoint: "",
+    model: "",
+  },
+} as const;
+type Provider = keyof typeof PROVIDER_PRESETS;
+
+const provider = ref<Provider>("dashscope");
+const providerOptions = (Object.keys(PROVIDER_PRESETS) as Provider[]).map((value) => ({
+  label: PROVIDER_PRESETS[value].label,
+  value,
+}));
+const apiBase = ref<string>(PROVIDER_PRESETS.dashscope.endpoint);
+const apiModel = ref<string>(PROVIDER_PRESETS.dashscope.model);
+
+watch(provider, (value) => {
+  const preset = PROVIDER_PRESETS[value];
+  apiBase.value = preset.endpoint;
+  apiModel.value = preset.model;
+});
+
 const userText = ref("");
 const apiKey = ref("");
 const busy = ref(false);
@@ -76,7 +115,9 @@ const selectedSave = ref("");
 const deployed = ref<DeployResult | null>(null);
 const deploying = ref(false);
 
-const canGenerate = computed(() => desktop && !busy.value && userText.value.trim().length > 0);
+const canGenerate = computed(
+  () => desktop && !busy.value && userText.value.trim().length > 0 && apiBase.value.trim().length > 0,
+);
 const canDeploy = computed(() => desktop && !deploying.value && commands.value.length > 0 && !!selectedSave.value);
 
 const examples = [
@@ -100,6 +141,8 @@ async function generate() {
       systemPrompt: buildSystemPrompt(props.version),
       userText: userText.value.trim(),
       apiKey: apiKey.value.trim() || null,
+      endpoint: apiBase.value.trim() || null,
+      model: apiModel.value.trim() || null,
     });
 
     if (!res.ok || !res.content) {
@@ -203,12 +246,35 @@ function copyAll() {
         想要什么效果
         <InfoTip text="用大白话描述你想要的游戏内效果就行，不用管指令怎么写。例如「做一把能射 TNT 的弓」。" />
       </span>
-      <div class="ai-key">
-        <span class="field-label">
-          API Key
-          <InfoTip text="通义千问（阿里云 DashScope）的 API key。留空则读取环境变量 DASHSCOPE_API_KEY。key 只在本机使用，不会存进模板。" />
-        </span>
-        <input v-model="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+      <div class="ai-provider-row">
+        <div class="ai-key">
+          <span class="field-label">
+            服务商
+            <InfoTip text="后端调用的是通用的 OpenAI 兼容接口，不绑定某一家。选一个预设会自动填接口地址和模型，也可以选「自定义」接入其他 OpenAI 兼容服务。" />
+          </span>
+          <CustomSelect v-model="provider" :options="providerOptions" />
+        </div>
+        <div class="ai-key">
+          <span class="field-label">
+            接口地址
+            <InfoTip text="OpenAI 兼容的 chat/completions 接口完整地址。切换服务商预设会自动填好，也可以手动改。" />
+          </span>
+          <input v-model="apiBase" placeholder="https://.../v1/chat/completions" autocomplete="off" />
+        </div>
+        <div class="ai-key">
+          <span class="field-label">
+            模型
+            <InfoTip text="要调用的模型名称，例如 qwen-plus、gpt-4o-mini。不同服务商的可用模型不一样，按服务商文档填。" />
+          </span>
+          <input v-model="apiModel" placeholder="模型名" autocomplete="off" />
+        </div>
+        <div class="ai-key">
+          <span class="field-label">
+            API Key
+            <InfoTip text="所选服务商的 API key。留空则读取环境变量 AI_API_KEY。key 只在本机使用，不会存进模板。" />
+          </span>
+          <input v-model="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+        </div>
       </div>
     </div>
 
