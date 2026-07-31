@@ -59,7 +59,7 @@ function buildSupportedCommands(): string {
 - fill        { from: [x,y,z], to: [x,y,z], block: "minecraft:stone", mode?: "replace"|"hollow"|"outline"|"keep"|"destroy" }
 - clone       { begin: [x,y,z], end: [x,y,z], destination: [x,y,z] }
 - enchant     { targets: string, enchantment: "minecraft:sharpness", level?: number }
-- execute     { subcommands: ["as @a", "at @s", "if entity ..."], run?: "不带斜杠的命令" }
+- execute     { subcommands: ["as @a", "at @s", "if entity ..."], run?: "不带斜杠的命令", loop?: true }
 - scoreboard  { action: { kind: "objectives_add"|"players_set"|..., ...字段 } }
 - attribute   { target: string, attribute: "max_health", action: { kind: "base_set", value: 40 } }
 - particle    { name: "minecraft:flame", x?, y?, z?, dx?, dy?, dz?, speed?: number, count?: number,
@@ -69,6 +69,11 @@ function buildSupportedCommands(): string {
 属性 id 与版本前缀（generic.）无需你操心，构建器会按目标版本自动处理。
 装备物品要带附魔时，写在 equipment.<slot>.enchantments 里（结构和 give 的 enchantments 一样），
 不要自己拼 enchantments 组件的原始 SNBT——不同版本包装方式不同，构建器会按目标版本处理。
+没有单独的"kill"意图：想表达"杀掉某选择器匹配到的实体"，用 execute 的
+{ subcommands: ["as <选择器>"], run: "kill @s" }，run 里也能写任意其他原版命令。
+execute 的 loop 字段：这条命令需要"每 tick 持续侦测"（不是执行一次就完事）就设为 true——
+系统部署时会自动把它挂进 datapack 的 tick 循环，玩家 /reload 后立刻生效，不需要再手动放
+命令方块。绝大多数"侦测式"组合技（见下面 mechanics guide）都要标 loop:true。
 一个需求可以拆成多条意图，按执行顺序排列。
 
 ${buildCatalogRef()}`;
@@ -99,21 +104,21 @@ function buildMechanicsGuide(): string {
 - 掉落物（minecraft:item）落到地面 → OnGround:1b
   掉落物根本没有 inGround 字段。掉落物用 Item:{id:"..."} 区分是哪种物品。
 
-【经典组合技（写法均已实测可用）】
+【经典组合技（写法均已实测可用，侦测类命令记得标 loop:true）】
 - 「TNT 弓 / 爆炸箭」：原版弓射不出 TNT，但可以侦测落地的箭并在原地生成 TNT：
     give 一把弓（可附 power 力量附魔）
-    execute at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}
-    kill @e[type=minecraft:arrow,nbt={inGround:1b}]
-  后两条放进「循环命令方块」（始终激活），任意箭落地即爆炸。
+    execute（loop:true）: at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}
+    execute（loop:true）: as @e[type=minecraft:arrow,nbt={inGround:1b}] run kill @s
+  两条 execute 都标 loop:true，任意箭落地即爆炸，部署后自动生效。
   末尾那条 kill 不能省，否则同一支箭会每 tick 重复触发。
 
 - 「地雷 / 落地即炸」：丢在地上的 TNT 掉落物一落地就引爆：
-    execute at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:"minecraft:tnt"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}
-    kill @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:"minecraft:tnt"}}]
-  同样放循环命令方块。把 Item.id 换成别的物品，就是"丢下某物即触发"的通用陷阱。
+    execute（loop:true）: at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:"minecraft:tnt"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}
+    execute（loop:true）: as @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:"minecraft:tnt"}}] run kill @s
+  把 Item.id 换成别的物品，就是"丢下某物即触发"的通用陷阱。
   想要延迟引爆就把 fuse 调大（fuse 是 short，80s ≈ 4 秒）。
 
-- 「闪电剑 / 雷击武器」：侦测被攻击的实体并在其位置引雷：
+- 「闪电剑 / 雷击武器」：侦测被攻击的实体并在其位置引雷（loop:true）：
     execute as @e[type=!player,nbt={HurtTime:10s}] at @s run summon minecraft:lightning_bolt ~ ~ ~
   或直接给带 channeling 引雷附魔的三叉戟（仅雷暴天气生效，需在 explanation 里说明）。
 
@@ -153,8 +158,8 @@ particle <name> [x y z] [dx dy dz speed count [force|normal] [viewers]]：
 或方块/物品图标粒子：
   minecraft:block{block_state:{Name:"minecraft:stone"}}
   minecraft:item{item:{id:"minecraft:diamond",count:1}}
-常配合 execute as/at + 循环命令方块做"持续冒光效果"，比如给某实体身上一直冒火焰粒子：
-  execute as @e[tag=xxx] at @s run particle minecraft:flame ~ ~1 ~ 0.2 0.3 0.2 0.01 3
+常配合 execute as/at + loop:true 做"持续冒光效果"，比如给某实体身上一直冒火焰粒子：
+  execute（loop:true）: as @e[tag=xxx] at @s run particle minecraft:flame ~ ~1 ~ 0.2 0.3 0.2 0.01 3
 
 【朝向控制】
 - summon 时用 rotation: [yaw, pitch] 让生物一出生就面朝指定方向（度数，不是弧度）。
@@ -163,6 +168,21 @@ particle <name> [x y z] [dx dy dz speed count [force|normal] [viewers]]：
   "facing entity <entity> eyes" 这些 subcommand 字符串（execute 的 subcommands 是自由文本，
   照抄这些写法即可），常用于"面朝某方向发射/生成"的场景，比如让生物朝玩家的方向吐弹幕：
   execute as @e[tag=boss] at @s facing entity @p eyes run summon minecraft:fireball ^ ^ ^1
+
+【"正前方 N 度范围内"这类锥形判定：不需要数据包，纯 execute 链就能做】
+这类需求不要回答"需要单独写数据包"——那是错的，用 execute 的
+anchored + facing + positioned + 距离选择器就能做出来，是社区常用的纯指令锥形判定技巧
+（一条 execute 意图，subcommands 按顺序放这些片段，run 放实际效果）：
+  subcommands: ["as @a", "at @s", "anchored eyes", "facing entity @e[type=minecraft:zombie,limit=1,sort=nearest] eyes",
+                "anchored feet", "positioned ^ ^ ^<forward>", "as @e[type=minecraft:zombie,distance=..<radius>]"]
+  run: "<效果，比如 damage @s 5 或 effect give @s minecraft:weakness 1">
+原理：先把执行者转向目标方向（facing 只转朝向不挪位置），再把执行位置沿这个朝向"投影"到
+正前方 <forward> 格处（positioned ^ ^ ^N 是相对当前朝向前进，不是真的移动实体），最后看
+目标是否落在这个投影点的 <radius> 格半径内——run 里的 @s 到这里已经指向命中的目标实体。
+弧度越大要求的 radius/forward 比值越大：半锥角 θ 时 radius ≈ forward × tan(θ)。
+"正前方 120 度"是半锥角 60°，tan(60°)≈1.73，比如 forward=3 就配 radius≈5.2
+（这套判定在角度很大时会变粗略，是近似锥形而不是精确 120°，需要在 explanation 里提醒
+用户这是近似）。必须标 loop:true 才能持续侦测。
 
 【判定实体 / 锚点实体】
 需要一个"纯粹为了指令机制存在、不该被打到、不该被看见"的实体（比如踩点判定、位置锚点、
@@ -182,17 +202,28 @@ scoreboard objectives add 的 criteria 不是只能填 dummy，Minecraft 内置�
   minecraft.custom:minecraft.jump       —— 跳跃次数
 这类判据的分数依然可以用 scoreboard players set ... 0 手动清零——这正是做"技能冷却/
 按键触发"的标准套路：右键检测一个物品的"使用次数"计分板，检测到变化就触发效果、随即清零，
-下次使用才能再触发一次。经典案例"拔刀剑"（右键触发抽刀特效）：
-  scoreboard objectives add used_rod minecraft.used:minecraft.fishing_rod
-  execute as @a if score @s used_rod matches 1.. run function xxx:draw_sword
-  scoreboard players set @a used_rod 0
-把 function 换成具体的 execute 效果链（粒子/音效/attribute 加成等）即可拼出完整拔刀剑机制；
-如果目标平台不支持数据包 function，就把 if 判断到的动作直接摊平写成多条 execute run 意图。
+下次使用才能再触发一次。经典案例"拔刀剑"（右键触发抽刀特效），拆成三条意图（前两条标 loop:true）：
+  scoreboard: objectives_add，objective=used_rod，criteria=minecraft.used:minecraft.fishing_rod（一次性，不用 loop）
+  execute（loop:true）: subcommands=["as @a","if score @s used_rod matches 1.."], run="<抽刀效果，比如 particle/playsound/attribute 加成>"
+  execute（loop:true）: subcommands=["as @a","if score @s used_rod matches 1.."], run="scoreboard players set @s used_rod 0"
+不要把效果包进一个"function xxx:xxx"去调用——本系统不支持引用自定义 datapack 函数名，
+效果必须摊平成具体的 execute run 命令（如上面两条 execute），不能凭空写一个函数路径。
+
+【概率 / 随机效果：不需要数据包，用游戏内时间做伪随机数】
+纯指令没有"扔骰子"式的真随机，但可以用 gametime 取模凑一个足够随机的伪随机数，
+不需要 predicate/loot table 之类的数据包功能。三条意图（分数字段自己取名即可）：
+  scoreboard: objectives_add，objective=rng，criteria=dummy
+  execute: subcommands=["store result score @s rng"], run="time query gametime"
+  scoreboard: players_operation，targets=@s，objective=rng，operation="%=", source=<常量,比如用一个固定值 100 的计分板>，sourceObjective=const
+  execute: subcommands=["as @a","if score @s rng matches 0..49"], run="<50% 概率触发的效果>"
+想要固定概率 P%，把 matches 的区间宽度设成 P（比如 0..49 就是 100 取模下的 50%）。
+这类判断如果要"持续生效"（比如每次攻击都判定一次），配套的 execute 记得标 loop:true；
+如果只是响应某个一次性触发（比如玩家用了个物品才判定一次），就不需要 loop。
 
 【要点】
 execute 的 run 字段可以写任意原版命令（summon/kill/setblock/data/tp/give...），
-这是组合机制的关键。需要"实时侦测某条件→执行"时，就用 execute 链 + 循环命令方块。
-凡是需要放命令方块、或有使用前提（如需雷暴天气、需 OP 权限）的，务必写进 explanation。`;
+这是组合机制的关键。需要"实时侦测某条件→执行"时，就用 execute 链 + loop:true（见上）。
+凡是有使用前提的（如需雷暴天气、需 OP 权限、锥形判定是近似值），务必写进 explanation。`;
 }
 
 /** 构造发给 AI 的系统提示词。 */
@@ -205,11 +236,18 @@ export function buildSystemPrompt(version: GiveVersion): string {
     buildSupportedCommands(),
     "",
     "只输出 JSON 对象，形如：",
-    '{ "intents": [ { "command": "give", "form": { "item": "minecraft:diamond_sword", "count": 1, "enchantments": [{"id":"minecraft:sharpness","level":5}] } } ], "explanation": "一句话中文说明" }',
+    '{ "intents": [' +
+      '{ "command": "give", "form": { "item": "minecraft:bow", "count": 1, "enchantments": [{"id":"minecraft:power","level":5}] } }, ' +
+      '{ "command": "execute", "form": { "subcommands": ["at @e[type=minecraft:arrow,nbt={inGround:1b}]"], "run": "summon minecraft:tnt ~ ~ ~ {fuse:0s}", "loop": true } }' +
+      '], "explanation": "一句话中文说明" }',
+    "每一条意图都必须是 { command, form } 两个字段——所有参数（包括 subcommands、item、",
+    "target 等）都要包在 form 对象里，绝不能直接摊平写在意图对象顶层。这一点尤其容易在",
+    "execute 上出错：不要漏掉 form 包装，也不要漏掉 subcommands 数组（哪怕只有一个元素，",
+    "也必须是数组形式，不能省略、不能写成字符串）——漏了会导致该条指令完全构建失败。",
     "顶层只有 intents 和 explanation 两个字段。explanation 是顶层的一个字符串字段，",
     "绝不能作为一条意图混进 intents 数组里（intents 数组里的每一项都必须有合法的 command 字段）。",
     "不要输出任何 JSON 以外的内容，也不要自己拼最终命令字符串（命令由本地确定性构建器生成）。",
-    "explanation 要说清这套命令如何达成效果、是否需要放进命令方块、有什么使用前提。",
+    "explanation 要说清这套命令如何达成效果、是否需要一键部署才能生效、有什么使用前提。",
   ].join("\n");
 }
 
@@ -256,7 +294,18 @@ export function parseAiContent(content: string): ParsedAi {
   const intents: CommandIntent[] = [];
   for (const item of parsed.intents as unknown[]) {
     if (item && typeof item === "object" && KNOWN_COMMANDS.has((item as { command?: unknown }).command as string)) {
-      intents.push(item as CommandIntent);
+      const rec = item as Record<string, unknown>;
+      if (rec.form && typeof rec.form === "object") {
+        intents.push(item as CommandIntent);
+      } else {
+        // 模型偶尔会忘记套 form 包装，把参数直接摊平写在意图对象上
+        // （例如 { "command": "execute", "subcommands": [...], "run": "..." }，
+        // 没有 form 字段）。这会导致构建器拿到空表单——execute 报"至少需要一个
+        // 子命令"、give 直接退回默认物品——看起来像是随机丢参数，其实是同一个
+        // 结构性问题。这里兜底：把除 command 外的其余字段收拢成 form。
+        const { command, ...rest } = rec;
+        intents.push({ command, form: rest } as CommandIntent);
+      }
       continue;
     }
     if (!explanation && item && typeof item === "object" && typeof (item as { explanation?: unknown }).explanation === "string") {

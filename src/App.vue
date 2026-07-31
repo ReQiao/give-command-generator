@@ -9,6 +9,7 @@ import EffectEditor from "./components/EffectEditor.vue";
 import InfoTip from "./components/InfoTip.vue";
 import ItemPickerModal from "./components/ItemPickerModal.vue";
 import AiPanel from "./components/AiPanel.vue";
+import DeployPanel from "./components/DeployPanel.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import {
@@ -722,6 +723,12 @@ function textOptions(items: string[]): SelectOption[] {
     <section v-show="mode === 'manual'" class="card preview-card" :class="{ flash: rowFlash.preview }">
       <label>生成结果</label>
       <textarea id="preview" v-model="preview" placeholder="点击“生成指令”后，最终指令会显示在这里。" spellcheck="false"></textarea>
+      <DeployPanel
+        v-if="preview.trim() && form.version !== 'bedrock'"
+        :commands="[preview]"
+        :version="form.version"
+        @toast="showToast"
+      />
     </section>
     </Transition>
 

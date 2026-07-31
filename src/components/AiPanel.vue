@@ -11,6 +11,7 @@ import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
 import { dispatchIntents } from "../logic/dispatch";
 import type { GiveVersion } from "../logic/builder";
 import CustomSelect from "./CustomSelect.vue";
+import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
 
 const props = defineProps<{ version: GiveVersion; animate?: boolean }>();
@@ -47,18 +48,6 @@ interface AiResponse {
   error: string | null;
   balance: number;
   usage: { prompt: number; completion: number; total: number } | null;
-}
-
-interface SaveInfo {
-  name: string;
-  path: string;
-}
-
-interface DeployResult {
-  packPath: string;
-  commandCount: number;
-  reloadCommand: string;
-  runCommand: string;
 }
 
 const desktop = isTauri();
@@ -106,19 +95,21 @@ const apiKey = ref("");
 const busy = ref(false);
 const errorText = ref("");
 const explanation = ref("");
+/** 一次性命令：可以直接复制粘贴到聊天栏，也可以走一键部署。 */
 const commands = ref<string[]>([]);
+/**
+ * 需要每 tick 持续侦测的命令（execute 意图标了 loop:true 的）。
+ * 这类命令单独复制粘贴到聊天栏没有意义——原版没有"持续执行"这回事，必须要么
+ * 手动放进循环命令方块，要么部署成 datapack（自动挂 tick.json）。所以不给
+ * 每条配复制按钮，只展示内容 + 明确提示走一键部署。
+ */
+const loopCommands = ref<string[]>([]);
 /** AI 意图里构建失败的条目，单独列出而不是静默吞掉。 */
 const failures = ref<string[]>([]);
-
-const saves = ref<SaveInfo[]>([]);
-const selectedSave = ref("");
-const deployed = ref<DeployResult | null>(null);
-const deploying = ref(false);
 
 const canGenerate = computed(
   () => desktop && !busy.value && userText.value.trim().length > 0 && apiBase.value.trim().length > 0,
 );
-const canDeploy = computed(() => desktop && !deploying.value && commands.value.length > 0 && !!selectedSave.value);
 
 const examples = [
   "做一把能射 TNT 的弓",
@@ -133,8 +124,8 @@ async function generate() {
   errorText.value = "";
   explanation.value = "";
   commands.value = [];
+  loopCommands.value = [];
   failures.value = [];
-  deployed.value = null;
 
   try {
     const res = await invoke<AiResponse>("ai_generate", {
@@ -154,52 +145,23 @@ async function generate() {
     explanation.value = parsed.explanation;
 
     const results = dispatchIntents(parsed.intents, props.version);
-    commands.value = results.map((r) => r.command).filter((c): c is string => Boolean(c));
+    const ok = results.filter((r): r is typeof r & { command: string } => Boolean(r.command));
+    commands.value = ok.filter((r) => !r.loop).map((r) => r.command);
+    loopCommands.value = ok.filter((r) => r.loop).map((r) => r.command);
     failures.value = results
       .filter((r) => r.error)
       .map((r) => `${r.intent.command}：${r.error}`);
 
-    if (commands.value.length === 0) {
+    const total = commands.value.length + loopCommands.value.length;
+    if (total === 0) {
       errorText.value = "AI 没有产出可用的指令，换个说法再试试。";
     } else {
-      emit("toast", `已生成 ${commands.value.length} 条指令`);
+      emit("toast", `已生成 ${total} 条指令`);
     }
   } catch (err) {
     errorText.value = err instanceof Error ? err.message : String(err);
   } finally {
     busy.value = false;
-  }
-}
-
-async function refreshSaves() {
-  if (!desktop) return;
-  try {
-    saves.value = await invoke<SaveInfo[]>("datapack_list_saves", { savesDir: null });
-    if (saves.value.length === 0) {
-      emit("toast", "没有找到存档，可能 Minecraft 装在非默认位置", 3000);
-    } else if (!selectedSave.value) {
-      selectedSave.value = saves.value[0].path;
-    }
-  } catch (err) {
-    errorText.value = `读取存档列表失败：${err instanceof Error ? err.message : String(err)}`;
-  }
-}
-
-async function deploy() {
-  if (!canDeploy.value) return;
-  deploying.value = true;
-  errorText.value = "";
-  try {
-    deployed.value = await invoke<DeployResult>("datapack_deploy", {
-      savePath: selectedSave.value,
-      commands: commands.value,
-      version: props.version,
-    });
-    emit("toast", `已写入 ${deployed.value.commandCount} 条指令到存档`, 3000);
-  } catch (err) {
-    errorText.value = `部署失败：${err instanceof Error ? err.message : String(err)}`;
-  } finally {
-    deploying.value = false;
   }
 }
 
@@ -313,40 +275,28 @@ function copyAll() {
       </li>
     </ul>
 
+    <!-- 循环侦测命令：单条复制粘贴到聊天栏没有意义（原版没有"持续执行"这回事），
+         不给复制按钮，只展示内容并明确要求走一键部署。 -->
+    <div v-if="loopCommands.length" class="ai-loop-block">
+      <p class="ai-loop-hint">
+        以下 {{ loopCommands.length }} 条需要持续侦测，无法通过复制粘贴生效——必须用下面的「一键部署」，
+        会自动挂到数据包的 tick 循环上，/reload 后自动生效：
+      </p>
+      <ul class="ai-results ai-loop-results">
+        <li v-for="(cmd, i) in loopCommands" :key="i"><code>{{ cmd }}</code></li>
+      </ul>
+    </div>
+
     <ul v-if="failures.length" class="ai-failures">
       <li v-for="(f, i) in failures" :key="i">跳过一条无法构建的意图 —— {{ f }}</li>
     </ul>
 
-    <!-- 一键部署 -->
-    <div v-if="commands.length" class="ai-deploy">
-      <span class="field-label">
-        部署到存档
-        <InfoTip text="把上面这些指令打包成数据包写进存档，再在游戏里执行 /reload 加载。这是原版官方的分发方式，不涉及任何外挂手段。" />
-      </span>
-      <div class="ai-deploy-row">
-        <select v-model="selectedSave" :disabled="saves.length === 0">
-          <option v-if="saves.length === 0" value="">先点右边「扫描存档」</option>
-          <option v-for="s in saves" :key="s.path" :value="s.path">{{ s.name }}</option>
-        </select>
-        <button type="button" :disabled="!desktop" @click="refreshSaves">扫描存档</button>
-        <button id="primary" type="button" :disabled="!canDeploy" @click="deploy">
-          {{ deploying ? "部署中…" : "一键部署" }}
-        </button>
-      </div>
-
-      <div v-if="deployed" class="ai-deployed">
-        <p>
-          已写入 <strong>{{ deployed.commandCount }}</strong> 条指令。
-          回到游戏里依次执行下面两条即可生效：
-        </p>
-        <div class="ai-deploy-cmds">
-          <code>{{ deployed.reloadCommand }}</code>
-          <button type="button" @click="copyText(deployed.reloadCommand, deployed.reloadCommand)">复制</button>
-          <code>{{ deployed.runCommand }}</code>
-          <button type="button" @click="copyText(deployed.runCommand, deployed.runCommand)">复制</button>
-        </div>
-        <p class="ai-deploy-path">{{ deployed.packPath }}</p>
-      </div>
-    </div>
+    <DeployPanel
+      v-if="commands.length || loopCommands.length"
+      :commands="commands"
+      :loop-commands="loopCommands"
+      :version="version"
+      @toast="(...args) => emit('toast', ...args)"
+    />
   </section>
 </template>

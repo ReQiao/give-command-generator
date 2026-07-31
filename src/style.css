@@ -1552,6 +1552,26 @@ button#primary,
   font-size: 9pt;
 }
 
+.ai-loop-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 196, 92, 0.1);
+}
+
+.ai-loop-hint {
+  margin: 0;
+  color: #ffc45c;
+  font-size: 9pt;
+  line-height: 1.6;
+}
+
+.ai-loop-results li {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .ai-deploy {
   display: flex;
   flex-direction: column;
@@ -1570,6 +1590,12 @@ button#primary,
 .ai-deploy-row select {
   flex: 1 1 200px;
   min-width: 0;
+}
+
+.deploy-hint {
+  margin: 0;
+  color: var(--muted, #93a4c8);
+  font-size: 8.5pt;
 }
 
 .ai-deployed {

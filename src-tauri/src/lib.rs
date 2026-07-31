@@ -15,6 +15,7 @@ pub fn run() {
             billing::billing_activate,
             datapack::datapack_list_saves,
             datapack::datapack_deploy,
+            datapack::datapack_default_saves_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

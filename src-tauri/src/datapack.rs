@@ -3,6 +3,13 @@
 //! 为什么走 datapack 而不是替玩家把命令打进聊天栏：后者需要模拟输入或注入客户端，
 //! 那是外挂的做法。datapack 是原版官方的内容分发方式——我们只是往存档目录写文件，
 //! 玩家自己在游戏里执行 `/reload` 加载，全程没有任何非官方手段。
+//!
+//! 一次性命令 vs 循环命令：
+//!   - commands（一次性）写进 soul:run，玩家自己执行一次 `/function soul:run` 触发。
+//!   - loop_commands（需要每 tick 侦测的，如箭矢/掉落物落地检测）写进 soul:tick，
+//!     并通过 `data/minecraft/tags/function/tick.json` 挂到原版的 tick 函数标签上——
+//!     `/reload` 之后自动每 tick 执行，不需要玩家再手动放一个循环命令方块。
+//!     这是这次改造的关键点：凡是「持续侦测」的组合技，一键部署即可生效。
 
 use serde::Serialize;
 use std::fs;
@@ -11,6 +18,7 @@ use std::path::PathBuf;
 /// datapack 的命名空间与函数名，最终对应游戏内的 `/function soul:run`。
 const NAMESPACE: &str = "soul";
 const FUNCTION: &str = "run";
+const TICK_FUNCTION: &str = "tick";
 const PACK_DIR: &str = "soul_lantern_commands";
 
 #[derive(Clone, Serialize)]
@@ -24,11 +32,14 @@ pub struct SaveInfo {
 pub struct DeployResult {
     /// datapack 写入的目录。
     pub pack_path: String,
-    /// 写入的命令条数。
+    /// 一次性命令条数（写进 soul:run，需要玩家手动触发一次）。
     pub command_count: usize,
-    /// 玩家需要在游戏内依次执行的两条命令（前端负责提供复制按钮）。
+    /// 循环命令条数（写进 soul:tick 并挂 tick.json，`/reload` 后自动生效）。
+    pub loop_command_count: usize,
+    /// 玩家需要在游戏内执行的命令：/reload 必做；run_command 只有 command_count>0 时才需要，
+    /// 循环部分 /reload 后自动生效，不需要玩家再做任何事。
     pub reload_command: String,
-    pub run_command: String,
+    pub run_command: Option<String>,
 }
 
 /// 定位 .minecraft 目录（各平台默认位置）。
@@ -108,11 +119,24 @@ fn pack_format_for_version(version: &str) -> i32 {
     }
 }
 
+/// 命令存进 .mcfunction 时不能带前导斜杠。空行与注释行原样保留。
+fn clean_commands(commands: &[String]) -> Vec<String> {
+    commands
+        .iter()
+        .map(|c| c.trim())
+        .filter(|c| !c.is_empty())
+        .map(|c| c.strip_prefix('/').unwrap_or(c).to_string())
+        .collect()
+}
+
 /// 把命令写成 datapack 放进指定存档。
+/// `commands` 是一次性命令（玩家手动触发一次）；`loop_commands` 是需要每 tick
+/// 侦测的命令（自动挂 tick.json，`/reload` 后无需再做任何事）——两者可以只有一个非空。
 #[tauri::command]
 pub fn datapack_deploy(
     save_path: String,
     commands: Vec<String>,
+    loop_commands: Vec<String>,
     version: String,
 ) -> Result<DeployResult, String> {
     let save = PathBuf::from(&save_path);
@@ -120,24 +144,19 @@ pub fn datapack_deploy(
         return Err(format!("{save_path} 不像是一个存档目录（没有 level.dat）。"));
     }
 
-    // 命令存进 .mcfunction 时不能带前导斜杠。空行与注释行原样保留。
-    let body: Vec<String> = commands
-        .iter()
-        .map(|c| c.trim())
-        .filter(|c| !c.is_empty())
-        .map(|c| c.strip_prefix('/').unwrap_or(c).to_string())
-        .collect();
-    if body.is_empty() {
+    let body = clean_commands(&commands);
+    let tick_body = clean_commands(&loop_commands);
+    if body.is_empty() && tick_body.is_empty() {
         return Err("没有可部署的命令。".to_string());
     }
 
     let pack_dir = save.join("datapacks").join(PACK_DIR);
     // 1.21 起函数目录由 functions 改名为 function（单数）；两处都写，跨版本都能加载。
-    let dirs = [
+    let function_dirs = [
         pack_dir.join("data").join(NAMESPACE).join("function"),
         pack_dir.join("data").join(NAMESPACE).join("functions"),
     ];
-    for dir in &dirs {
+    for dir in &function_dirs {
         fs::create_dir_all(dir).map_err(|e| format!("创建 datapack 目录失败：{e}"))?;
     }
 
@@ -154,18 +173,50 @@ pub fn datapack_deploy(
     fs::write(pack_dir.join("pack.mcmeta"), serde_json::to_vec_pretty(&meta).unwrap_or_default())
         .map_err(|e| format!("写入 pack.mcmeta 失败：{e}"))?;
 
-    let content = format!("{}\n", body.join("\n"));
-    for dir in &dirs {
-        fs::write(dir.join(format!("{FUNCTION}.mcfunction")), &content)
-            .map_err(|e| format!("写入 {FUNCTION}.mcfunction 失败：{e}"))?;
+    let mut run_command = None;
+    if !body.is_empty() {
+        let content = format!("{}\n", body.join("\n"));
+        for dir in &function_dirs {
+            fs::write(dir.join(format!("{FUNCTION}.mcfunction")), &content)
+                .map_err(|e| format!("写入 {FUNCTION}.mcfunction 失败：{e}"))?;
+        }
+        run_command = Some(format!("/function {NAMESPACE}:{FUNCTION}"));
+    }
+
+    if !tick_body.is_empty() {
+        let content = format!("{}\n", tick_body.join("\n"));
+        for dir in &function_dirs {
+            fs::write(dir.join(format!("{TICK_FUNCTION}.mcfunction")), &content)
+                .map_err(|e| format!("写入 {TICK_FUNCTION}.mcfunction 失败：{e}"))?;
+        }
+        // 1.21 起函数标签目录同样由 functions 改名为 function；两处都写。
+        let tag_dirs = [
+            pack_dir.join("data/minecraft/tags/function"),
+            pack_dir.join("data/minecraft/tags/functions"),
+        ];
+        let tag = serde_json::json!({ "values": [format!("{NAMESPACE}:{TICK_FUNCTION}")] });
+        let tag_bytes = serde_json::to_vec_pretty(&tag).unwrap_or_default();
+        for dir in &tag_dirs {
+            fs::create_dir_all(dir).map_err(|e| format!("创建 tick.json 目录失败：{e}"))?;
+            fs::write(dir.join("tick.json"), &tag_bytes).map_err(|e| format!("写入 tick.json 失败：{e}"))?;
+        }
     }
 
     Ok(DeployResult {
         pack_path: pack_dir.to_string_lossy().to_string(),
         command_count: body.len(),
+        loop_command_count: tick_body.len(),
         reload_command: "/reload".to_string(),
-        run_command: format!("/function {NAMESPACE}:{FUNCTION}"),
+        run_command,
     })
+}
+
+/// 猜测 .minecraft/saves 的默认位置，用于给「浏览选择存档」的文件夹选择框一个起始路径。
+/// 猜不到（非官方启动器目录结构不同）或目录不存在时返回 None，前端会退回系统默认位置。
+#[tauri::command]
+pub fn datapack_default_saves_dir() -> Option<String> {
+    let dir = minecraft_dir().ok()?.join("saves");
+    dir.is_dir().then(|| dir.to_string_lossy().to_string())
 }
 
 #[cfg(test)]
@@ -173,11 +224,21 @@ mod tests {
     use super::*;
     use std::path::Path;
 
-    /// 测试用的薄封装：省去每处都写 to_string 转换。
+    /// 测试用的薄封装：省去每处都写 to_string 转换。一次性命令，无循环命令。
     fn deploy_for_test(save: &Path, commands: &[&str], version: &str) -> Result<DeployResult, String> {
+        deploy_for_test_full(save, commands, &[], version)
+    }
+
+    fn deploy_for_test_full(
+        save: &Path,
+        commands: &[&str],
+        loop_commands: &[&str],
+        version: &str,
+    ) -> Result<DeployResult, String> {
         datapack_deploy(
             save.to_string_lossy().to_string(),
             commands.iter().map(|s| s.to_string()).collect(),
+            loop_commands.iter().map(|s| s.to_string()).collect(),
             version.to_string(),
         )
     }
@@ -201,7 +262,8 @@ mod tests {
         .unwrap();
 
         assert_eq!(res.command_count, 2);
-        assert_eq!(res.run_command, "/function soul:run");
+        assert_eq!(res.loop_command_count, 0);
+        assert_eq!(res.run_command, Some("/function soul:run".to_string()));
 
         let pack = save.join("datapacks").join(PACK_DIR);
         let meta: serde_json::Value =
@@ -240,6 +302,63 @@ mod tests {
     fn rejects_empty_commands() {
         let save = temp_save("empty");
         assert!(deploy_for_test(&save, &["", "   "], "java_26_2_plus").is_err());
+        fs::remove_dir_all(&save).unwrap();
+    }
+
+    #[test]
+    fn writes_tick_function_and_tag_for_loop_commands() {
+        let save = temp_save("loop");
+        let res = deploy_for_test_full(
+            &save,
+            &[],
+            &[
+                "execute at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",
+                "execute as @e[type=minecraft:arrow,nbt={inGround:1b}] run kill @s",
+            ],
+            "java_26_2_plus",
+        )
+        .unwrap();
+
+        assert_eq!(res.command_count, 0);
+        assert_eq!(res.loop_command_count, 2);
+        // 没有一次性命令时不需要玩家手动触发任何东西
+        assert_eq!(res.run_command, None);
+
+        let pack = save.join("datapacks").join(PACK_DIR);
+        let tick_body = fs::read_to_string(pack.join("data/soul/function/tick.mcfunction")).unwrap();
+        assert!(tick_body.contains("summon minecraft:tnt"));
+        assert!(tick_body.contains("run kill @s"));
+
+        // tick.json 挂到原版的 tick 函数标签上，/reload 后自动每 tick 执行
+        let tag: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(pack.join("data/minecraft/tags/function/tick.json")).unwrap())
+                .unwrap();
+        assert_eq!(tag["values"][0], "soul:tick");
+        // 旧版单复数目录都要写
+        assert!(pack.join("data/minecraft/tags/functions/tick.json").is_file());
+        assert!(pack.join("data/soul/functions/tick.mcfunction").is_file());
+
+        fs::remove_dir_all(&save).unwrap();
+    }
+
+    #[test]
+    fn supports_both_once_and_loop_commands_together() {
+        let save = temp_save("mixed");
+        let res = deploy_for_test_full(&save, &["say hello"], &["say tick"], "java_26_2_plus").unwrap();
+        assert_eq!(res.command_count, 1);
+        assert_eq!(res.loop_command_count, 1);
+        assert_eq!(res.run_command, Some("/function soul:run".to_string()));
+
+        let pack = save.join("datapacks").join(PACK_DIR);
+        assert!(pack.join("data/soul/function/run.mcfunction").is_file());
+        assert!(pack.join("data/soul/function/tick.mcfunction").is_file());
+        fs::remove_dir_all(&save).unwrap();
+    }
+
+    #[test]
+    fn rejects_when_both_command_lists_are_empty() {
+        let save = temp_save("empty-both");
+        assert!(deploy_for_test_full(&save, &[], &[], "java_26_2_plus").is_err());
         fs::remove_dir_all(&save).unwrap();
     }
 

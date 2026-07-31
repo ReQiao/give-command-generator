@@ -18,6 +18,13 @@ export interface ExecuteForm {
   subcommands: string[];
   /** 最终执行的命令（前导斜杠会被去掉）。省略表示这是一条纯条件测试。 */
   run?: string;
+  /**
+   * 这条命令需要每 tick 持续侦测（例如箭矢/掉落物落地检测），不是执行一次就完事。
+   * 只是元数据，不影响生成的命令字符串本身——由 dispatch 往上传递给部署逻辑：
+   * 标记为 true 的命令会被自动写进 datapack 的 tick 循环（挂 tick.json），
+   * 而不是要求玩家自己找一个循环命令方块去放。
+   */
+  loop?: boolean;
 }
 
 export function buildExecuteCommand(form: ExecuteForm): string {

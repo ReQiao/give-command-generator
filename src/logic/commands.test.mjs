@@ -525,6 +525,23 @@ console.log("\n[dispatch]");
   expect("particle 意图分派成功", r.command, "particle minecraft:flame ~ ~ ~ 0 0 0 1 5");
 }
 {
+  // execute 标记 loop:true 时应该透传到 DispatchResult.loop，供部署逻辑分流
+  const looped = dispatchIntent(
+    { command: "execute", form: { subcommands: ["at @e[type=minecraft:arrow]"], run: "kill @s", loop: true } },
+    MODERN,
+  );
+  expect("execute 标记 loop:true 会透传到 DispatchResult.loop", looped.loop, true);
+
+  const notLooped = dispatchIntent(
+    { command: "execute", form: { subcommands: ["at @s"], run: "say hi" } },
+    MODERN,
+  );
+  expect("execute 不标记 loop 时 DispatchResult.loop 为 false", notLooped.loop, false);
+
+  const giveResult = dispatchIntent({ command: "give", form: { item: "minecraft:stone" } }, MODERN);
+  expect("非 execute 意图的 loop 恒为 false", giveResult.loop, false);
+}
+{
   // 未知 command 的报错信息应该是可读的具体值，不是整个意图对象的 JSON dump
   const r = dispatchIntent({ command: "no_such_thing", form: {} }, MODERN);
   expect("未知指令类型报错信息可读", r.error, '未知指令类型: "no_such_thing"');
@@ -588,6 +605,35 @@ console.log("\n[ai prompt]");
   );
   expect("顶层 explanation 优先", r.explanation, "顶层的");
   expect("误入数组的项被丢弃", r.intents.length, 0);
+}
+{
+  // 复现用户反馈的 bug：模型忘记套 form 包装，把参数直接摊平写在意图对象顶层
+  // （之前会导致 execute 报"至少需要一个子命令"、give 静默退回默认物品）。
+  const r = parseAiContent(
+    JSON.stringify({
+      intents: [
+        { command: "give", item: "minecraft:bow", count: 1 },
+        { command: "execute", subcommands: ["at @e[type=minecraft:arrow]"], run: "kill @s", loop: true },
+      ],
+      explanation: "x",
+    }),
+  );
+  expect("缺 form 包装时仍能解析出 2 条意图", r.intents.length, 2);
+  expect("缺 form 包装的 give 被兜底收拢出正确的 item", r.intents[0].form.item, "minecraft:bow");
+  expect("缺 form 包装的 execute 被兜底收拢出正确的 subcommands", r.intents[1].form.subcommands.length, 1);
+  expect("缺 form 包装的 execute 的 loop 标记也被保留", r.intents[1].form.loop, true);
+
+  // 端到端：兜底后的意图应该能正常分派成命令，而不是再报错
+  const results = dispatchIntents(r.intents, "java_1_21_5");
+  expect("兜底后 give 能正常分派", results[0].command, "give @a minecraft:bow 1");
+  expect("兜底后 execute 能正常分派", results[1].command, "execute at @e[type=minecraft:arrow] run kill @s");
+}
+{
+  // 有 form 包装时保持原样，不应被误伤
+  const r = parseAiContent(
+    JSON.stringify({ intents: [{ command: "say", form: { message: "hi" } }], explanation: "x" }),
+  );
+  expect("已有 form 包装时原样保留", r.intents[0].form.message, "hi");
 }
 expectThrows("非 JSON 应报错", () => parseAiContent("对不起，我做不到"));
 expectThrows("缺 intents 数组应报错", () => parseAiContent('{"explanation":"x"}'));

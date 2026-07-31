@@ -54,6 +54,11 @@ export interface DispatchResult {
   command: string | null;
   /** 失败原因；成功时为 null。 */
   error: string | null;
+  /**
+   * 是否需要每 tick 持续执行（目前只有 execute 意图能标记 form.loop=true）。
+   * UI 据此区分「一次性指令，可直接复制」和「循环侦测，需要部署成 datapack」。
+   */
+  loop: boolean;
 }
 
 /** 把单条意图分派到对应构建器。version 为目标 Minecraft 版本。 */
@@ -107,12 +112,13 @@ export function dispatchIntent(intent: CommandIntent, version: GiveVersion): Dis
       default: {
         const _exhaustive: never = intent;
         const badCommand = (_exhaustive as { command?: unknown })?.command;
-        return { intent, command: null, error: `未知指令类型: ${JSON.stringify(badCommand)}` };
+        return { intent, command: null, error: `未知指令类型: ${JSON.stringify(badCommand)}`, loop: false };
       }
     }
-    return { intent, command, error: null };
+    const loop = intent.command === "execute" && intent.form.loop === true;
+    return { intent, command, error: null, loop };
   } catch (err) {
-    return { intent, command: null, error: err instanceof Error ? err.message : String(err) };
+    return { intent, command: null, error: err instanceof Error ? err.message : String(err), loop: false };
   }
 }
 
