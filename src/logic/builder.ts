@@ -881,20 +881,7 @@ function jsonRichLine(line: RichLine, tp: TextProfile, warnings: string[]): unkn
 function serializeText(line: RichLine, asSnbt: boolean, tp: TextProfile, warnings: string[]): string {
   const json = JSON.stringify(jsonRichLine(line, tp, warnings));
   if (!asSnbt) return json;
-  return snbtJsonString(json);
-}
-
-/** 把已序列化的 JSON 文本包成 SNBT 单引号字符串（实体/方块实体 NBT 里的文本字段写法）。 */
-export function snbtJsonString(json: string): string {
   return `'${json.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
-}
-
-/**
- * 把一行富文本序列化为 SNBT 单引号字符串，供实体 CustomName / 方块实体文本使用。
- * 与 /give 的文本组件同源（同一套 jsonRichLine + 版本档案），保证两处写法一致。
- */
-export function richLineToSnbtString(line: RichLine, version: GiveVersion, warnings: string[] = []): string {
-  return serializeText(line, true, resolveTextProfile(version), warnings);
 }
 
 export function quote(value: string): string {
@@ -1073,14 +1060,6 @@ export function isJava1205Family(version: GiveVersion): boolean {
 
 export function isJava1212Family(version: GiveVersion): boolean {
   return version === "java_1_21_2" || version === "java_1_21_3" || version === "java_1_21_4";
-}
-
-/**
- * 1.21.5+ 现代实体 NBT 族：属性用 attributes[]/id/base（无 generic. 前缀）、
- * 装备用 equipment{} 而非 HandItems[]/ArmorItems[]。基岩版不属于该族。
- */
-export function isModernNbtFamily(version: GiveVersion): boolean {
-  return versionAtLeast(version, "java_1_21_5");
 }
 
 export function getModernProfile(version: GiveVersion): ModernProfile {

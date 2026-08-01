@@ -92,24 +92,17 @@ export class RconClient {
    * 发送命令并收集完整响应。
    * 使用“栅栏包”技术：在真实命令后再发一个空响应请求，
    * 服务端按序回复，收到栅栏响应即说明真实命令的所有分片已到齐。
-   *
-   * 注意：栅栏偶尔会先于真实响应到达（实测在 26.2 上会零星发生，表现为
-   * 命令明明执行了却读回空串）。因此栅栏到达时若一个字节都没收到，
-   * 再多等一个 graceMs 宽限窗口，避免把在途响应误判为“无输出”。
-   *
    * @param {string} command 不带前导斜杠的命令
-   * @param {number} settleMs 收到数据后的静默窗口
-   * @param {number} graceMs 栅栏先到且 body 为空时的额外等待
+   * @param {number} settleMs 兜底静默窗口
    * @returns {Promise<string>}
    */
-  async send(command, { timeoutMs = 8000, settleMs = 400, graceMs = 600 } = {}) {
+  async send(command, { timeoutMs = 8000, settleMs = 400 } = {}) {
     const cmdId = this._send(SERVERDATA_EXECCOMMAND, command);
     const fenceId = this._send(SERVERDATA_RESPONSE_VALUE, "");
 
     return new Promise((resolve, reject) => {
       let body = "";
       let settleTimer = null;
-      let graceTimer = null;
       const hardTimer = setTimeout(() => {
         finish();
       }, timeoutMs);
@@ -119,21 +112,17 @@ export class RconClient {
           if (p.id === cmdId) {
             body += p.body;
             // 收到数据后启动静默窗口兜底
-            if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; }
             if (settleTimer) clearTimeout(settleTimer);
             settleTimer = setTimeout(finish, settleMs);
           } else if (p.id === fenceId) {
-            // 栅栏到达：正常情况下真实响应已在前面收齐，可以收尾；
-            // 但若此刻还是空的，八成是乱序，给在途响应留一个宽限窗口。
-            if (body) finish();
-            else if (!graceTimer) graceTimer = setTimeout(finish, graceMs);
+            // 栅栏到达：真实命令响应已完整
+            finish();
           }
         },
         reject: (err) => {
           cleanupListener();
           clearTimeout(hardTimer);
           if (settleTimer) clearTimeout(settleTimer);
-          if (graceTimer) clearTimeout(graceTimer);
           reject(err);
         },
       };
@@ -147,7 +136,6 @@ export class RconClient {
         cleanupListener();
         clearTimeout(hardTimer);
         if (settleTimer) clearTimeout(settleTimer);
-        if (graceTimer) clearTimeout(graceTimer);
         resolve(body);
       };
     });

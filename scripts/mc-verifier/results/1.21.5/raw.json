@@ -6,7 +6,6 @@
       "feature": "basic",
       "command": "give @a minecraft:stone 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -29,7 +28,6 @@
       "feature": "custom_name",
       "command": "give @a minecraft:stone[custom_name='[{\"text\":\"hi\"}]'] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid"
       ],
@@ -51,7 +49,6 @@
       "feature": "item_name",
       "command": "give @a minecraft:stone[item_name='[{\"text\":\"hi\"}]'] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid"
       ],
@@ -73,7 +70,6 @@
       "feature": "lore",
       "command": "give @a minecraft:stone[lore=['[{\"text\":\"a\"}]','[{\"text\":\"b\"}]']] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid"
       ],
@@ -85,7 +81,6 @@
       "feature": "rarity",
       "command": "give @a minecraft:stone[rarity=epic] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -98,7 +93,6 @@
       "feature": "enchant_glint",
       "command": "give @a minecraft:stone[enchantment_glint_override=true] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -121,7 +115,6 @@
       "feature": "enchantments",
       "command": "give @a minecraft:stone[enchantments={unbreaking:1}] 1",
       "builderFamilies": [
-        "early",
         "mid",
         "modern"
       ],
@@ -146,30 +139,6 @@
       "builderFamilies": [],
       "result": "invalid",
       "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
-    },
-    {
-      "id": "attr_array_type_ns_quoted",
-      "feature": "attribute_modifiers",
-      "command": "give @a minecraft:stone[attribute_modifiers=[{type:\"minecraft:generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1",
-      "builderFamilies": [],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers=[{type:\"minecraft:generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
-    },
-    {
-      "id": "attr_array_type_ns_unquoted",
-      "feature": "attribute_modifiers",
-      "command": "give @a minecraft:stone[attribute_modifiers=[{type:minecraft:generic.armor,amount:1,id:\"test:x\",operation:add_value}]] 1",
-      "builderFamilies": [],
-      "result": "invalid",
-      "response": "Expected literal (...:minecraft:generic.armor,amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
-    },
-    {
-      "id": "attr_array_op_quoted",
-      "feature": "attribute_modifiers",
-      "command": "give @a minecraft:stone[attribute_modifiers=[{type:armor,amount:1,id:\"test:x\",operation:\"add_value\"}]] 1",
-      "builderFamilies": [],
-      "result": "valid",
-      "response": "No player was found"
     },
     {
       "id": "attr_wrapper_type_quoted_generic",
@@ -210,7 +179,6 @@
       "feature": "unbreakable",
       "command": "give @a minecraft:stone[unbreakable={}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -223,7 +191,6 @@
       "feature": "damage",
       "command": "give @a minecraft:diamond_sword[damage=1] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -236,7 +203,6 @@
       "feature": "max_damage",
       "command": "give @a minecraft:diamond_sword[max_damage=100] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -249,7 +215,6 @@
       "feature": "max_stack_size",
       "command": "give @a minecraft:stone[max_stack_size=16] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -262,7 +227,6 @@
       "feature": "repair_cost",
       "command": "give @a minecraft:stone[repair_cost=3] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -275,7 +239,6 @@
       "feature": "food",
       "command": "give @a minecraft:stone[food={nutrition:5,saturation:6}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -288,7 +251,6 @@
       "feature": "food",
       "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,can_always_eat:true}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -301,7 +263,6 @@
       "feature": "food",
       "command": "give @a minecraft:stone[food={nutrition:5,saturation:6,can_always_eat:1b}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -383,7 +344,6 @@
       "feature": "tool",
       "command": "give @a minecraft:stone[tool={rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -396,7 +356,6 @@
       "feature": "tool",
       "command": "give @a minecraft:stone[tool={default_mining_speed:1.0,damage_per_block:1,rules:[{blocks:[stone],speed:1.0f,correct_for_drops:1b}]}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid",
         "modern"
@@ -417,7 +376,6 @@
       "feature": "can_place_on",
       "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"minecraft:stone\"}]}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid"
       ],
@@ -463,7 +421,6 @@
       "feature": "can_break",
       "command": "give @a minecraft:stone[can_break={predicates:[{blocks:\"minecraft:stone\"}]}] 1",
       "builderFamilies": [
-        "early",
         "legacy",
         "mid"
       ],
@@ -538,424 +495,6 @@
       "builderFamilies": [],
       "result": "valid",
       "response": "No player was found"
-    },
-    {
-      "id": "say_basic",
-      "feature": "say",
-      "command": "say hello world",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": ""
-    },
-    {
-      "id": "say_selector",
-      "feature": "say",
-      "command": "say @a",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": ""
-    },
-    {
-      "id": "tp_coords_abs",
-      "feature": "tp",
-      "command": "tp @s 0 64 0",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "tp_coords_rel",
-      "feature": "tp",
-      "command": "tp @s ~ ~ ~",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "tp_coords_local",
-      "feature": "tp",
-      "command": "tp @s ^ ^ ^1",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "tp_rotation",
-      "feature": "tp",
-      "command": "tp @s 0 64 0 90 45",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "tp_facing",
-      "feature": "tp",
-      "command": "tp @s 0 64 0 facing 10 70 10",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "tp_to_entity",
-      "feature": "tp",
-      "command": "tp @s @e[type=pig,limit=1]",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "teleport_alias",
-      "feature": "teleport",
-      "command": "teleport @s 0 64 0",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_give_basic",
-      "feature": "effect_give",
-      "command": "effect give @a minecraft:speed",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_give_seconds",
-      "feature": "effect_give",
-      "command": "effect give @a minecraft:speed 30",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_give_amplifier",
-      "feature": "effect_give",
-      "command": "effect give @a minecraft:speed 30 2",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_give_hide",
-      "feature": "effect_give",
-      "command": "effect give @a minecraft:speed 30 2 true",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_give_infinite",
-      "feature": "effect_give",
-      "command": "effect give @a minecraft:speed infinite 1",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_clear_all",
-      "feature": "effect_clear",
-      "command": "effect clear @a",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "effect_clear_one",
-      "feature": "effect_clear",
-      "command": "effect clear @a minecraft:speed",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "No entity was found"
-    },
-    {
-      "id": "setblock_basic",
-      "feature": "setblock",
-      "command": "setblock ~ ~ ~ minecraft:stone",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Changed the block at 0, -60, 0"
-    },
-    {
-      "id": "setblock_blockstate",
-      "feature": "setblock",
-      "command": "setblock ~ ~ ~ minecraft:oak_log[axis=x]",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Changed the block at 0, -60, 0"
-    },
-    {
-      "id": "setblock_mode_keep",
-      "feature": "setblock",
-      "command": "setblock ~ ~ ~ minecraft:stone keep",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Could not set the block"
-    },
-    {
-      "id": "setblock_nbt_commandblock",
-      "feature": "setblock_nbt",
-      "command": "setblock ~ ~ ~ minecraft:command_block[facing=up]{Command:\"say hi\",auto:1b}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Changed the block at 0, -60, 0"
-    },
-    {
-      "id": "setblock_nbt_container",
-      "feature": "setblock_nbt",
-      "command": "setblock ~ ~ ~ minecraft:chest{Items:[{Slot:0b,id:\"minecraft:diamond\",count:1}]}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Changed the block at 0, -60, 0"
-    },
-    {
-      "id": "setblock_nbt_container_components",
-      "feature": "setblock_nbt",
-      "command": "setblock ~ ~ ~ minecraft:chest{Items:[{Slot:0b,id:\"minecraft:stone\",count:1,components:{\"minecraft:enchantment_glint_override\":true}}]}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Changed the block at 0, -60, 0"
-    },
-    {
-      "id": "summon_basic",
-      "feature": "summon",
-      "command": "summon minecraft:pig",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Pig"
-    },
-    {
-      "id": "summon_coords",
-      "feature": "summon",
-      "command": "summon minecraft:pig 0 64 0",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Pig"
-    },
-    {
-      "id": "summon_relative",
-      "feature": "summon",
-      "command": "summon minecraft:pig ~ ~ ~",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Pig"
-    },
-    {
-      "id": "summon_nbt_flags",
-      "feature": "summon_nbt",
-      "command": "summon minecraft:zombie ~ ~ ~ {NoAI:1b,Silent:1b,PersistenceRequired:1b}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Zombie"
-    },
-    {
-      "id": "summon_nbt_customname_snbt",
-      "feature": "summon_nbt",
-      "command": "summon minecraft:zombie ~ ~ ~ {CustomName:'{\"text\":\"Boss\"}'}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid"
-      ],
-      "result": "valid",
-      "response": "Summoned new {\"text\":\"Boss\"}"
-    },
-    {
-      "id": "summon_nbt_customname_json",
-      "feature": "summon_nbt",
-      "command": "summon minecraft:zombie ~ ~ ~ {CustomName:{\"text\":\"Boss\"}}",
-      "builderFamilies": [
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Boss"
-    },
-    {
-      "id": "summon_nbt_handitems",
-      "feature": "summon_nbt",
-      "command": "summon minecraft:zombie ~ ~ ~ {HandItems:[{id:\"minecraft:diamond_sword\",count:1},{}]}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Zombie"
-    },
-    {
-      "id": "summon_nbt_passenger",
-      "feature": "summon_nbt",
-      "command": "summon minecraft:zombie ~ ~ ~ {Passengers:[{id:\"minecraft:chicken\"}]}",
-      "builderFamilies": [
-        "early",
-        "legacy",
-        "mid",
-        "modern"
-      ],
-      "result": "valid",
-      "response": "Summoned new Zombie"
-    },
-    {
-      "id": "summon_attr_new",
-      "feature": "summon_attributes",
-      "command": "summon minecraft:zombie ~ ~ ~ {attributes:[{id:\"minecraft:max_health\",base:40}]}",
-      "builderFamilies": [],
-      "result": "valid",
-      "response": "Summoned new Zombie"
-    },
-    {
-      "id": "summon_attr_old",
-      "feature": "summon_attributes",
-      "command": "summon minecraft:zombie ~ ~ ~ {Attributes:[{Name:\"minecraft:generic.max_health\",Base:40}]}",
-      "builderFamilies": [],
-      "result": "valid",
-      "response": "Summoned new Zombie"
-    },
-    {
-      "id": "summon_effects_new",
-      "feature": "summon_effects",
-      "command": "summon minecraft:zombie ~ ~ ~ {active_effects:[{id:\"minecraft:speed\",duration:200,amplifier:1}]}",
-      "builderFamilies": [],
-      "result": "valid",
-      "response": "Summoned new Zombie"
-    },
-    {
-      "id": "summon_effects_old",
-      "feature": "summon_effects",
-      "command": "summon minecraft:zombie ~ ~ ~ {ActiveEffects:[{Id:1,Duration:200,Amplifier:1}]}",
-      "builderFamilies": [],
-      "result": "valid",
-      "response": "Summoned new Zombie"
     }
   ]
 }
