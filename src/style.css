@@ -65,6 +65,19 @@ button {
   align-items: center;
   gap: 16px;
   padding: 14px 16px;
+  grid-row: 1;
+}
+
+/* 手动模式内容和 AI 面板互斥显示，但切换瞬间会同时挂载（一个在淡出、一个刚挂上）。
+   显式把它们钉在同一网格行，让重叠期间原地叠加而不是被当成第 4 个网格项，
+   否则会临时多出一整行，把下面内容挤开，看起来像整页跳动。 */
+.split-layout,
+.ai-card {
+  grid-row: 2;
+}
+
+.preview-card {
+  grid-row: 3;
 }
 
 .brand-group {
@@ -91,6 +104,24 @@ h1 {
   margin: 0;
   font-size: 15pt;
   font-weight: 900;
+}
+
+/* 两套顶部工具条一直同时挂载、叠在同一个网格格子里，取两者较高的作为固定高度，
+   模式切换时顶部栏高度不会变——避免下面 split-layout/ai-card 共享的那一行网格
+   跟着重新分配空间造成跳动，原理与 split-layout/ai-card 共用 grid-row 一致。 */
+.top-form-stack {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+
+.top-form-stack > .top-form {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.stack-hidden {
+  opacity: 0;
 }
 
 .top-form {
@@ -1237,6 +1268,374 @@ button#primary,
   .top-form {
     flex-wrap: wrap;
   }
+}
+
+/* ---------------- 模式切换（自己填 / AI） ---------------- */
+.mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.mode-switch button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 9.5pt;
+  font-weight: 700;
+}
+
+.mode-switch button.active {
+  color: #071020;
+  background: linear-gradient(90deg, #7aa2ff, #4de4c9);
+}
+
+/* AI 模式顶栏只有一个版本选择，不该像手动模式那样铺满整行 */
+.ai-top-form {
+  width: auto;
+}
+
+.ai-top-form .field-label {
+  white-space: nowrap;
+}
+
+.ai-top-form .custom-select {
+  width: clamp(180px, 20vw, 240px);
+}
+
+/* ---------------- AI 模式面板 ---------------- */
+.ai-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+}
+
+/* ---------------- AI 启动特效（点亮灵魂灯笼） ----------------
+   切进 AI 模式时放一次：能量环扩散 + 灰烬上浮 + 一道扫光，
+   同时面板内容逐项浮现。整层 pointer-events:none，全程不挡操作。
+   .no-motion 会把 animation-duration 归零（见文件末尾的全局规则），
+   组件侧还会在关动画/系统要求减弱动效时直接不渲染这一层。 */
+.ai-ignite {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 面板整体先暗一下再亮起来，像被点着 */
+.ai-card.igniting {
+  animation: ai-card-glow 1200ms ease-out;
+}
+
+@keyframes ai-card-glow {
+  0% {
+    box-shadow: inset 0 0 0 1px rgba(122, 162, 255, 0), 0 0 0 rgba(77, 228, 201, 0);
+  }
+  35% {
+    box-shadow: inset 0 0 40px rgba(122, 162, 255, 0.28), 0 0 34px rgba(77, 228, 201, 0.24);
+  }
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(122, 162, 255, 0), 0 0 0 rgba(77, 228, 201, 0);
+  }
+}
+
+/* 横扫而过的高光 */
+.ai-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  background: linear-gradient(
+    100deg,
+    rgba(122, 162, 255, 0) 0%,
+    rgba(150, 220, 255, 0.16) 45%,
+    rgba(77, 228, 201, 0.24) 55%,
+    rgba(122, 162, 255, 0) 100%
+  );
+  transform: skewX(-14deg);
+  animation: ai-sweep-move 1100ms cubic-bezier(0.3, 0, 0.2, 1) 120ms forwards;
+}
+
+@keyframes ai-sweep-move {
+  0% {
+    left: -45%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 105%;
+    opacity: 0;
+  }
+}
+
+/* 自底向上飘的灰烬，位置/延时/漂移由内联样式随机化 */
+.ai-ember {
+  position: absolute;
+  bottom: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #b8f5e6 0%, #4de4c9 45%, rgba(77, 228, 201, 0) 70%);
+  box-shadow: 0 0 8px rgba(77, 228, 201, 0.75);
+  opacity: 0;
+  animation-name: ai-ember-rise;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes ai-ember-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift, 0), -320px) scale(1.15);
+  }
+}
+
+/* 面板内容逐项浮现，节奏跟着扫光走 */
+.ai-card.igniting > *:not(.ai-ignite) {
+  animation: ai-content-rise 520ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+}
+
+.ai-card.igniting > *:nth-child(2) { animation-delay: 120ms; }
+.ai-card.igniting > *:nth-child(3) { animation-delay: 200ms; }
+.ai-card.igniting > *:nth-child(4) { animation-delay: 280ms; }
+.ai-card.igniting > *:nth-child(5) { animation-delay: 360ms; }
+.ai-card.igniting > *:nth-child(6) { animation-delay: 440ms; }
+
+@keyframes ai-content-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ai-notice {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 196, 105, 0.35);
+  border-radius: 12px;
+  color: #ffd79a;
+  font-size: 9.5pt;
+  background: rgba(255, 196, 105, 0.1);
+}
+
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-key input {
+  width: clamp(120px, 14vw, 180px);
+}
+
+.ai-key .custom-select {
+  width: clamp(150px, 17vw, 210px);
+}
+
+.ai-input {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px;
+  border-radius: 14px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.ai-examples {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-examples-label {
+  color: var(--muted, #93a4c8);
+  font-size: 9pt;
+}
+
+.ai-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 9pt;
+  font-weight: 500;
+}
+
+.ai-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 122, 138, 0.35);
+  border-radius: 12px;
+  color: #ffb3bd;
+  font-size: 9.5pt;
+  background: rgba(255, 122, 138, 0.1);
+}
+
+.ai-explain {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 9.5pt;
+  line-height: 1.6;
+  background: rgba(122, 162, 255, 0.1);
+}
+
+.ai-results,
+.ai-failures {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-results li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-results code {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #e7ecff;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5pt;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.ai-failures li {
+  color: #ffb3bd;
+  font-size: 9pt;
+}
+
+.ai-loop-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 196, 92, 0.1);
+}
+
+.ai-loop-hint {
+  margin: 0;
+  color: #ffc45c;
+  font-size: 9pt;
+  line-height: 1.6;
+}
+
+.ai-loop-results li {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-deploy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-deploy-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ai-deploy-row select {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.deploy-hint {
+  margin: 0;
+  color: var(--muted, #93a4c8);
+  font-size: 8.5pt;
+}
+
+.ai-deployed {
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 9.5pt;
+  line-height: 1.6;
+  background: rgba(77, 228, 201, 0.1);
+}
+
+.ai-deployed p {
+  margin: 0 0 8px;
+}
+
+.ai-deploy-cmds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-deploy-cmds code {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5pt;
+  overflow-wrap: anywhere;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.ai-deploy-path {
+  margin: 8px 0 0;
+  color: var(--muted, #93a4c8);
+  font-size: 8.5pt;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 720px) {

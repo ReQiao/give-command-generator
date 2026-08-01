@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "tsx src/logic/builder.test.mjs",
+    "test": "tsx src/logic/builder.test.mjs && tsx src/logic/commands.test.mjs",
     "verify-syntax": "node scripts/mc-verifier/index.mjs"
   },
   "dependencies": {

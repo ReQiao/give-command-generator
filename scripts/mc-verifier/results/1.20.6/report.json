@@ -1,9 +1,9 @@
 {
-  "version": "1.21.5",
-  "family": "modern",
-  "generatedAt": "2026-06-20T01:45:51.347Z",
+  "version": "1.20.6",
+  "family": "early",
+  "generatedAt": "2026-06-20T01:46:38.120Z",
   "summary": {
-    "pass": 21,
+    "pass": 16,
     "fail": 0,
     "unknown": 0,
     "totalFeatures": 21
@@ -34,18 +34,18 @@
     "custom_name": {
       "candidates": {
         "custom_name_json": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[custom_name=[{\"text\":\"hi\"}]] 1"
         },
         "custom_name_snbt_string": {
           "result": "valid",
-          "builderEmits": false,
+          "builderEmits": true,
           "command": "give @a minecraft:stone[custom_name='[{\"text\":\"hi\"}]'] 1"
         }
       },
       "builderChoice": [
-        "custom_name_json"
+        "custom_name_snbt_string"
       ],
       "builderResult": [
         "valid"
@@ -55,18 +55,18 @@
     "item_name": {
       "candidates": {
         "item_name_json": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[item_name=[{\"text\":\"hi\"}]] 1"
         },
         "item_name_snbt_string": {
           "result": "valid",
-          "builderEmits": false,
+          "builderEmits": true,
           "command": "give @a minecraft:stone[item_name='[{\"text\":\"hi\"}]'] 1"
         }
       },
       "builderChoice": [
-        "item_name_json"
+        "item_name_snbt_string"
       ],
       "builderResult": [
         "valid"
@@ -76,18 +76,18 @@
     "lore": {
       "candidates": {
         "lore_json_arrays": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[lore=[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]] 1"
         },
         "lore_snbt_strings": {
           "result": "valid",
-          "builderEmits": false,
+          "builderEmits": true,
           "command": "give @a minecraft:stone[lore=['[{\"text\":\"a\"}]','[{\"text\":\"b\"}]']] 1"
         }
       },
       "builderChoice": [
-        "lore_json_arrays"
+        "lore_snbt_strings"
       ],
       "builderResult": [
         "valid"
@@ -129,7 +129,7 @@
     "enchantments": {
       "candidates": {
         "ench_levels": {
-          "result": "invalid",
+          "result": "valid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[enchantments={levels:{unbreaking:1}}] 1"
         },
@@ -150,8 +150,8 @@
     "attribute_modifiers": {
       "candidates": {
         "attr_array_type_unquoted_plain": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[attribute_modifiers=[{type:armor,amount:1,id:\"test:x\",operation:add_value}]] 1"
         },
         "attr_array_type_quoted_generic": {
@@ -170,7 +170,7 @@
           "command": "give @a minecraft:stone[attribute_modifiers=[{type:minecraft:generic.armor,amount:1,id:\"test:x\",operation:add_value}]] 1"
         },
         "attr_array_op_quoted": {
-          "result": "valid",
+          "result": "invalid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[attribute_modifiers=[{type:armor,amount:1,id:\"test:x\",operation:\"add_value\"}]] 1"
         },
@@ -195,13 +195,9 @@
           "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1"
         }
       },
-      "builderChoice": [
-        "attr_array_type_unquoted_plain"
-      ],
-      "builderResult": [
-        "valid"
-      ],
-      "verdict": "PASS"
+      "builderChoice": null,
+      "builderResult": null,
+      "verdict": "N/A"
     },
     "unbreakable": {
       "candidates": {
@@ -326,32 +322,24 @@
     "consumable": {
       "candidates": {
         "consumable_seconds": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[consumable={consume_seconds:2}] 1"
         },
         "consumable_on_consume_effects": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1"
         },
         "consumable_sound_particles": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[consumable={consume_seconds:2,sound:\"minecraft:entity.generic.eat\",has_consume_particles:1b}] 1"
         }
       },
-      "builderChoice": [
-        "consumable_seconds",
-        "consumable_on_consume_effects",
-        "consumable_sound_particles"
-      ],
-      "builderResult": [
-        "valid",
-        "valid",
-        "valid"
-      ],
-      "verdict": "PASS"
+      "builderChoice": null,
+      "builderResult": null,
+      "verdict": "N/A"
     },
     "tool": {
       "candidates": {
@@ -394,28 +382,28 @@
           "command": "give @a minecraft:stone[can_place_on=[{blocks:minecraft:stone}]] 1"
         },
         "can_place_on_predicates": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"minecraft:stone\"}]}] 1"
         },
         "can_place_on_predicates_stripped": {
-          "result": "invalid",
+          "result": "valid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"stone\"}]}] 1"
         },
         "can_place_on_predicates_multi": {
-          "result": "invalid",
+          "result": "valid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"minecraft:stone\"},{blocks:\"minecraft:dirt\"}]}] 1"
         },
         "can_place_on_quoted_array": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[can_place_on=[{blocks:\"minecraft:stone\"}]] 1"
         }
       },
       "builderChoice": [
-        "can_place_on_quoted_array"
+        "can_place_on_predicates"
       ],
       "builderResult": [
         "valid"
@@ -430,18 +418,18 @@
           "command": "give @a minecraft:stone[can_break=[{blocks:minecraft:stone}]] 1"
         },
         "can_break_predicates": {
-          "result": "invalid",
-          "builderEmits": false,
+          "result": "valid",
+          "builderEmits": true,
           "command": "give @a minecraft:stone[can_break={predicates:[{blocks:\"minecraft:stone\"}]}] 1"
         },
         "can_break_quoted_array": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[can_break=[{blocks:\"minecraft:stone\"}]] 1"
         }
       },
       "builderChoice": [
-        "can_break_quoted_array"
+        "can_break_predicates"
       ],
       "builderResult": [
         "valid"
@@ -451,41 +439,31 @@
     "glider": {
       "candidates": {
         "glider_empty": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[glider={}] 1"
         }
       },
-      "builderChoice": [
-        "glider_empty"
-      ],
-      "builderResult": [
-        "valid"
-      ],
-      "verdict": "PASS"
+      "builderChoice": null,
+      "builderResult": null,
+      "verdict": "N/A"
     },
     "death_protection": {
       "candidates": {
         "death_protection_empty": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[death_protection={}] 1"
         },
         "death_protection_effects": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[death_protection={death_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1"
         }
       },
-      "builderChoice": [
-        "death_protection_empty",
-        "death_protection_effects"
-      ],
-      "builderResult": [
-        "valid",
-        "valid"
-      ],
-      "verdict": "PASS"
+      "builderChoice": null,
+      "builderResult": null,
+      "verdict": "N/A"
     },
     "tooltip_display": {
       "candidates": {
@@ -495,23 +473,19 @@
           "command": "give @a minecraft:stone[tooltip_display={hidden_components:[minecraft:enchantments]}] 1"
         },
         "tooltip_hidden_quoted": {
-          "result": "valid",
-          "builderEmits": true,
+          "result": "invalid",
+          "builderEmits": false,
           "command": "give @a minecraft:stone[tooltip_display={hidden_components:[\"minecraft:enchantments\"]}] 1"
         },
         "tooltip_hide_bool": {
-          "result": "valid",
+          "result": "invalid",
           "builderEmits": false,
           "command": "give @a minecraft:stone[tooltip_display={hide_tooltip:true}] 1"
         }
       },
-      "builderChoice": [
-        "tooltip_hidden_quoted"
-      ],
-      "builderResult": [
-        "valid"
-      ],
-      "verdict": "PASS"
+      "builderChoice": null,
+      "builderResult": null,
+      "verdict": "N/A"
     }
   },
   "survey": {
@@ -711,14 +685,14 @@
       "summon_nbt_customname_snbt": {
         "feature": "summon_nbt",
         "result": "valid",
-        "builderIntends": false,
+        "builderIntends": true,
         "command": "summon minecraft:zombie ~ ~ ~ {CustomName:'{\"text\":\"Boss\"}'}",
         "note": "CustomName SNBT 字符串（文本同 give，early/legacy/mid）"
       },
       "summon_nbt_customname_json": {
         "feature": "summon_nbt",
         "result": "valid",
-        "builderIntends": true,
+        "builderIntends": false,
         "command": "summon minecraft:zombie ~ ~ ~ {CustomName:{\"text\":\"Boss\"}}",
         "note": "CustomName 裸 JSON（modern 候选）"
       },

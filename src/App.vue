@@ -8,6 +8,8 @@ import CustomSelect from "./components/CustomSelect.vue";
 import EffectEditor from "./components/EffectEditor.vue";
 import InfoTip from "./components/InfoTip.vue";
 import ItemPickerModal from "./components/ItemPickerModal.vue";
+import AiPanel from "./components/AiPanel.vue";
+import DeployPanel from "./components/DeployPanel.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import {
@@ -65,6 +67,8 @@ const modal = reactive({ open: false, title: "", message: "", error: false });
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedBuiltinTemplate = ref("");
 const itemPickerOpen = ref(false);
+/** 手动填表 / AI 自然语言，两种模式共用顶部的版本选择。 */
+const mode = ref<"manual" | "ai">("manual");
 const generateButtonText = ref("生成指令");
 const copyButtonText = ref("复制指令");
 const rowFlash = reactive<Record<string, boolean>>({});
@@ -441,25 +445,68 @@ function textOptions(items: string[]): SelectOption[] {
       <div class="brand-group">
         <div class="logo"></div>
         <h1>Give指令生成器</h1>
+        <div class="mode-switch" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="mode === 'manual'"
+            :class="{ active: mode === 'manual' }"
+            @click="mode = 'manual'"
+          >手动模式</button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="mode === 'ai'"
+            :class="{ active: mode === 'ai' }"
+            @click="mode = 'ai'"
+          >AI 模式</button>
+        </div>
       </div>
-      <div class="top-form">
-        <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>
-        <input v-model="form.templateName" class="template-input" />
-        <CustomSelect
-          class="builtin-template-select"
-          :model-value="selectedBuiltinTemplate"
-          :options="builtinTemplateOptions"
-          @update:model-value="applyBuiltinTemplate"
-        />
-        <button type="button" @click="saveTemplate">保存模板</button>
-        <button type="button" @click="loadTemplate">读取模板</button>
-        <button type="button" @click="copy">{{ copyButtonText }}</button>
-        <button id="primary" type="button" @click="generate">{{ generateButtonText }}</button>
-        <input ref="fileInput" accept="application/json,.json" hidden type="file" @change="handleTemplateFile" />
+      <!--
+        两套顶部工具条一直同时挂载，用 grid 叠在同一格里（跟下面 split-layout/ai-card
+        用的是同一招），只用 opacity+inert 切换可见/可交互——绝不能用 v-if/v-else。
+        原因：manual 工具条按钮多，AI 工具条只有一个版本选择器，两者自然高度不同；
+        如果互斥挂载，切换模式那一刻顶部栏高度会瞬间变化，这一行是 CSS Grid 的
+        "auto" 行，一变高度就挤压/让出下面 1fr 内容行的空间，看起来像整页跳了一下——
+        这个跳动只跟"顶部栏瞬间变了多高"有关，跟界面动画开关完全无关，所以之前
+        单纯做过渡动画/钉 grid-row 都没能根治。两套工具条一直都在，取两者中较高的
+        那个作为顶部栏的固定高度，模式切换时顶部栏高度压根不会变，也就没有可跳的了。
+      -->
+      <div class="top-form-stack">
+        <div class="top-form ai-top-form" :class="{ 'stack-hidden': mode !== 'ai' }" :inert="mode !== 'ai'">
+          <span class="field-label">版本<InfoTip text="AI 生成的指令会按这个版本的语法构建。" /></span>
+          <CustomSelect v-model="form.version" :options="versionOptions" />
+        </div>
+        <div class="top-form" :class="{ 'stack-hidden': mode === 'ai' }" :inert="mode === 'ai'">
+          <span class="field-label">模板名<InfoTip text="保存模板时使用这个名称作为 JSON 文件名。" /></span>
+          <input v-model="form.templateName" class="template-input" />
+          <CustomSelect
+            class="builtin-template-select"
+            :model-value="selectedBuiltinTemplate"
+            :options="builtinTemplateOptions"
+            @update:model-value="applyBuiltinTemplate"
+          />
+          <button type="button" @click="saveTemplate">保存模板</button>
+          <button type="button" @click="loadTemplate">读取模板</button>
+          <button type="button" @click="copy">{{ copyButtonText }}</button>
+          <button class="primary-btn" type="button" @click="generate">{{ generateButtonText }}</button>
+          <input ref="fileInput" accept="application/json,.json" hidden type="file" @change="handleTemplateFile" />
+        </div>
       </div>
     </section>
 
-    <section class="split-layout">
+    <AiPanel v-if="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
+
+    <!--
+      故意不用 <Transition> 包裹手动内容：实测证明哪怕只给 enter 定义 CSS、
+      leave 完全不定义过渡属性，Vue 的 <Transition> 组件本身（不是 CSS）也会
+      用两次 requestAnimationFrame 做双缓冲来切换 class，这个 JS 层面的开销
+      在低性能设备 / CPU 降速下会被放大成好几帧的延迟，足以让"旧内容还在
+      但已经切到别的模式"这个冲突画面重新出现（4x CPU 降速下实测复现）。
+      v-show 不套 Transition 就是纯粹的同步 display 切换，没有这个开销，
+      这是唯一在降速测试下验证过绝对不会闪的写法。
+    -->
+    <section v-show="mode === 'manual'" class="split-layout">
       <aside class="card side-panel">
         <div class="form-grid">
           <span class="field-label">版本<InfoTip text="选择 Java 组件语法或基岩版基础 give 语法。Java 功能更多，基岩版更偏基础参数。" /></span>
@@ -691,9 +738,15 @@ function textOptions(items: string[]): SelectOption[] {
       </section>
     </section>
 
-    <section class="card preview-card" :class="{ flash: rowFlash.preview }">
+    <section v-show="mode === 'manual'" class="card preview-card" :class="{ flash: rowFlash.preview }">
       <label>生成结果</label>
       <textarea id="preview" v-model="preview" placeholder="点击“生成指令”后，最终指令会显示在这里。" spellcheck="false"></textarea>
+      <DeployPanel
+        v-if="preview.trim() && form.version !== 'bedrock'"
+        :commands="[preview]"
+        :version="form.version"
+        @toast="showToast"
+      />
     </section>
 
     <Transition name="toast">
@@ -713,7 +766,7 @@ function textOptions(items: string[]): SelectOption[] {
           <h2>{{ modal.title }}</h2>
           <p>{{ modal.message }}</p>
           <div class="modal-actions">
-            <button id="primary" type="button" @click="modal.open = false">知道了</button>
+            <button class="primary-btn" type="button" @click="modal.open = false">知道了</button>
           </div>
         </div>
       </div>

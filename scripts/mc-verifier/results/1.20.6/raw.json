@@ -1,5 +1,5 @@
 {
-  "version": "1.21.5",
+  "version": "1.20.6",
   "results": [
     {
       "id": "basic_plain",
@@ -21,8 +21,8 @@
       "builderFamilies": [
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:custom_name' component: 'Not a string'...stom_name=[{\"text\":\"hi\"}]] 1<--[HERE]"
     },
     {
       "id": "custom_name_snbt_string",
@@ -43,8 +43,8 @@
       "builderFamilies": [
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:item_name' component: 'Not a string'...item_name=[{\"text\":\"hi\"}]] 1<--[HERE]"
     },
     {
       "id": "item_name_snbt_string",
@@ -65,8 +65,8 @@
       "builderFamilies": [
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:lore' component: 'Not a string; Not a string'...tone[lore=[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]] 1<--[HERE]"
     },
     {
       "id": "lore_snbt_strings",
@@ -113,8 +113,8 @@
       "builderFamilies": [
         "legacy"
       ],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:enchantments' component: 'Not a number; Failed to get element minecraft:levels missed input: {levels:{unbreaking:1}}'...hantments={levels:{unbreaking:1}}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "ench_flat",
@@ -136,8 +136,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'No key name in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"armor\"}]; No key uuid in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"armor\"}]; Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:armor; Not a map: [{amount:1,id:\"test:x\",operation:\"add_value\",type:\"armor\"}]'...modifiers=[{type:armor,amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
     },
     {
       "id": "attr_array_type_quoted_generic",
@@ -145,7 +145,7 @@
       "command": "give @a minecraft:stone[attribute_modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'No key name in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]; No key uuid in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]; Not a map: [{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]'...modifiers=[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
     },
     {
       "id": "attr_array_type_ns_quoted",
@@ -153,7 +153,7 @@
       "command": "give @a minecraft:stone[attribute_modifiers=[{type:\"minecraft:generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:generic.armor'...modifiers=[{type:\"minecraft:generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'No key name in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"minecraft:generic.armor\"}]; No key uuid in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"minecraft:generic.armor\"}]; Not a map: [{amount:1,id:\"test:x\",operation:\"add_value\",type:\"minecraft:generic.armor\"}]'...modifiers=[{type:\"minecraft:generic.armor\",amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
     },
     {
       "id": "attr_array_type_ns_unquoted",
@@ -161,15 +161,15 @@
       "command": "give @a minecraft:stone[attribute_modifiers=[{type:minecraft:generic.armor,amount:1,id:\"test:x\",operation:add_value}]] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Expected literal (...:minecraft:generic.armor,amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
+      "response": "Expected '}'...:minecraft:generic.armor,amount:1,id:\"test:x\",operation:add_value}]] 1<--[HERE]"
     },
     {
       "id": "attr_array_op_quoted",
       "feature": "attribute_modifiers",
       "command": "give @a minecraft:stone[attribute_modifiers=[{type:armor,amount:1,id:\"test:x\",operation:\"add_value\"}]] 1",
       "builderFamilies": [],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'No key name in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"armor\"}]; No key uuid in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"armor\"}]; Unknown registry key in ResourceKey[minecraft:root / minecraft:attribute]: minecraft:armor; Not a map: [{amount:1,id:\"test:x\",operation:\"add_value\",type:\"armor\"}]'...modifiers=[{type:armor,amount:1,id:\"test:x\",operation:\"add_value\"}]] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_type_quoted_generic",
@@ -179,7 +179,7 @@
         "legacy"
       ],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]}'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]}] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]}; No key name in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]; No key uuid in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",type:\"generic.armor\"}]'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"test:x\",operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_id_numeric",
@@ -187,7 +187,7 @@
       "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:123,operation:\"add_value\",type:\"generic.armor\"}]}'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:123,operation:\"add_value\",type:\"generic.armor\"}]}; No key name in MapLike[{amount:1,id:123,operation:\"add_value\",type:\"generic.armor\"}]; No key uuid in MapLike[{amount:1,id:123,operation:\"add_value\",type:\"generic.armor\"}]'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:123,operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_id_quoted_number",
@@ -195,7 +195,7 @@
       "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"123\",operation:add_value}]}] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:\"123\",operation:\"add_value\",type:\"generic.armor\"}]}'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"123\",operation:add_value}]}] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:\"123\",operation:\"add_value\",type:\"generic.armor\"}]}; No key name in MapLike[{amount:1,id:\"123\",operation:\"add_value\",type:\"generic.armor\"}]; No key uuid in MapLike[{amount:1,id:\"123\",operation:\"add_value\",type:\"generic.armor\"}]'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,id:\"123\",operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "attr_wrapper_with_slot",
@@ -203,7 +203,7 @@
       "command": "give @a minecraft:stone[attribute_modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:\"test:x\",operation:\"add_value\",slot:\"mainhand\",type:\"generic.armor\"}]}'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1<--[HERE]"
+      "response": "Malformed 'minecraft:attribute_modifiers' component: 'Not a list: {modifiers:[{amount:1,id:\"test:x\",operation:\"add_value\",slot:\"mainhand\",type:\"generic.armor\"}]}; No key name in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",slot:\"mainhand\",type:\"generic.armor\"}]; No key uuid in MapLike[{amount:1,id:\"test:x\",operation:\"add_value\",slot:\"mainhand\",type:\"generic.armor\"}]'...modifiers={modifiers:[{type:\"generic.armor\",amount:1,slot:mainhand,id:\"test:x\",operation:add_value}]}] 1<--[HERE]"
     },
     {
       "id": "unbreakable_empty",
@@ -337,8 +337,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={consume_seconds:2}] 1<--[HERE]"
     },
     {
       "id": "consumable_on_consume_effects",
@@ -348,8 +348,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={on_consume_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1<--[HERE]"
     },
     {
       "id": "consumable_sound_particles",
@@ -359,8 +359,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:consumable'...aft:stone[consumable={consume_seconds:2,sound:\"minecraft:entity.generic.eat\",has_consume_particles:1b}] 1<--[HERE]"
     },
     {
       "id": "tool_rules_blocks_stripped",
@@ -376,7 +376,7 @@
       "command": "give @a minecraft:stone[tool={rules:[{blocks:[minecraft:stone],speed:1.0f,correct_for_drops:1b}]}] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Expected literal (...[minecraft:stone],speed:1.0f,correct_for_drops:1b}]}] 1<--[HERE]"
+      "response": "Expected ']'...[minecraft:stone],speed:1.0f,correct_for_drops:1b}]}] 1<--[HERE]"
     },
     {
       "id": "tool_rules_f_byte",
@@ -410,7 +410,7 @@
       "command": "give @a minecraft:stone[can_place_on=[{blocks:minecraft:stone}]] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Expected literal (...:minecraft:stone}]] 1<--[HERE]"
+      "response": "Expected '}'...:minecraft:stone}]] 1<--[HERE]"
     },
     {
       "id": "can_place_on_predicates",
@@ -421,24 +421,24 @@
         "legacy",
         "mid"
       ],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:can_place_on' component: 'Not a map: [{blocks:\"minecraft:stone\"}]'..._place_on={predicates:[{blocks:\"minecraft:stone\"}]}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "can_place_on_predicates_stripped",
       "feature": "can_place_on",
       "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"stone\"}]}] 1",
       "builderFamilies": [],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:can_place_on' component: 'Not a map: [{blocks:\"stone\"}]'..._place_on={predicates:[{blocks:\"stone\"}]}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "can_place_on_predicates_multi",
       "feature": "can_place_on",
       "command": "give @a minecraft:stone[can_place_on={predicates:[{blocks:\"minecraft:stone\"},{blocks:\"minecraft:dirt\"}]}] 1",
       "builderFamilies": [],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:can_place_on' component: 'Not a map: [{blocks:\"minecraft:stone\"},{blocks:\"minecraft:dirt\"}]'..._place_on={predicates:[{blocks:\"minecraft:stone\"},{blocks:\"minecraft:dirt\"}]}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "can_place_on_quoted_array",
@@ -447,8 +447,8 @@
       "builderFamilies": [
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:can_place_on' component: 'Not a map: [{blocks:\"minecraft:stone\"}]; Not a map: [{blocks:\"minecraft:stone\"}]'..._place_on=[{blocks:\"minecraft:stone\"}]] 1<--[HERE]"
     },
     {
       "id": "can_break_blocks_obj",
@@ -456,7 +456,7 @@
       "command": "give @a minecraft:stone[can_break=[{blocks:minecraft:stone}]] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Expected literal (...:minecraft:stone}]] 1<--[HERE]"
+      "response": "Expected '}'...:minecraft:stone}]] 1<--[HERE]"
     },
     {
       "id": "can_break_predicates",
@@ -467,8 +467,8 @@
         "legacy",
         "mid"
       ],
-      "result": "invalid",
-      "response": "Malformed 'minecraft:can_break' component: 'Not a map: [{blocks:\"minecraft:stone\"}]'...can_break={predicates:[{blocks:\"minecraft:stone\"}]}] 1<--[HERE]"
+      "result": "valid",
+      "response": "No player was found"
     },
     {
       "id": "can_break_quoted_array",
@@ -477,8 +477,8 @@
       "builderFamilies": [
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Malformed 'minecraft:can_break' component: 'Not a map: [{blocks:\"minecraft:stone\"}]; Not a map: [{blocks:\"minecraft:stone\"}]'...can_break=[{blocks:\"minecraft:stone\"}]] 1<--[HERE]"
     },
     {
       "id": "glider_empty",
@@ -488,8 +488,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:glider'...aft:stone[glider={}] 1<--[HERE]"
     },
     {
       "id": "death_protection_empty",
@@ -499,8 +499,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:death_protection'...aft:stone[death_protection={}] 1<--[HERE]"
     },
     {
       "id": "death_protection_effects",
@@ -510,8 +510,8 @@
         "mid",
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:death_protection'...aft:stone[death_protection={death_effects:[{type:\"minecraft:apply_effects\",effects:[{id:speed,duration:20,amplifier:0}],probability:1.0}]}] 1<--[HERE]"
     },
     {
       "id": "tooltip_hidden",
@@ -519,7 +519,7 @@
       "command": "give @a minecraft:stone[tooltip_display={hidden_components:[minecraft:enchantments]}] 1",
       "builderFamilies": [],
       "result": "invalid",
-      "response": "Expected literal (...[minecraft:enchantments]}] 1<--[HERE]"
+      "response": "Unknown item component 'minecraft:tooltip_display'...aft:stone[tooltip_display={hidden_components:[minecraft:enchantments]}] 1<--[HERE]"
     },
     {
       "id": "tooltip_hidden_quoted",
@@ -528,16 +528,16 @@
       "builderFamilies": [
         "modern"
       ],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:tooltip_display'...aft:stone[tooltip_display={hidden_components:[\"minecraft:enchantments\"]}] 1<--[HERE]"
     },
     {
       "id": "tooltip_hide_bool",
       "feature": "tooltip_display",
       "command": "give @a minecraft:stone[tooltip_display={hide_tooltip:true}] 1",
       "builderFamilies": [],
-      "result": "valid",
-      "response": "No player was found"
+      "result": "invalid",
+      "response": "Unknown item component 'minecraft:tooltip_display'...aft:stone[tooltip_display={hide_tooltip:true}] 1<--[HERE]"
     },
     {
       "id": "say_basic",
@@ -823,7 +823,7 @@
         "modern"
       ],
       "result": "valid",
-      "response": "Changed the block at 0, -60, 0"
+      "response": "Could not set the block"
     },
     {
       "id": "summon_basic",
@@ -887,7 +887,7 @@
         "mid"
       ],
       "result": "valid",
-      "response": "Summoned new {\"text\":\"Boss\"}"
+      "response": "Summoned new Boss"
     },
     {
       "id": "summon_nbt_customname_json",
@@ -897,7 +897,7 @@
         "modern"
       ],
       "result": "valid",
-      "response": "Summoned new Boss"
+      "response": "Summoned new Zombie"
     },
     {
       "id": "summon_nbt_handitems",

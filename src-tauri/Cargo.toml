@@ -24,4 +24,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# AI 调用。用 rustls 而非系统 openssl，免得各平台交叉编译时缺库。
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# 定位各平台的 .minecraft 目录
+dirs = "6"
 
