@@ -121,6 +121,11 @@ pub async fn ai_generate(
         "response_format": { "type": "json_object" },
         // 指令生成要的是准确而非发散
         "temperature": 0.2,
+        // qwen3.7 系列（plus/max/flash）是混合推理模型，默认 enable_thinking=true；
+        // 思考过程和强制 JSON 输出混在一起，容易导致 JSON 不合法/被截断/意图丢失
+        // （表现为"跳过意图"或"瞎编"）。官方文档建议需要稳定 JSON 时关闭思考模式。
+        // 不支持这个字段的模型（如 qwen-long、DeepSeek）会直接忽略，不影响调用。
+        "enable_thinking": false,
     });
 
     let client = match reqwest::Client::builder()
