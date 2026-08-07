@@ -46,12 +46,15 @@ impl AiResponse {
     }
 }
 
-const DEFAULT_ENDPOINT: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+const DEFAULT_ENDPOINT: &str =
+    "https://ws-b2ui8x9tozwc8cq1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions";
 const DEFAULT_MODEL: &str = "qwen-plus";
 
-/// 内置 API key（变现用）。当前为 None——需要变现时再签发并以混淆形式嵌入。
+/// 内置 API key（临时明文，仅供本人短期自测用）。
+/// ⚠️ 这个 key 已经提交进公开仓库的 git 历史，必须视为已泄露：
+/// 用完就去阿里云百炼控制台吊销，不要指望"删掉这行代码"就能撤回。
 fn builtin_key() -> Option<String> {
-    None
+    Some("sk-4c78b2613477463db65ed168beb4af65".to_string())
 }
 
 fn non_blank(value: Option<String>) -> Option<String> {
@@ -212,10 +215,10 @@ mod tests {
     }
 
     #[test]
-    fn none_when_nothing_configured() {
-        // 内置 key 目前为 None，两处都没有时应明确返回 None，让上层给出可读提示
-        assert_eq!(resolve_key_from(None, None), None);
-        assert_eq!(resolve_key_from(Some("".into()), Some("  ".into())), None);
+    fn falls_back_to_builtin_when_user_and_env_both_blank() {
+        // 用户和环境变量都没配置时，应该落到内置 key（临时明文，见 builtin_key 上的警告）
+        assert_eq!(resolve_key_from(None, None), builtin_key());
+        assert_eq!(resolve_key_from(Some("".into()), Some("  ".into())), builtin_key());
     }
 
     #[test]

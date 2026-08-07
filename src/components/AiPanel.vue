@@ -60,7 +60,7 @@ const desktop = isTauri();
 const PROVIDER_PRESETS = {
   dashscope: {
     label: "通义千问 Qwen（DashScope）",
-    endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    endpoint: "https://ws-b2ui8x9tozwc8cq1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
     model: "qwen-plus",
   },
   openai: {
@@ -75,6 +75,20 @@ const PROVIDER_PRESETS = {
   },
 } as const;
 type Provider = keyof typeof PROVIDER_PRESETS;
+
+/**
+ * dashscope 这个工作空间接口下挂了好几个模型，价格/上下文/靠谱程度差很多
+ * （详见与用户的成本讨论）：Plus 最稳，Long 性价比最高，Flash 便宜但有 32k
+ * 阶梯计费跳档风险，Max/DeepSeek 贵但能力更强，谨慎使用。
+ * 模型名是按控制台上显示的猜的，如果调不通以「自定义」输入框手动改。
+ */
+const MODEL_OPTIONS = [
+  { label: "Qwen Plus（默认，稳）", value: "qwen3.7-plus" },
+  { label: "Qwen Max（旗舰，贵）", value: "qwen3.8-max" },
+  { label: "Qwen Flash（最便宜，注意32k阶梯跳价）", value: "qwen3.7-flash" },
+  { label: "Qwen Long（长上下文，性价比高）", value: "qwen-long-latest" },
+  { label: "DeepSeek V4 Pro", value: "deepseek-v4-pro" },
+] as const;
 
 const provider = ref<Provider>("dashscope");
 const providerOptions = (Object.keys(PROVIDER_PRESETS) as Provider[]).map((value) => ({
@@ -226,9 +240,14 @@ function copyAll() {
         <div class="ai-key">
           <span class="field-label">
             模型
-            <InfoTip text="要调用的模型名称，例如 qwen-plus、gpt-4o-mini。不同服务商的可用模型不一样，按服务商文档填。" />
+            <InfoTip text="要调用的模型名称。DashScope 预设下拉可选常用几个；选其他服务商，或下拉里没有的模型名，手动填。" />
           </span>
-          <input v-model="apiModel" placeholder="模型名" autocomplete="off" />
+          <CustomSelect
+            v-if="provider === 'dashscope'"
+            v-model="apiModel"
+            :options="MODEL_OPTIONS as unknown as { label: string; value: string }[]"
+          />
+          <input v-else v-model="apiModel" placeholder="模型名" autocomplete="off" />
         </div>
         <div class="ai-key">
           <span class="field-label">
