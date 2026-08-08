@@ -87,9 +87,7 @@ fn resolve_key_from(user_key: Option<String>, env_key: Option<String>) -> Option
 /// 时提过这个数字。
 const COIN_PER_YUAN_SPENT: f64 = 1500.0;
 
-/// 每百万 token 的价格（元），来自阿里云百炼控制台实际截图（qwen 系列）；
-/// DeepSeek 那档没有截图确认，是网上查到的限时折扣价，只是保守占位，
-/// 后续应该用真实账单核对一次再改。
+/// 每百万 token 的价格（元），全部来自阿里云百炼控制台实际截图（含 DeepSeek）。
 struct ModelPrice {
     input_per_million: f64,
     output_per_million: f64,
@@ -111,7 +109,7 @@ fn model_price(model: &str, input_tokens: u32) -> ModelPrice {
             }
         }
         "qwen-long-latest" | "qwen-long" => ModelPrice { input_per_million: 0.5, output_per_million: 2.0 },
-        "deepseek-v4-pro" => ModelPrice { input_per_million: 3.2, output_per_million: 6.3 },
+        "deepseek-v4-pro" => ModelPrice { input_per_million: 12.0, output_per_million: 24.0 },
         _ => ModelPrice { input_per_million: 2.0, output_per_million: 8.0 },
     }
 }
