@@ -547,6 +547,70 @@ console.log("\n[dispatch]");
   expect("未知指令类型报错信息可读", r.error, '未知指令类型: "no_such_thing"');
 }
 
+// ---------------- 目录存在性校验（拦 AI 编造的 id） ----------------
+console.log("\n[目录存在性校验]");
+{
+  const fake = dispatchIntent({ command: "give", form: { item: "minecraft:super_death_sword" } }, MODERN);
+  expect("编造的物品被拦截", fake.command, null);
+  expect("编造的物品报错信息包含物品名", fake.error.includes("super_death_sword"), true);
+
+  const real = dispatchIntent({ command: "give", form: { item: "minecraft:diamond_sword", target: "@s" } }, MODERN);
+  expect("真实物品正常通过", real.command, "give @s minecraft:diamond_sword 1");
+
+  // 不带 minecraft: 前缀的简写也要认得出来，不能只因为没写前缀就误杀
+  const bareReal = dispatchIntent({ command: "give", form: { item: "diamond_sword", target: "@s" } }, MODERN);
+  expect("不带前缀的真实物品也能通过", bareReal.command, "give @s minecraft:diamond_sword 1");
+
+  const fakeEnchant = dispatchIntent(
+    { command: "give", form: { item: "minecraft:bow", enchantments: [{ id: "minecraft:super_power", level: 1 }] } },
+    MODERN,
+  );
+  expect("give 里编造的附魔被拦截", fakeEnchant.command, null);
+}
+{
+  const fakeBlock = dispatchIntent({ command: "setblock", form: { x: "0", y: "0", z: "0", block: "minecraft:fake_ore" } }, MODERN);
+  expect("编造的方块被拦截", fakeBlock.command, null);
+
+  const realBlock = dispatchIntent({ command: "fill", form: { from: ["0", "0", "0"], to: ["1", "1", "1"], block: "stone" } }, MODERN);
+  expect("真实方块（不带前缀）正常通过", realBlock.command.includes("minecraft:stone"), true);
+}
+{
+  const fakeEffect = dispatchIntent({ command: "effect_give", form: { target: "@s", effect: "minecraft:super_buff" } }, MODERN);
+  expect("编造的药水效果被拦截", fakeEffect.command, null);
+
+  const fakeAttr = dispatchIntent({ command: "attribute", form: { target: "@s", attribute: "minecraft:luckiness", action: { kind: "base_set", value: 1 } } }, MODERN);
+  expect("编造的属性被拦截", fakeAttr.command, null);
+
+  const fakeEnchant2 = dispatchIntent({ command: "enchant", form: { targets: "@s", enchantment: "minecraft:god_mode" } }, MODERN);
+  expect("enchant 意图里编造的附魔被拦截", fakeEnchant2.command, null);
+}
+{
+  // summon 没有官方生成的实体目录可比对，只能做格式校验；真实简写实体名不能被误杀
+  const realEntity = dispatchIntent({ command: "summon", form: { entityType: "zombie" } }, MODERN);
+  expect("summon 真实简写实体名正常通过", realEntity.command, "summon minecraft:zombie");
+
+  const badFormat = dispatchIntent({ command: "summon", form: { entityType: "not a valid id!!" } }, MODERN);
+  expect("summon 格式不合法的实体名被拦截", badFormat.command, null);
+
+  const fakeSummonEffect = dispatchIntent(
+    { command: "summon", form: { entityType: "zombie", effects: [{ id: "minecraft:super_regen", duration: 100 }] } },
+    MODERN,
+  );
+  expect("summon.effects 里编造的药水效果被拦截", fakeSummonEffect.command, null);
+
+  const fakeEquip = dispatchIntent(
+    { command: "summon", form: { entityType: "zombie", equipment: { mainhand: { id: "minecraft:excalibur" } } } },
+    MODERN,
+  );
+  expect("summon.equipment 里编造的物品被拦截", fakeEquip.command, null);
+
+  const realEquip = dispatchIntent(
+    { command: "summon", form: { entityType: "zombie", equipment: { mainhand: { id: "minecraft:diamond_sword" } } } },
+    MODERN,
+  );
+  expect("summon.equipment 里真实物品正常通过", realEquip.command.includes("minecraft:diamond_sword"), true);
+}
+
 // ---------------- AI prompt / 解析 ----------------
 console.log("\n[ai prompt]");
 {

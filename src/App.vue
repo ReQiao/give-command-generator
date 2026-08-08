@@ -495,7 +495,8 @@ function textOptions(items: string[]): SelectOption[] {
       </div>
     </section>
 
-    <AiPanel v-if="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
+    <!-- v-show，不是 v-if：同上面手动面板的道理，切走再切回不能丢用户已经打好的字/生成结果。 -->
+    <AiPanel v-show="mode === 'ai'" :version="form.version" :animate="animationEnabled" @toast="showToast" />
 
     <!--
       故意不用 <Transition> 包裹手动内容：实测证明哪怕只给 enter 定义 CSS、

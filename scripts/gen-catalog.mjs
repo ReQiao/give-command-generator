@@ -156,6 +156,34 @@ function preciseName(zh, path) {
   return null;
 }
 
+// summon.entityType 的分类，纯粹为了和其它目录格式一致，不影响存在性校验。
+const ENTITY_RULES = [
+  ["载具", /_boat$|_chest_boat$|_raft$|_chest_raft$|^minecart|_minecart$/],
+  ["投掷物", /^arrow$|^spectral_arrow$|^trident$|^snowball$|^egg$|^ender_pearl$|^experience_bottle$|^potion$|^lingering_potion$|^(small_|dragon_)?fireball$|^wither_skull$|^shulker_bullet$|^llama_spit$|^(breeze_)?wind_charge$|^fishing_bobber$|^firework_rocket$/],
+  ["非生物实体", /^item$|^item_frame$|^glow_item_frame$|^painting$|^armor_stand$|^end_crystal$|^falling_block$|^tnt$|^leash_knot$|^marker$|^interaction$|^(text|item|block)_display$|^area_effect_cloud$|^evoker_fangs$|^lightning_bolt$|^experience_orb$/],
+  ["玩家", /^player$/],
+  ["生物", /.*/],
+];
+
+function classifyEntity(path) {
+  for (const [name, rule] of ENTITY_RULES) if (rule.test(path)) return name;
+  return "其他";
+}
+
+/** entity_type 注册表用官方 entity.minecraft.<path> 语言键取中文名，比物品/方块简单得多。 */
+function buildEntities(ids, zh) {
+  const seen = new Map();
+  const rows = [];
+  for (const id of ids) {
+    const path = id.slice("minecraft:".length);
+    let name = zh[`entity.minecraft.${path}`] || path.replace(/_/g, " ");
+    if (seen.has(name)) name = `${name}(${path})`;
+    seen.set(name, id);
+    rows.push([id, name, path.replace(/_/g, " "), classifyEntity(path)]);
+  }
+  return rows;
+}
+
 function build(ids, zh, blockSet) {
   const seen = new Map();
   const rows = [];
@@ -219,10 +247,12 @@ async function main() {
   console.log("[5/5] 生成 catalog …");
   const itemIds = Object.keys(registries["minecraft:item"].entries).sort();
   const blockIds = Object.keys(registries["minecraft:block"].entries).sort();
+  const entityIds = Object.keys(registries["minecraft:entity_type"]?.entries ?? {}).sort();
   const blockSet = new Set(blockIds);
 
   const items = build(itemIds, zh, blockSet);
   const blocks = build(blockIds, zh, blockSet);
+  const entities = buildEntities(entityIds, zh);
 
   const stats = {};
   for (const [, , , cat] of items) stats[cat] = (stats[cat] || 0) + 1;
@@ -237,10 +267,11 @@ async function main() {
     banner +
       `export const GENERATED_MC_VERSION = ${JSON.stringify(version)};\n\n` +
       `export const ITEMS = [\n${serialize(items)}\n] as const;\n\n` +
-      `export const BLOCKS = [\n${serialize(blocks)}\n] as const;\n`,
+      `export const BLOCKS = [\n${serialize(blocks)}\n] as const;\n\n` +
+      `export const ENTITIES = [\n${serialize(entities)}\n] as const;\n`,
   );
 
-  console.log(`\n完成: ${items.length} 物品 / ${blocks.length} 方块 -> ${OUT}`);
+  console.log(`\n完成: ${items.length} 物品 / ${blocks.length} 方块 / ${entities.length} 实体 -> ${OUT}`);
   console.log("物品分类分布:", stats);
 }
 

@@ -10,7 +10,7 @@
  *     本模块只负责「请求前构造提示词」与「响应后解析 JSON」。
  */
 
-import { EFFECTS, ENCHANTS, GENERATED_MC_VERSION } from "../../data/catalog";
+import { EFFECTS, ENCHANTS, ENTITIES, GENERATED_MC_VERSION } from "../../data/catalog";
 import type { CommandIntent } from "../dispatch";
 import type { GiveVersion } from "../builder";
 
@@ -26,11 +26,17 @@ function buildCatalogRef(): string {
   const effectIds = (EFFECTS as readonly (readonly [string, string, ...unknown[]])[])
     .map(([id, zh]) => `${id}(${zh})`)
     .join(" ");
+  const entityIds = (ENTITIES as readonly (readonly [string, string, ...unknown[]])[])
+    .map(([id, zh]) => `${id}(${zh})`)
+    .join(" ");
   return `附魔完整列表（give 的 enchantments[].id / enchant 的 enchantment 必须取自这里）：
 ${enchantLines}
 
 药水效果完整列表（effect_give 的 effect 字段必须取自这里）：
-${effectIds}`;
+${effectIds}
+
+实体类型完整列表（summon 的 entityType 必须取自这里，本地会校验，编造的一律构建失败）：
+${entityIds}`;
 }
 
 /** 支持的指令清单——同时作为给 AI 的 schema 说明。 */
@@ -248,6 +254,17 @@ export function buildSystemPrompt(version: GiveVersion): string {
     "绝不能作为一条意图混进 intents 数组里（intents 数组里的每一项都必须有合法的 command 字段）。",
     "不要输出任何 JSON 以外的内容，也不要自己拼最终命令字符串（命令由本地确定性构建器生成）。",
     "explanation 要说清这套命令如何达成效果、是否需要一键部署才能生效、有什么使用前提。",
+    "",
+    "【严禁编造 id：本地会做存在性校验，编造的一律构建失败】",
+    "give.item、summon.equipment.<slot>.id 必须是本系统 ITEMS 官方物品表里的 id（本提示词",
+    "上面机制指南之外没有单独列出全表，是因为条目太多——但你训练数据里的常见原版物品/方块",
+    "英文 id 基本都在这张表里，只要不是你自己编的名字就大概率能过）；setblock/fill 的 block",
+    "必须是官方方块 id；give.enchantments/summon.effects/effect_give.effect/enchant.enchantment/",
+    "attribute.attribute/summon.entityType 必须取自上面已经完整列出的附魔表、药水效果表、",
+    "实体类型表，不能超出这几张表——这几张表是完整的，不存在「表外还有但没列出」的情况。",
+    "凡是编不出对应中文效果、只能靠编一个看起来像的 id 硬凑的情况，宁可换成机制指南里教的",
+    "组合技（execute+summon/attribute等），也不要编造一个不存在的物品/方块/实体/附魔/效果/",
+    "属性 id——编造的 id 不会让效果生效，只会导致这条意图直接构建失败，玩家什么都拿不到。",
   ].join("\n");
 }
 

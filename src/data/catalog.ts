@@ -2,7 +2,7 @@ export type CatalogRow = readonly [string, string, ...unknown[]];
 export type PairRow = readonly [string, string];
 
 // 物品与方块清单由 Mojang 官方数据生成器产出，见 scripts/gen-catalog.mjs
-export { ITEMS, BLOCKS, GENERATED_MC_VERSION } from "./items.generated";
+export { ITEMS, BLOCKS, ENTITIES, GENERATED_MC_VERSION } from "./items.generated";
 
 export const ENCHANTS = [
   [
