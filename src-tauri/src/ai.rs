@@ -8,7 +8,8 @@
 //!     填对应的接口地址（含完整路径）、模型名、key 即可，不需要改代码。
 //!   - 只把 AI 返回的原始 JSON 文本透传回前端；解析成意图、再确定性地构建命令字符串，
 //!     全部由前端的 logic/dispatch.ts 完成——后端不碰命令语法。
-//!   - 调用成功才扣 1 次余额（失败不扣）。
+//!   - 调用成功才扣费（失败不扣），按模型价目表 + 真实 token 用量折算成灵魂币，
+//!     不是固定扣一次——不同模型单价差几十倍，扣一样的量对用户不公平。
 
 use crate::billing::Billing;
 use serde::Serialize;
@@ -79,6 +80,52 @@ fn resolve_key_from(user_key: Option<String>, env_key: Option<String>) -> Option
     non_blank(user_key)
         .or_else(|| non_blank(env_key))
         .or_else(builtin_key)
+}
+
+/// 1 元人民币兑换的灵魂币消耗倍率——不是充值汇率（充值那边越买越划算，见前端
+/// 充值档位），这个是"花掉的真实 API 成本 × 1500 = 扣多少灵魂币"，用户对账
+/// 时提过这个数字。
+const COIN_PER_YUAN_SPENT: f64 = 1500.0;
+
+/// 每百万 token 的价格（元），来自阿里云百炼控制台实际截图（qwen 系列）；
+/// DeepSeek 那档没有截图确认，是网上查到的限时折扣价，只是保守占位，
+/// 后续应该用真实账单核对一次再改。
+struct ModelPrice {
+    input_per_million: f64,
+    output_per_million: f64,
+}
+
+/// 按模型名（和阶梯计费用得到的输入 token 总量）查价目表。
+/// 查不到的模型（自定义接口/OpenAI 等）没法知道真实单价，按 qwen-plus 的价格
+/// 保守估算——宁可扣多一点，不要因为报不准价而扣少了导致长期亏本。
+fn model_price(model: &str, input_tokens: u32) -> ModelPrice {
+    match model {
+        "qwen3.8-max" => ModelPrice { input_per_million: 12.0, output_per_million: 36.0 },
+        "qwen3.7-plus" | "qwen-plus" => ModelPrice { input_per_million: 2.0, output_per_million: 8.0 },
+        "qwen3.7-flash" => {
+            // 阶梯计费：输入>32k 整个请求都按更贵的那档算，不是只对超出部分计费。
+            if input_tokens > 32_000 {
+                ModelPrice { input_per_million: 0.6, output_per_million: 2.4 }
+            } else {
+                ModelPrice { input_per_million: 0.2, output_per_million: 0.8 }
+            }
+        }
+        "qwen-long-latest" | "qwen-long" => ModelPrice { input_per_million: 0.5, output_per_million: 2.0 },
+        "deepseek-v4-pro" => ModelPrice { input_per_million: 3.2, output_per_million: 6.3 },
+        _ => ModelPrice { input_per_million: 2.0, output_per_million: 8.0 },
+    }
+}
+
+/// 按真实 token 用量折算这次调用该扣多少灵魂币。usage 拿不到（个别服务商不
+/// 返回 usage 字段）时没法算真实成本，扣一个保守的默认值，而不是完全不扣。
+fn coins_to_charge(model: &str, usage: Option<&AiUsage>) -> i64 {
+    const FALLBACK_COINS: i64 = 100;
+    let Some(usage) = usage else { return FALLBACK_COINS };
+    let price = model_price(model, usage.prompt);
+    let yuan = (usage.prompt as f64 / 1_000_000.0) * price.input_per_million
+        + (usage.completion as f64 / 1_000_000.0) * price.output_per_million;
+    // 向上取整：宁可多扣一点零头，不要因为四舍五入亏本。
+    ((yuan * COIN_PER_YUAN_SPENT).ceil() as i64).max(1)
 }
 
 /// 解析接口地址 / 模型名：用户传入 > 环境变量 > 内置默认（DashScope）。
@@ -197,8 +244,8 @@ pub async fn ai_generate(
         }
     });
 
-    // 成功才扣费
-    let balance = billing.consume();
+    // 成功才扣费，按真实 token 用量 + 模型价目表折算灵魂币，不是固定扣一个数
+    let balance = billing.consume(coins_to_charge(&model, usage.as_ref()));
 
     Ok(AiResponse {
         ok: true,
@@ -212,6 +259,45 @@ pub async fn ai_generate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coins_to_charge_matches_hand_calculated_qwen_plus_example() {
+        // 跟用户核对过的例子：qwen3.7-plus，输入约19000/输出约600 token 那一档，
+        // 手算大约 4.3~4.6 分钱，乘 1500 大约 65~69 灵魂币。
+        let usage = AiUsage { prompt: 19_000, completion: 600, total: 19_600 };
+        let coins = coins_to_charge("qwen3.7-plus", Some(&usage));
+        assert!((60..=75).contains(&coins), "算出来是 {coins}，应该落在 60~75 附近");
+    }
+
+    #[test]
+    fn coins_to_charge_flash_jumps_tier_past_32k_input() {
+        let under = AiUsage { prompt: 31_000, completion: 600, total: 31_600 };
+        let over = AiUsage { prompt: 33_000, completion: 600, total: 33_600 };
+        let coins_under = coins_to_charge("qwen3.7-flash", Some(&under));
+        let coins_over = coins_to_charge("qwen3.7-flash", Some(&over));
+        assert!(coins_over > coins_under, "超过 32k 输入应该跳到更贵的那档");
+        // 跳档是 3 倍单价（0.6/0.2, 2.4/0.8），即便 token 数只多了一点，倍率也该接近 3 倍
+        assert!(coins_over as f64 / coins_under as f64 > 2.5);
+    }
+
+    #[test]
+    fn coins_to_charge_max_costs_far_more_than_flash_for_same_usage() {
+        let usage = AiUsage { prompt: 15_000, completion: 500, total: 15_500 };
+        let max_coins = coins_to_charge("qwen3.8-max", Some(&usage));
+        let flash_coins = coins_to_charge("qwen3.7-flash", Some(&usage));
+        assert!(max_coins > flash_coins * 10, "max 单价高很多，同样用量应该贵一个数量级以上");
+    }
+
+    #[test]
+    fn coins_to_charge_falls_back_when_usage_missing() {
+        assert_eq!(coins_to_charge("qwen3.7-plus", None), 100);
+    }
+
+    #[test]
+    fn coins_to_charge_never_zero_even_for_tiny_usage() {
+        let usage = AiUsage { prompt: 1, completion: 0, total: 1 };
+        assert!(coins_to_charge("qwen-long-latest", Some(&usage)) >= 1);
+    }
 
     #[test]
     fn user_key_wins_over_env_and_is_trimmed() {

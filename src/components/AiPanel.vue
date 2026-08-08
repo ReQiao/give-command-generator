@@ -5,7 +5,7 @@
  * 语法安全性来自分层：AI 只产出「意图」，命令字符串由 logic/dispatch.ts 下经服务器
  * 实证的构建器生成，所以即便 AI 想歪了，也不会产出语法非法的命令。
  */
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
 import { dispatchIntents } from "../logic/dispatch";
@@ -54,6 +54,58 @@ interface AiResponse {
 }
 
 const desktop = isTauri();
+
+/**
+ * 灵魂币余额 + 充值。真实扣费在后端（ai_generate 成功后按用量折算），
+ * 这里只是展示余额和发起充值——充值现在是免费直接加余额（billing_recharge
+ * 还没接真实支付网关），等真要收钱时只用换后端实现，这几个调用点不用动。
+ */
+interface AuthState {
+  activated: boolean;
+  licenseKey: string | null;
+  balance: number;
+}
+interface TopupTier {
+  yuan: number;
+  coins: number;
+}
+const balance = ref<number | null>(null);
+const topupTiers = ref<TopupTier[]>([]);
+const showTopup = ref(false);
+
+async function refreshBalance() {
+  if (!desktop) return;
+  try {
+    const st = await invoke<AuthState>("billing_state");
+    balance.value = st.balance;
+  } catch {
+    // 读不到就算了，不影响主流程；余额会在下次生成成功后从 AiResponse 里更新。
+  }
+}
+
+async function loadTopupTiers() {
+  if (!desktop) return;
+  try {
+    topupTiers.value = await invoke<TopupTier[]>("billing_topup_tiers");
+  } catch {
+    topupTiers.value = [];
+  }
+}
+
+async function recharge(coins: number) {
+  try {
+    const st = await invoke<AuthState>("billing_recharge", { coins });
+    balance.value = st.balance;
+    emit("toast", `已充值 ${coins} 灵魂币（当前免费测试阶段，未实际扣款）`);
+  } catch (err) {
+    emit("toast", `充值失败：${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+onMounted(() => {
+  void refreshBalance();
+  void loadTopupTiers();
+});
 
 /**
  * 后端调用的是通用的 OpenAI 兼容 chat/completions 接口，不绑定某一家服务商。
@@ -183,6 +235,8 @@ async function generate() {
       history: history.value,
     });
 
+    balance.value = res.balance;
+
     if (!res.ok || !res.content) {
       errorText.value = res.error ?? "AI 调用失败。";
       return;
@@ -256,6 +310,32 @@ function copyAll() {
 
     <div v-if="!desktop" class="ai-notice">
       AI 生成与一键部署需要在桌面版里使用（浏览器里没有本地存档访问能力）。
+    </div>
+
+    <div v-if="desktop" class="ai-balance-bar">
+      <span>
+        灵魂币余额：<strong>{{ balance ?? "—" }}</strong>
+        <InfoTip text="每次 AI 生成会按真实调用花费（不同模型单价不同）折算扣除灵魂币，不是固定扣一个数。当前充值是免费测试阶段，不会真的扣款。" />
+      </span>
+      <button type="button" class="ai-topup-toggle" @click="showTopup = !showTopup">
+        充值
+      </button>
+    </div>
+
+    <div v-if="showTopup" class="ai-topup-panel">
+      <p class="ai-topup-note">当前是免费测试阶段，点击即可直接到账，不会真的扣款。</p>
+      <div class="ai-topup-tiers">
+        <button
+          v-for="tier in topupTiers"
+          :key="tier.coins"
+          type="button"
+          class="ai-topup-tier"
+          @click="recharge(tier.coins)"
+        >
+          <span class="ai-topup-yuan">¥{{ tier.yuan }}</span>
+          <span class="ai-topup-coins">{{ tier.coins }} 灵魂币</span>
+        </button>
+      </div>
     </div>
 
     <div class="ai-head">

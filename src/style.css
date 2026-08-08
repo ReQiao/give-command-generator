@@ -1441,6 +1441,65 @@ button#primary,
   background: rgba(255, 196, 105, 0.1);
 }
 
+.ai-balance-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 9.5pt;
+  background: rgba(255, 209, 138, 0.08);
+}
+
+.ai-topup-toggle {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+
+.ai-topup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 209, 138, 0.06);
+}
+
+.ai-topup-note {
+  margin: 0;
+  color: var(--muted, #93a4c8);
+  font-size: 8.5pt;
+}
+
+.ai-topup-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-topup-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.ai-topup-yuan {
+  font-size: 10.5pt;
+}
+
+.ai-topup-coins {
+  font-size: 8pt;
+  font-weight: 400;
+  color: var(--muted, #93a4c8);
+}
+
 .ai-head {
   display: flex;
   align-items: center;

@@ -13,6 +13,8 @@ pub fn run() {
             ai::ai_generate,
             billing::billing_state,
             billing::billing_activate,
+            billing::billing_topup_tiers,
+            billing::billing_recharge,
             datapack::datapack_list_saves,
             datapack::datapack_deploy,
             datapack::datapack_default_saves_dir,
