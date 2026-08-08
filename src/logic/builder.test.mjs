@@ -3,7 +3,7 @@
  * Run: node src/logic/builder.test.mjs
  */
 
-import { createDefaultForm, buildGiveCommand } from "./builder.ts";
+import { createDefaultForm, buildGiveCommand, detectGiveVersionFromRaw } from "./builder.ts";
 
 let passed = 0;
 let failed = 0;
@@ -593,6 +593,34 @@ function base(version) {
   f.displayName = [[{ text: "s", shadow_color: [1, 0, 0, 1] }]];
   const cmd = buildGiveCommand(f);
   expect("1.21.2 shadow array -> int", cmd.includes('"shadow_color":-65536'), true);
+}
+
+// --- 存档实际版本识别（level.dat 的 Data.Version.Name -> GiveVersion 分档） ---
+console.log("\n[detectGiveVersionFromRaw]");
+{
+  expect("1.20.5 精确匹配", detectGiveVersionFromRaw("1.20.5"), "java_1_20_5");
+  expect("1.20.6 落在同一档", detectGiveVersionFromRaw("1.20.6"), "java_1_20_5");
+  expect("1.20.4 太老，识别不出", detectGiveVersionFromRaw("1.20.4"), null);
+  expect("1.21 无补丁号", detectGiveVersionFromRaw("1.21"), "java_1_21");
+  expect("1.21.1", detectGiveVersionFromRaw("1.21.1"), "java_1_21_1");
+  expect("1.21.2", detectGiveVersionFromRaw("1.21.2"), "java_1_21_2");
+  expect("1.21.3", detectGiveVersionFromRaw("1.21.3"), "java_1_21_3");
+  expect("1.21.4", detectGiveVersionFromRaw("1.21.4"), "java_1_21_4");
+  expect("1.21.5", detectGiveVersionFromRaw("1.21.5"), "java_1_21_5");
+  expect("1.21.6 落在 6~8 档", detectGiveVersionFromRaw("1.21.6"), "java_1_21_6");
+  expect("1.21.7 落在 6~8 档", detectGiveVersionFromRaw("1.21.7"), "java_1_21_6");
+  expect("1.21.8 落在 6~8 档", detectGiveVersionFromRaw("1.21.8"), "java_1_21_6");
+  expect("1.21.9 落在 9~10 档", detectGiveVersionFromRaw("1.21.9"), "java_1_21_9");
+  expect("1.21.10 落在 9~10 档", detectGiveVersionFromRaw("1.21.10"), "java_1_21_9");
+  expect("1.21.11 及以上", detectGiveVersionFromRaw("1.21.11"), "java_1_21_11_plus");
+  expect("1.21.20 更高补丁号也归到 11_plus", detectGiveVersionFromRaw("1.21.20"), "java_1_21_11_plus");
+  expect("26.1 新计年法", detectGiveVersionFromRaw("26.1"), "java_26_1");
+  expect("26.2 新计年法", detectGiveVersionFromRaw("26.2"), "java_26_2_plus");
+  expect("26.3 落在 26.2+ 档", detectGiveVersionFromRaw("26.3"), "java_26_2_plus");
+  expect("27.0 更新的年份沿用最新分档", detectGiveVersionFromRaw("27.0"), "java_26_2_plus");
+  expect("空字符串识别不出", detectGiveVersionFromRaw(""), null);
+  expect("乱写的字符串识别不出", detectGiveVersionFromRaw("not-a-version"), null);
+  expect("1.19 太老，识别不出", detectGiveVersionFromRaw("1.19"), null);
 }
 
 // --- summary ---

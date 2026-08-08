@@ -16,6 +16,7 @@ pub fn run() {
             datapack::datapack_list_saves,
             datapack::datapack_deploy,
             datapack::datapack_default_saves_dir,
+            datapack::datapack_detect_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

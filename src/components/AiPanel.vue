@@ -15,7 +15,10 @@ import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
 
 const props = defineProps<{ version: GiveVersion; animate?: boolean }>();
-const emit = defineEmits<{ (e: "toast", message: string, duration?: number): void }>();
+const emit = defineEmits<{
+  (e: "toast", message: string, duration?: number): void;
+  (e: "update:version", version: GiveVersion): void;
+}>();
 
 // ---------------- 启动特效 ----------------
 // 切进 AI 模式时点亮「灵魂灯笼」：灰烬上浮 + 一道扫光。
@@ -362,6 +365,7 @@ function copyAll() {
       :loop-commands="loopCommands"
       :version="version"
       @toast="(...args) => emit('toast', ...args)"
+      @update:version="(v) => emit('update:version', v)"
     />
   </section>
 </template>

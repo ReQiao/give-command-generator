@@ -13,10 +13,11 @@
  * 不需要玩家再做任何事）——由调用方（AiPanel 的 execute loop:true 分流、
  * 或手动模式的单条 give）分别传入，允许只有一边非空。
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { GiveVersion } from "../logic/builder";
+import { detectGiveVersionFromRaw, type GiveVersion } from "../logic/builder";
+import { VERSIONS } from "../data/catalog";
 import InfoTip from "./InfoTip.vue";
 
 const props = defineProps<{
@@ -24,7 +25,10 @@ const props = defineProps<{
   loopCommands?: string[];
   version: GiveVersion;
 }>();
-const emit = defineEmits<{ (e: "toast", message: string, duration?: number): void }>();
+const emit = defineEmits<{
+  (e: "toast", message: string, duration?: number): void;
+  (e: "update:version", version: GiveVersion): void;
+}>();
 
 interface SaveInfo {
   name: string;
@@ -47,6 +51,37 @@ const selectedSave = ref("");
 const deployed = ref<DeployResult | null>(null);
 const deploying = ref(false);
 const errorText = ref("");
+
+/**
+ * 存档实际版本识别：读 level.dat 的 Data.Version.Name，跟当前选择的版本比对，
+ * 不一致就提示一下——纯提示，不强行覆盖用户的选择（用户可能就是故意要按某个
+ * 目标版本生成，哪怕和存档当前版本不一样，比如提前给要升级的存档准备指令）。
+ */
+const detectedRawVersion = ref<string | null>(null);
+const detectedVersion = computed(() =>
+  detectedRawVersion.value ? detectGiveVersionFromRaw(detectedRawVersion.value) : null,
+);
+const detectedVersionLabel = computed(() => {
+  const found = VERSIONS.find(([, value]) => value === detectedVersion.value);
+  return found?.[0] ?? detectedRawVersion.value ?? "";
+});
+const versionMismatch = computed(
+  () => !!detectedVersion.value && detectedVersion.value !== props.version,
+);
+
+watch(selectedSave, async (path) => {
+  detectedRawVersion.value = null;
+  if (!desktop || !path) return;
+  try {
+    detectedRawVersion.value = await invoke<string | null>("datapack_detect_version", { savePath: path });
+  } catch {
+    // 识别失败（存档损坏/老版本 level.dat 结构不同）静默忽略，不阻塞部署流程。
+  }
+});
+
+function useDetectedVersion() {
+  if (detectedVersion.value) emit("update:version", detectedVersion.value);
+}
 
 const canDeploy = computed(
   () =>
@@ -148,6 +183,12 @@ async function copyText(text: string) {
     </div>
     <p class="deploy-hint">
       不用官方启动器？点「浏览选择存档」直接在 saves 文件夹里选一个存档即可，不依赖自动扫描。
+    </p>
+
+    <p v-if="versionMismatch" class="deploy-version-mismatch">
+      检测到这个存档的实际版本是 <strong>{{ detectedVersionLabel }}</strong>，
+      和当前选择的版本不一样，生成的指令可能对不上这个存档的语法。
+      <button type="button" @click="useDetectedVersion">改用检测到的版本</button>
     </p>
 
     <p v-if="errorText" class="ai-error">{{ errorText }}</p>

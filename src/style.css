@@ -1622,6 +1622,26 @@ button#primary,
   font-size: 8.5pt;
 }
 
+.deploy-version-mismatch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 8.5pt;
+  color: #ffd18a;
+  background: rgba(255, 190, 90, 0.1);
+}
+
+.deploy-version-mismatch button {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 8pt;
+  font-weight: 500;
+}
+
 .ai-deployed {
   padding: 12px;
   border-radius: 12px;

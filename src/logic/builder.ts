@@ -1096,6 +1096,46 @@ export function getModernProfile(version: GiveVersion): ModernProfile {
   return MODERN_PROFILE;
 }
 
+/**
+ * 把存档 level.dat 读到的原始版本字符串（如 "1.21.7"、"26.2"）映射到 GiveVersion 分档，
+ * 供"识别到的存档版本和当前选择不一致"这类提示用（部署面板）。
+ *
+ * 边界要和 data/catalog.ts 的 VERSIONS 表（下拉框展示的"Java 1.21.6~1.21.8"之类
+ * 范围文案）保持一致——两边各自维护而不是互相解析对方格式，是因为一个是给人看的
+ * 文案、一个是给代码比较用的数字边界，写重复了但比互相解析更不容易出错，改版本
+ * 分档时两边都要同步改。识别不出来（低于支持范围、格式不对）返回 null，
+ * 调用方应该当成"识别不到，不打扰用户"处理，不强行覆盖用户已经选的版本。
+ */
+export function detectGiveVersionFromRaw(raw: string): GiveVersion | null {
+  const parts = raw.trim().split(".").map((p) => Number.parseInt(p, 10));
+  if (parts.length === 0 || parts.some((n) => Number.isNaN(n))) return null;
+
+  // 新计年法（26.x 起）没有前导 "1."，直接按 major.minor 比较。
+  if (parts[0] >= 2) {
+    const [major, minor = 0] = parts;
+    if (major === 26 && minor === 1) return "java_26_1";
+    if (major >= 26 && minor >= 2) return "java_26_2_plus";
+    if (major > 26) return "java_26_2_plus"; // 更新的年份先沿用最新分档
+    return null;
+  }
+
+  // 老计年法：1.x.y
+  if (parts[0] !== 1) return null;
+  const minor = parts[1];
+  const patch = parts[2] ?? 0;
+  if (minor === 20) return patch >= 5 ? "java_1_20_5" : null;
+  if (minor !== 21) return null;
+  if (patch === 0) return "java_1_21";
+  if (patch === 1) return "java_1_21_1";
+  if (patch === 2) return "java_1_21_2";
+  if (patch === 3) return "java_1_21_3";
+  if (patch === 4) return "java_1_21_4";
+  if (patch === 5) return "java_1_21_5";
+  if (patch >= 6 && patch <= 8) return "java_1_21_6";
+  if (patch >= 9 && patch <= 10) return "java_1_21_9";
+  return "java_1_21_11_plus"; // patch >= 11
+}
+
 function normalizeInt(value: unknown, fallback: number, min: number): number {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;

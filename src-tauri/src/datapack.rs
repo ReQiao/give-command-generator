@@ -219,6 +219,25 @@ pub fn datapack_default_saves_dir() -> Option<String> {
     dir.is_dir().then(|| dir.to_string_lossy().to_string())
 }
 
+/// 读 level.dat（gzip 压缩的 NBT）里 Data.Version.Name，识别存档的真实游戏版本。
+///
+/// 只返回原始版本字符串（如 "1.21.5"），不在这里做版本族分桶——那是 builder.ts
+/// 里 VERSIONS 表已经维护的领域知识，重复一份容易和前端定义的分档边界慢慢对不上。
+/// 读不到/解析失败（存档损坏、老版本 level.dat 结构不同）时返回 None，
+/// 前端把它当作"识别不到，不打扰用户"处理，不阻塞部署流程。
+#[tauri::command]
+pub fn datapack_detect_version(save_path: String) -> Option<String> {
+    let file = fs::File::open(PathBuf::from(save_path).join("level.dat")).ok()?;
+    let mut reader = std::io::BufReader::new(file);
+    let blob = nbt::Blob::from_gzip_reader(&mut reader).ok()?;
+    let nbt::Value::Compound(data) = blob.get("Data")? else { return None };
+    let nbt::Value::Compound(version) = data.get("Version")? else { return None };
+    match version.get("Name")? {
+        nbt::Value::String(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +267,25 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("level.dat"), b"fake").unwrap();
+        dir
+    }
+
+    /// 造一个结构和真实存档一致（Data.Version.Name）的 level.dat，供版本识别测试用。
+    fn temp_save_with_version(name: &str, version_name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("soul-datapack-test-{name}"));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let mut version = nbt::Map::new();
+        version.insert("Name".to_string(), nbt::Value::String(version_name.to_string()));
+        let mut data = nbt::Map::new();
+        data.insert("Version".to_string(), nbt::Value::Compound(version));
+        let mut blob = nbt::Blob::new();
+        blob.insert("Data", nbt::Value::Compound(data)).unwrap();
+
+        let file = fs::File::create(dir.join("level.dat")).unwrap();
+        let mut writer = std::io::BufWriter::new(file);
+        blob.to_gzip_writer(&mut writer).unwrap();
         dir
     }
 
@@ -286,6 +324,24 @@ mod tests {
         assert_eq!(pack_format_for_version("java_1_20_5"), 41);
         assert_eq!(pack_format_for_version("java_1_21_4"), 61);
         assert_eq!(pack_format_for_version("java_26_2_plus"), 107);
+    }
+
+    #[test]
+    fn detects_real_version_from_level_dat() {
+        let save = temp_save_with_version("detect-real", "1.21.5");
+        assert_eq!(datapack_detect_version(save.to_string_lossy().to_string()), Some("1.21.5".to_string()));
+    }
+
+    #[test]
+    fn detect_version_returns_none_for_garbage_level_dat() {
+        // 已有的 temp_save 写的是假文件（不是合法 gzip NBT），不该 panic，应静默返回 None
+        let save = temp_save("detect-garbage");
+        assert_eq!(datapack_detect_version(save.to_string_lossy().to_string()), None);
+    }
+
+    #[test]
+    fn detect_version_returns_none_for_missing_save() {
+        assert_eq!(datapack_detect_version("/no/such/save/dir".to_string()), None);
     }
 
     #[test]
