@@ -1504,6 +1504,25 @@ button#primary,
   flex-wrap: wrap;
 }
 
+.ai-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 9pt;
+  color: var(--muted, #93a4c8);
+  background: rgba(122, 162, 255, 0.08);
+}
+
+.ai-new-chat {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 8.5pt;
+  font-weight: 500;
+}
+
 .ai-error {
   margin: 0;
   padding: 10px 12px;

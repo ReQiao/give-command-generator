@@ -121,6 +121,26 @@ const loopCommands = ref<string[]>([]);
 /** AI 意图里构建失败的条目，单独列出而不是静默吞掉。 */
 const failures = ref<string[]>([]);
 
+/**
+ * 多轮上下文：允许"在上一次生成结果基础上继续修改"（比如"改成用箭"），
+ * 而不用重新把整句需求描述一遍。封顶3轮是刻意的——通义千问上下文有限，
+ * 轮数越多越容易跑偏/幻觉，而且接口是无状态的，每轮都要把历史重新整个
+ * 发一遍，轮数越多单次调用费的 token 越多，3轮是防幻觉和控成本的折中。
+ */
+const MAX_CONTEXT_ROUNDS = 3;
+interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+const history = ref<ChatTurn[]>([]);
+const round = computed(() => Math.floor(history.value.length / 2));
+const isContinuing = computed(() => history.value.length > 0);
+
+/** 手动清空上下文，开始全新的一轮需求描述。 */
+function newConversation() {
+  history.value = [];
+}
+
 const canGenerate = computed(
   () => desktop && !busy.value && userText.value.trim().length > 0 && apiBase.value.trim().length > 0,
 );
@@ -134,6 +154,13 @@ const examples = [
 
 async function generate() {
   if (!canGenerate.value) return;
+
+  // 已经聊满3轮：这一次不再带历史，直接当新对话处理，而不是拒绝用户的请求。
+  if (round.value >= MAX_CONTEXT_ROUNDS) {
+    history.value = [];
+    emit("toast", `已达到连续对话上限（${MAX_CONTEXT_ROUNDS}轮），这次将开始新的对话`);
+  }
+
   busy.value = true;
   errorText.value = "";
   explanation.value = "";
@@ -141,13 +168,16 @@ async function generate() {
   loopCommands.value = [];
   failures.value = [];
 
+  const thisTurnText = userText.value.trim();
+
   try {
     const res = await invoke<AiResponse>("ai_generate", {
       systemPrompt: buildSystemPrompt(props.version),
-      userText: userText.value.trim(),
+      userText: thisTurnText,
       apiKey: apiKey.value.trim() || null,
       endpoint: apiBase.value.trim() || null,
       model: apiModel.value.trim() || null,
+      history: history.value,
     });
 
     if (!res.ok || !res.content) {
@@ -172,6 +202,14 @@ async function generate() {
     } else {
       emit("toast", `已生成 ${total} 条指令`);
     }
+
+    // 只在成功拿到回复后才计入历史——调用失败/解析失败不该污染上下文。
+    history.value = [
+      ...history.value,
+      { role: "user", content: thisTurnText },
+      { role: "assistant", content: res.content },
+    ];
+    userText.value = "";
   } catch (err) {
     errorText.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -259,10 +297,18 @@ function copyAll() {
       </div>
     </div>
 
+    <div v-if="isContinuing" class="ai-context-bar">
+      <span>
+        继续对话中（{{ round }}/{{ MAX_CONTEXT_ROUNDS }} 轮）
+        <InfoTip text="接下来生成会带上前面几轮的对话，可以直接说「改成用箭」这种追问式修改。超过3轮后会自动开始新对话（防止上下文太长跑偏、也控制费用）。" />
+      </span>
+      <button type="button" class="ai-new-chat" @click="newConversation">开始新对话</button>
+    </div>
+
     <textarea
       v-model="userText"
       class="ai-input"
-      placeholder="例如：做一把能射 TNT 的弓"
+      :placeholder="isContinuing ? '继续追问，例如：改成用箭' : '例如：做一把能射 TNT 的弓'"
       spellcheck="false"
       @keydown.ctrl.enter="generate"
     ></textarea>

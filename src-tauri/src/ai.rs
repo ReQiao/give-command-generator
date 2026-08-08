@@ -13,6 +13,13 @@
 use crate::billing::Billing;
 use serde::Serialize;
 
+/// 多轮上下文里的一条历史消息（前端只带 user/assistant 两种角色）。
+#[derive(serde::Deserialize)]
+pub struct ChatTurn {
+    pub role: String,
+    pub content: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiUsage {
@@ -93,6 +100,8 @@ pub async fn ai_generate(
     api_key: Option<String>,
     endpoint: Option<String>,
     model: Option<String>,
+    // 前端携带的历史轮次（本轮之前的 user/assistant 消息，已经封顶3轮，见 AiPanel）。
+    history: Option<Vec<ChatTurn>>,
     billing: tauri::State<'_, Billing>,
 ) -> Result<AiResponse, ()> {
     // 注意：MutexGuard 不能跨 await 持有，这里只取快照。
@@ -111,12 +120,15 @@ pub async fn ai_generate(
     let endpoint = resolve_with_default(endpoint, std::env::var("AI_ENDPOINT").ok(), DEFAULT_ENDPOINT);
     let model = resolve_with_default(model, std::env::var("AI_MODEL").ok(), DEFAULT_MODEL);
 
+    let mut messages = vec![serde_json::json!({ "role": "system", "content": system_prompt })];
+    for turn in history.unwrap_or_default() {
+        messages.push(serde_json::json!({ "role": turn.role, "content": turn.content }));
+    }
+    messages.push(serde_json::json!({ "role": "user", "content": user_text }));
+
     let body = serde_json::json!({
         "model": model,
-        "messages": [
-            { "role": "system", "content": system_prompt },
-            { "role": "user", "content": user_text },
-        ],
+        "messages": messages,
         // 强制 JSON 输出，配合前端 parseAiContent
         "response_format": { "type": "json_object" },
         // 指令生成要的是准确而非发散
