@@ -9,7 +9,19 @@
  */
 
 import { buildGiveCommand, mapCatalog, normalizeForm, type GiveVersion } from "./builder";
-import { ATTRIBUTES, BLOCKS, EFFECTS, ENCHANTS, ENTITIES, ITEMS, type CatalogRow } from "../data/catalog";
+import {
+  ATTRIBUTES,
+  BEDROCK_BLOCKS,
+  BEDROCK_ENTITIES,
+  BEDROCK_ITEMS,
+  BLOCKS,
+  EFFECTS,
+  ENCHANTS,
+  ENTITIES,
+  ITEMS,
+  PARTICLES,
+  type CatalogRow,
+} from "../data/catalog";
 import { buildSayCommand, type SayForm } from "./commands/say";
 import {
   buildEffectClearCommand,
@@ -72,72 +84,110 @@ export interface DispatchResult {
  * 只有本文件（AI 面板专用的 dispatchIntent/dispatchIntents）会走这层校验，
  * 手动模式直接调 builder，不受影响。
  */
-const ITEM_IDS = new Set(ITEMS.map((row) => row[0]));
-const BLOCK_IDS = new Set(BLOCKS.map((row) => row[0]));
-const ENCHANT_IDS = new Set(ENCHANTS.map((row) => row[0]));
-const EFFECT_IDS = new Set(EFFECTS.map((row) => row[0]));
-const ATTRIBUTE_IDS = new Set(ATTRIBUTES.map((row) => row[0]));
-const ENTITY_IDS = new Set(ENTITIES.map((row) => row[0]));
+/** 把目录数组变成 (行数组, id 集合) 一对，避免每次校验都重新遍历。 */
+function indexed(catalog: readonly CatalogRow[]) {
+  return { rows: catalog, ids: new Set(catalog.map((row) => row[0])) };
+}
+
+/**
+ * 按版本挑目录：基岩版和 Java 是两套 ID 体系，同一个东西名字经常不同
+ * （蜘蛛网 cobweb/web），拿错表会同时犯两个方向的错——真实的基岩 id 被当成
+ * "AI 编造"拦掉，而 Java id 反倒放行、拼出一条基岩里不存在的指令。
+ *
+ * 附魔/药水效果/属性暂时两版共用 Java 表：我们只生成了基岩的物品/方块/实体
+ * 三张表，而且基岩版的 give 构建器本来就不输出附魔和效果（见 buildBedrock），
+ * 目前碰不到这个差异。真要支持基岩的 enchant/effect 指令时，得先把
+ * scripts/bedrock-id/ 里的 enchantType.json、effect.json 也生成出来。
+ */
+const JAVA_CATALOGS = {
+  items: indexed(ITEMS),
+  blocks: indexed(BLOCKS),
+  entities: indexed(ENTITIES),
+};
+const BEDROCK_CATALOGS = {
+  items: indexed(BEDROCK_ITEMS),
+  blocks: indexed(BEDROCK_BLOCKS),
+  entities: indexed(BEDROCK_ENTITIES),
+};
+// 两版共用（原因见上）
+const ENCHANT_CAT = indexed(ENCHANTS);
+const EFFECT_CAT = indexed(EFFECTS);
+const ATTRIBUTE_CAT = indexed(ATTRIBUTES);
+const PARTICLE_CAT = indexed(PARTICLES);
+
+type VersionCatalogs = typeof JAVA_CATALOGS;
+const catalogsFor = (version: GiveVersion): VersionCatalogs =>
+  version === "bedrock" ? BEDROCK_CATALOGS : JAVA_CATALOGS;
+
+type Indexed = { rows: readonly CatalogRow[]; ids: Set<string> };
+
+/** 取粒子 id 里花括号之前的部分（minecraft:dust{color:[...]} -> minecraft:dust）。 */
+function particleIdOnly(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  const brace = raw.indexOf("{");
+  return brace === -1 ? raw : raw.slice(0, brace).trim();
+}
 
 /** catalog 里没有的一律视为 AI 编造；命中就返回 null。 */
-function catalogMiss(kind: string, raw: unknown, catalog: readonly CatalogRow[], ids: Set<string>): string | null {
+function catalogMiss(kind: string, raw: unknown, cat: Indexed): string | null {
   if (typeof raw !== "string" || !raw.trim()) return null; // 空字段留给各自的必填校验去报错，这里不重复报
-  const resolved = mapCatalog(catalog, raw);
-  if (ids.has(resolved)) return null;
+  if (cat.ids.has(mapCatalog(cat.rows, raw))) return null;
   return `${kind} "${raw}" 不在官方目录里，疑似 AI 编造，已拦截`;
 }
 
 /** 校验一组 { id } 形状的附魔/效果条目（give.enchantments、summon.effects 等）。 */
-function firstCatalogMissInList(
-  kind: string,
-  list: unknown,
-  catalog: readonly CatalogRow[],
-  ids: Set<string>,
-): string | null {
+function firstCatalogMissInList(kind: string, list: unknown, cat: Indexed): string | null {
   if (!Array.isArray(list)) return null;
   for (const row of list) {
-    const err = catalogMiss(kind, (row as { id?: unknown })?.id, catalog, ids);
+    const err = catalogMiss(kind, (row as { id?: unknown })?.id, cat);
     if (err) return err;
   }
   return null;
 }
 
 /** 校验 summon.equipment：{ mainhand?: { id, enchantments? }, head?: ..., ... }。 */
-function equipmentCatalogMiss(equipment: unknown): string | null {
+function equipmentCatalogMiss(equipment: unknown, cats: VersionCatalogs): string | null {
   if (!equipment || typeof equipment !== "object") return null;
   for (const slot of Object.values(equipment as Record<string, unknown>)) {
     if (!slot || typeof slot !== "object") continue;
     const slotObj = slot as Record<string, unknown>;
-    const err = catalogMiss("物品", slotObj.id, ITEMS, ITEM_IDS) ?? firstCatalogMissInList("附魔", slotObj.enchantments, ENCHANTS, ENCHANT_IDS);
+    const err =
+      catalogMiss("物品", slotObj.id, cats.items) ??
+      firstCatalogMissInList("附魔", slotObj.enchantments, ENCHANT_CAT);
     if (err) return err;
   }
   return null;
 }
 
 /** 按意图类型校验涉及官方目录的字段。返回非 null 即视为构建失败。 */
-function validateIntentCatalog(intent: CommandIntent): string | null {
+function validateIntentCatalog(intent: CommandIntent, version: GiveVersion): string | null {
   const form = intent.form as Record<string, unknown>;
+  const cats = catalogsFor(version);
   switch (intent.command) {
     case "give":
       return (
-        catalogMiss("物品", form.item, ITEMS, ITEM_IDS) ??
-        firstCatalogMissInList("附魔", form.enchantments, ENCHANTS, ENCHANT_IDS)
+        catalogMiss("物品", form.item, cats.items) ??
+        firstCatalogMissInList("附魔", form.enchantments, ENCHANT_CAT)
       );
     case "setblock":
     case "fill":
-      return catalogMiss("方块", form.block, BLOCKS, BLOCK_IDS);
+      return catalogMiss("方块", form.block, cats.blocks);
     case "enchant":
-      return catalogMiss("附魔", form.enchantment, ENCHANTS, ENCHANT_IDS);
+      return catalogMiss("附魔", form.enchantment, ENCHANT_CAT);
     case "effect_give":
-      return catalogMiss("药水效果", form.effect, EFFECTS, EFFECT_IDS);
+      return catalogMiss("药水效果", form.effect, EFFECT_CAT);
     case "attribute":
-      return catalogMiss("属性", form.attribute, ATTRIBUTES, ATTRIBUTE_IDS);
+      return catalogMiss("属性", form.attribute, ATTRIBUTE_CAT);
     case "summon":
       return (
-        catalogMiss("实体类型", form.entityType, ENTITIES, ENTITY_IDS) ??
-        firstCatalogMissInList("药水效果", form.effects, EFFECTS, EFFECT_IDS) ??
-        equipmentCatalogMiss(form.equipment)
+        catalogMiss("实体类型", form.entityType, cats.entities) ??
+        firstCatalogMissInList("药水效果", form.effects, EFFECT_CAT) ??
+        equipmentCatalogMiss(form.equipment, cats)
       );
+    case "particle":
+      // 参数化粒子（minecraft:dust{color:[...]}）的花括号部分不参与查表，
+      // 否则整类带附加数据的粒子都会被误判成编造的（同 particle.ts 的切法）。
+      return catalogMiss("粒子", particleIdOnly(form.name), PARTICLE_CAT);
     default:
       return null;
   }
@@ -145,7 +195,7 @@ function validateIntentCatalog(intent: CommandIntent): string | null {
 
 /** 把单条意图分派到对应构建器。version 为目标 Minecraft 版本。 */
 export function dispatchIntent(intent: CommandIntent, version: GiveVersion): DispatchResult {
-  const catalogError = validateIntentCatalog(intent);
+  const catalogError = validateIntentCatalog(intent, version);
   if (catalogError) {
     return { intent, command: null, error: catalogError, loop: false };
   }

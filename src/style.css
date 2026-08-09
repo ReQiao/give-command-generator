@@ -1496,7 +1496,23 @@ button#primary,
   border-radius: 12px;
   color: #ffd79a;
   font-size: 9.5pt;
+  line-height: 1.65;
   background: rgba(255, 196, 105, 0.1);
+}
+
+.ai-notice p {
+  margin: 0 0 8px;
+}
+
+.ai-notice p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-notice code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 9pt;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .ai-balance-bar {

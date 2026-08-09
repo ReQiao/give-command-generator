@@ -10,7 +10,7 @@
  *     本模块只负责「请求前构造提示词」与「响应后解析 JSON」。
  */
 
-import { EFFECTS, ENCHANTS, ENTITIES, GENERATED_MC_VERSION } from "../../data/catalog";
+import { EFFECTS, ENCHANTS, ENTITIES, GENERATED_MC_VERSION, PARTICLES } from "../../data/catalog";
 import type { CommandIntent } from "../dispatch";
 import type { GiveVersion } from "../builder";
 
@@ -29,6 +29,10 @@ function buildCatalogRef(): string {
   const entityIds = (ENTITIES as readonly (readonly [string, string, ...unknown[]])[])
     .map(([id, zh]) => `${id}(${zh})`)
     .join(" ");
+  // 粒子没有官方中文译名（语言文件里没有 particle.minecraft.* 这族键），只列 id
+  const particleIds = (PARTICLES as readonly (readonly [string, ...unknown[]])[])
+    .map(([id]) => id)
+    .join(" ");
   return `附魔完整列表（give 的 enchantments[].id / enchant 的 enchantment 必须取自这里）：
 ${enchantLines}
 
@@ -36,7 +40,12 @@ ${enchantLines}
 ${effectIds}
 
 实体类型完整列表（summon 的 entityType 必须取自这里，本地会校验，编造的一律构建失败）：
-${entityIds}`;
+${entityIds}
+
+粒子完整列表（particle 的 name 必须取自这里，本地会校验，编造的一律构建失败；
+参数化粒子把附加数据拼在 id 后面，如 minecraft:dust{color:[1.0,0.2,0.2],scale:1.5}，
+花括号部分不参与校验，但前面的 id 本身必须在这张表里）：
+${particleIds}`;
 }
 
 /** 支持的指令清单——同时作为给 AI 的 schema 说明。 */

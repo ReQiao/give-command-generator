@@ -611,6 +611,60 @@ console.log("\n[目录存在性校验]");
   expect("summon.equipment 里真实物品正常通过", realEquip.command.includes("minecraft:diamond_sword"), true);
 }
 
+// ---------------- 粒子目录校验 ----------------
+console.log("\n[粒子目录校验]");
+{
+  const p = (name) => dispatchIntent({ command: "particle", form: { name, count: 5 } }, MODERN);
+
+  expect("编造的粒子被拦截", p("minecraft:sparkle_magic").command, null);
+  expect("真实粒子正常通过", p("minecraft:flame").command, "particle minecraft:flame ~ ~ ~ 0 0 0 1 5");
+  expect("不带前缀的真实粒子也通过", p("flame").command, "particle minecraft:flame ~ ~ ~ 0 0 0 1 5");
+
+  // 关键回归：参数化粒子的 {...} 附加数据不能参与查表，否则整类都会被误杀
+  expect(
+    "参数化粒子 dust{...} 不被误杀",
+    p("minecraft:dust{color:[1.0,0.2,0.2],scale:1.5}").command,
+    "particle minecraft:dust{color:[1.0,0.2,0.2],scale:1.5} ~ ~ ~ 0 0 0 1 5",
+  );
+  expect(
+    "参数化粒子 block{...} 不被误杀",
+    p('minecraft:block{block_state:{Name:"minecraft:stone"}}').command !== null,
+    true,
+  );
+  // 但花括号不该变成绕过校验的后门
+  expect("带参数但 id 是编的，仍要拦", p("minecraft:fakedust{color:[1,0,0]}").command, null);
+}
+
+// ---------------- 目录校验要跟着版本走 ----------------
+// 曾经的真 bug：校验集合在模块顶层用 Java 目录建好、不看 version，导致基岩版下
+// 两个方向同时错——真实的基岩 id 被当成"AI 编造"拦掉，Java id 反倒放行，
+// 拼出一条基岩里根本不存在的指令。
+console.log("\n[目录校验的版本感知]");
+{
+  const BEDROCK = "bedrock";
+  const web = dispatchIntent({ command: "give", form: { item: "minecraft:web" } }, BEDROCK);
+  expect("基岩版放行基岩真实 id（web）", web.command, "give @a web 1 0");
+
+  const cobwebOnBedrock = dispatchIntent({ command: "give", form: { item: "minecraft:cobweb" } }, BEDROCK);
+  expect("基岩版拦掉 Java id（cobweb 在基岩不存在）", cobwebOnBedrock.command, null);
+
+  const bedrockOnly = dispatchIntent({ command: "give", form: { item: "minecraft:border_block" } }, BEDROCK);
+  expect("基岩版放行基岩独有物品（border_block）", bedrockOnly.command, "give @a border_block 1 0");
+
+  // 反向：Java 侧不能被这次改动带歪
+  const cobwebOnJava = dispatchIntent({ command: "give", form: { item: "minecraft:cobweb" } }, MODERN);
+  expect("Java 版仍放行 cobweb", cobwebOnJava.command, "give @a minecraft:cobweb 1");
+
+  const webOnJava = dispatchIntent({ command: "give", form: { item: "minecraft:web" } }, MODERN);
+  expect("Java 版拦掉基岩 id（web 在 Java 不存在）", webOnJava.command, null);
+
+  // 编造的 id 两个版本都要拦
+  for (const [label, v] of [["Java", MODERN], ["基岩", BEDROCK]]) {
+    const fake = dispatchIntent({ command: "give", form: { item: "minecraft:excalibur_of_doom" } }, v);
+    expect(`${label}版都要拦掉编造物品`, fake.command, null);
+  }
+}
+
 // ---------------- AI prompt / 解析 ----------------
 console.log("\n[ai prompt]");
 {

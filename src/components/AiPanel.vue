@@ -226,8 +226,26 @@ function newConversation() {
   history.value = [];
 }
 
+/**
+ * 基岩版暂不支持 AI 模式。
+ *
+ * 不是"还没做完"，是刻意不做：除了 give 以外的构建器（summon/setblock/effect/
+ * enchant/scoreboard…）全都只会输出 Java 语法——基岩版的 /summon 根本没有 NBT
+ * 参数，setblock 的方块状态写法也不一样，照 Java 那套生成出来的指令在基岩里是
+ * 无效的。而 scripts/mc-verifier 跑的是 Java server.jar，整条工具链没有基岩
+ * 服务端，基岩语法没法实测；本项目一贯只写实测过的语法（见 inGround/OnGround
+ * 那次踩的坑），所以宁可明确挡住，也不给用户一堆看着像模像样、进游戏就报错的
+ * 指令，更不该白扣他的灵魂币。手动模式的基岩 give 是经过 ID 表校对的，可以用。
+ */
+const bedrockUnsupported = computed(() => props.version === "bedrock");
+
 const canGenerate = computed(
-  () => desktop && !busy.value && userText.value.trim().length > 0 && apiBase.value.trim().length > 0,
+  () =>
+    desktop &&
+    !bedrockUnsupported.value &&
+    !busy.value &&
+    userText.value.trim().length > 0 &&
+    apiBase.value.trim().length > 0,
 );
 
 const examples = [
@@ -342,6 +360,18 @@ function copyAll() {
       AI 生成与一键部署需要在桌面版里使用（浏览器里没有本地存档访问能力）。
     </div>
 
+    <div v-if="bedrockUnsupported" class="ai-notice">
+      <p><strong>AI 模式暂不支持基岩版。</strong></p>
+      <p>
+        AI 生成的指令由一套经过真实 Java 服务器实测的构建器产出，
+        而基岩版的指令语法不一样（比如 <code>/summon</code> 在基岩版没有 NBT 参数），
+        照 Java 那套生成出来在基岩版里是无效的。与其给你一堆看着像模像样、
+        进游戏就报错的指令，不如先明确挡住。
+      </p>
+      <p>请切回<strong>手动模式</strong>使用基岩版的物品生成——那边的基岩 ID 是单独校对过的。</p>
+    </div>
+
+    <template v-else>
     <div v-if="desktop" class="ai-balance-bar">
       <span>
         灵魂币余额：<strong>{{ balance ?? "—" }}</strong>
@@ -469,13 +499,17 @@ function copyAll() {
       <li v-for="(f, i) in failures" :key="i">跳过一条无法构建的意图 —— {{ f }}</li>
     </ul>
 
+    <!-- datapack 是 Java 独有机制，基岩版没有——外层 v-else 已经挡住了，
+         这里再挡一次是因为 DeployPanel 是和手动模式共用的组件，不该依赖
+         "恰好被上层挡住了"才不出错（手动模式在 App.vue 那侧也有同样的守卫）。 -->
     <DeployPanel
-      v-if="commands.length || loopCommands.length"
+      v-if="(commands.length || loopCommands.length) && version !== 'bedrock'"
       :commands="commands"
       :loop-commands="loopCommands"
       :version="version"
       @toast="(...args) => emit('toast', ...args)"
       @update:version="(v) => emit('update:version', v)"
     />
+    </template>
   </section>
 </template>

@@ -21,6 +21,9 @@ pub struct AuthState {
     pub license_key: Option<String>,
     /// 剩余灵魂币余额。
     pub balance: i64,
+    /// 已经兑换过的激活码，防止同一个码反复点着加钱。
+    #[serde(default)]
+    pub redeemed_keys: Vec<String>,
 }
 
 impl Default for AuthState {
@@ -30,6 +33,7 @@ impl Default for AuthState {
             activated: true,
             license_key: Some("builtin".to_string()),
             balance: 9999,
+            redeemed_keys: Vec::new(),
         }
     }
 }
@@ -119,21 +123,38 @@ pub fn billing_recharge(coins: i64, billing: tauri::State<'_, Billing>) -> Resul
     recharge(&billing, coins)
 }
 
-/// 校验激活码（骨架：仅格式校验 + 占位余额）。
-#[tauri::command]
-pub fn billing_activate(
-    license_key: String,
-    billing: tauri::State<'_, Billing>,
-) -> Result<AuthState, String> {
+/// 激活码兑换赠送的灵魂币。
+const ACTIVATE_BONUS: i64 = 100;
+
+/// 激活逻辑本体，和 tauri::State 解耦方便单测（同 recharge/is_valid_license 的理由）。
+fn activate(billing: &Billing, license_key: &str) -> Result<AuthState, String> {
     let key = license_key.trim().to_string();
     if !is_valid_license(&key) {
         return Err("激活码格式无效（示例：SOUL-AB12-CD34-EF56）。".to_string());
     }
     let mut st = billing.0.lock().map_err(|_| "计费状态锁已损坏".to_string())?;
+
+    // 同一个码只能兑一次。这拦不住把配置文件删了重来的人（真正的一次性核销要么
+    // 靠服务器记录、要么靠签名码），但至少不会让同一个码在界面上点一次加一次。
+    if st.redeemed_keys.iter().any(|k| k.eq_ignore_ascii_case(&key)) {
+        return Err("这个激活码已经用过了。".to_string());
+    }
+
     st.activated = true;
-    st.license_key = Some(key);
-    st.balance = 100; // 占位：激活赠送 100 次
+    st.license_key = Some(key.clone());
+    st.redeemed_keys.push(key);
+    // 必须是叠加不是覆盖——先充值再激活的用户，之前这里会把余额直接清成 100。
+    st.balance += ACTIVATE_BONUS;
     Ok(st.clone())
+}
+
+/// 校验激活码（骨架：仅格式校验 + 赠送固定额度）。
+#[tauri::command]
+pub fn billing_activate(
+    license_key: String,
+    billing: tauri::State<'_, Billing>,
+) -> Result<AuthState, String> {
+    activate(&billing, &license_key)
 }
 
 /// 校验 SOUL-XXXX-XXXX-XXXX 格式（大小写不敏感）。
@@ -197,6 +218,44 @@ mod tests {
         let ok = recharge(&billing, 1000).unwrap();
         assert_eq!(ok.balance, 1000);
         assert!(recharge(&billing, 999).is_err(), "非预设档位应该被拒绝");
+    }
+
+    #[test]
+    fn activate_adds_bonus_instead_of_overwriting_balance() {
+        // 曾经的真 bug：这里是 st.balance = 100 直接赋值，先充值再激活会把余额清光。
+        let billing = Billing::default();
+        {
+            let mut st = billing.0.lock().unwrap();
+            st.balance = 5000;
+        }
+        let st = activate(&billing, "SOUL-AB12-CD34-EF56").unwrap();
+        assert_eq!(st.balance, 5000 + ACTIVATE_BONUS, "激活应该叠加而不是覆盖已有余额");
+        assert!(st.activated);
+    }
+
+    #[test]
+    fn same_license_cannot_be_redeemed_twice() {
+        let billing = Billing::default();
+        {
+            let mut st = billing.0.lock().unwrap();
+            st.balance = 0;
+        }
+        assert_eq!(activate(&billing, "SOUL-AB12-CD34-EF56").unwrap().balance, ACTIVATE_BONUS);
+        // 大小写不同也算同一个码
+        let again = activate(&billing, "soul-ab12-cd34-ef56");
+        assert!(again.is_err(), "同一个码不该能兑第二次");
+        assert_eq!(billing.balance(), ACTIVATE_BONUS, "被拒的兑换不该改动余额");
+    }
+
+    #[test]
+    fn activate_rejects_bad_format_without_touching_balance() {
+        let billing = Billing::default();
+        {
+            let mut st = billing.0.lock().unwrap();
+            st.balance = 42;
+        }
+        assert!(activate(&billing, "NOPE").is_err());
+        assert_eq!(billing.balance(), 42);
     }
 
     #[test]

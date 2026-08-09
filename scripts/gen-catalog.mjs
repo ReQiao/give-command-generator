@@ -184,6 +184,22 @@ function buildEntities(ids, zh) {
   return rows;
 }
 
+/**
+ * particle_type 注册表。
+ *
+ * 和物品/方块/实体不同，官方语言文件里**没有** particle.minecraft.<path> 这一族键
+ * （只有 particle.invalidOptions / particle.notFound 两条错误提示），所以拿不到
+ * 官方中文译名。这里一律退回英文名，不自己编译名——粒子 id 本来就是给指令用的，
+ * 不是给玩家在背包里看的，编一套没有官方依据的中文反而容易出错。
+ */
+function buildParticles(ids) {
+  return ids.map((id) => {
+    const path = id.slice("minecraft:".length);
+    const en = path.replace(/_/g, " ");
+    return [id, en, en, "粒子"];
+  });
+}
+
 function build(ids, zh, blockSet) {
   const seen = new Map();
   const rows = [];
@@ -248,11 +264,13 @@ async function main() {
   const itemIds = Object.keys(registries["minecraft:item"].entries).sort();
   const blockIds = Object.keys(registries["minecraft:block"].entries).sort();
   const entityIds = Object.keys(registries["minecraft:entity_type"]?.entries ?? {}).sort();
+  const particleIds = Object.keys(registries["minecraft:particle_type"]?.entries ?? {}).sort();
   const blockSet = new Set(blockIds);
 
   const items = build(itemIds, zh, blockSet);
   const blocks = build(blockIds, zh, blockSet);
   const entities = buildEntities(entityIds, zh);
+  const particles = buildParticles(particleIds);
 
   const stats = {};
   for (const [, , , cat] of items) stats[cat] = (stats[cat] || 0) + 1;
@@ -268,10 +286,13 @@ async function main() {
       `export const GENERATED_MC_VERSION = ${JSON.stringify(version)};\n\n` +
       `export const ITEMS = [\n${serialize(items)}\n] as const;\n\n` +
       `export const BLOCKS = [\n${serialize(blocks)}\n] as const;\n\n` +
-      `export const ENTITIES = [\n${serialize(entities)}\n] as const;\n`,
+      `export const ENTITIES = [\n${serialize(entities)}\n] as const;\n\n` +
+      `export const PARTICLES = [\n${serialize(particles)}\n] as const;\n`,
   );
 
-  console.log(`\n完成: ${items.length} 物品 / ${blocks.length} 方块 / ${entities.length} 实体 -> ${OUT}`);
+  console.log(
+    `\n完成: ${items.length} 物品 / ${blocks.length} 方块 / ${entities.length} 实体 / ${particles.length} 粒子 -> ${OUT}`,
+  );
   console.log("物品分类分布:", stats);
 }
 

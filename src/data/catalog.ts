@@ -2,7 +2,7 @@ export type CatalogRow = readonly [string, string, ...unknown[]];
 export type PairRow = readonly [string, string];
 
 // Java 版物品与方块清单由 Mojang 官方数据生成器产出，见 scripts/gen-catalog.mjs
-export { ITEMS, BLOCKS, ENTITIES, GENERATED_MC_VERSION } from "./items.generated";
+export { ITEMS, BLOCKS, ENTITIES, PARTICLES, GENERATED_MC_VERSION } from "./items.generated";
 
 // 基岩版是另一套 ID 体系，不能拿上面 Java 的表去拼基岩指令（蜘蛛网 Java 叫
 // cobweb、基岩叫 web，这类同物不同名的有近百处），见 scripts/gen-bedrock-catalog.mjs
