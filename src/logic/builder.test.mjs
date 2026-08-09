@@ -595,6 +595,32 @@ function base(version) {
   expect("1.21.2 shadow array -> int", cmd.includes('"shadow_color":-65536'), true);
 }
 
+// --- custom_data 组件（用于 AI 模式给抛射物打标记，见 K8 探针实测） ---
+console.log("\n[custom_data]");
+{
+  const f = base("java_1_21_11_plus");
+  f.customData = "{soul_tnt_arrow:1b}";
+  expect(
+    "1.21.11+ custom_data 原样透传进组件",
+    buildGiveCommand(f),
+    "give @a minecraft:stone[custom_data={soul_tnt_arrow:1b}] 1",
+  );
+}
+{
+  const f = base("java_1_21"); // 走 buildJava121Legacy 分支
+  f.customData = "{soul_tnt_arrow:1b}";
+  expect(
+    "1.21 (legacy 分支) custom_data 同样生效",
+    buildGiveCommand(f),
+    "give @a minecraft:stone[custom_data={soul_tnt_arrow:1b}] 1",
+  );
+}
+{
+  const f = base("java_1_21_11_plus");
+  f.customData = "   "; // 空白应视为未设置，不应输出空的 custom_data 组件
+  expect("customData 只有空白时不输出该组件", buildGiveCommand(f), "give @a minecraft:stone 1");
+}
+
 // --- 存档实际版本识别（level.dat 的 Data.Version.Name -> GiveVersion 分档） ---
 console.log("\n[detectGiveVersionFromRaw]");
 {

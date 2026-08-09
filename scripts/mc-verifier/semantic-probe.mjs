@@ -311,11 +311,13 @@ const SEMANTIC_PROBES = [
   {
     id: "K8_fired_arrow_carries_custom_data",
     note:
-      "关键问题：用发射器（模拟'弓射出特制箭'，RCON 没法模拟玩家真的拉弓，" +
-      "发射器发箭是同一条'物品->抛射物实体'代码路径，用它代替）发射一支带 " +
-      "custom_data 组件的箭，落地/飞行中的箭实体 NBT 里是否还能查到这个" +
-      "custom_data——如果能，就可以用它区分'哪种特制箭'，做到只有这种箭" +
-      "触发效果而不是所有箭都触发；如果查不到，这条路走不通，得换别的办法。",
+      "结论已确认（本会话自动化 RCON 在 26.2 上遇到栅栏乱序读回全空，" +
+      "改由用户在真实客户端手测确认，见 results/26.2/semantic.json 的" +
+      "K8 conclusion 字段）：给箭物品加 custom_data 组件后发射出去，" +
+      "落地的箭实体的 item.components 里保留了这份 custom_data，且额外" +
+      "镜像出一份顶层 data:{...} 字段，可以直接用选择器 " +
+      "nbt={data:{...}} 匹配，不用钻进 item.components 内部。" +
+      "这条探针留着给下次环境正常时复跑用自动化结果交叉验证。",
     setup: [
       "setblock 25 -58 0 minecraft:dispenser[facing=up]",
       `item replace block 25 -58 0 container.0 with minecraft:arrow[custom_data={soul_tnt_arrow:1b}]`,

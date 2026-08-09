@@ -47,7 +47,8 @@ function buildSupportedCommands(): string {
 - give        { target?: "@s", item: "minecraft:物品id", count?: number,
                 enchantments?: [{ id: "minecraft:附魔id", level: 数字 }],
                 displayName?: [[{ text: "名称", color?: "gold|red|..." }]],
-                lore?: [[{ text: "描述行" }]], unbreakable?: true }
+                lore?: [[{ text: "描述行" }]], unbreakable?: true,
+                customData?: "{自定义键:值}" }
 - say         { message: string }
 - effect_give { target: string, effect: "minecraft:效果id", duration?: number|"infinite", amplifier?: number }
 - effect_clear{ target: string, effect?: string }
@@ -110,13 +111,28 @@ function buildMechanicsGuide(): string {
 - 掉落物（minecraft:item）落到地面 → OnGround:1b
   掉落物根本没有 inGround 字段。掉落物用 Item:{id:"..."} 区分是哪种物品。
 
+【用 custom_data 给物品打标记，区分"哪一件"而不是"这一类"（已实测确认）】
+很多组合技需要区分"这个特定的物品/箭"和"世界上其他同类物品"——比如一把特制
+的弓射出的箭要爆炸，但玩家背包里、骷髅射出的其他普通箭不该受影响。给 give
+意图加 customData 字段（放一个自定义 SNBT 复合，比如 "{soul_tnt_arrow:1b}"），
+已经在真实服务器上验证过：这份数据会跟着抛射物一起保留在发射后的箭实体里，
+并且额外镜像出一份**顶层** data:{...} 字段，可以直接用选择器
+nbt={data:{你的键:值}} 匹配，不需要钻进 item.components 内部（那边的键名
+带引号和冒号，选择器 nbt= 语法里很难写）。凡是"只有这一件特制物品才该触发
+效果，其他同类物品不该被误伤"的需求，都用这个技巧标记 + 过滤，别漏掉这一步
+直接对"所有箭/所有掉落物"生效——那样一来除了这把特制弓，任何弓射出的箭、
+其他玩家射的箭都会被误伤。
+
 【经典组合技（写法均已实测可用，侦测类命令记得标 loop:true）】
-- 「TNT 弓 / 爆炸箭」：原版弓射不出 TNT，但可以侦测落地的箭并在原地生成 TNT：
-    give 一把弓（可附 power 力量附魔）
-    execute（loop:true）: at @e[type=minecraft:arrow,nbt={inGround:1b}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}
-    execute（loop:true）: as @e[type=minecraft:arrow,nbt={inGround:1b}] run kill @s
-  两条 execute 都标 loop:true，任意箭落地即爆炸，部署后自动生效。
-  末尾那条 kill 不能省，否则同一支箭会每 tick 重复触发。
+- 「TNT 弓 / 爆炸箭」：原版弓射不出 TNT，需要给特制箭打标记，只让这种箭爆炸，
+  不能影响玩家背包里的普通箭或者别人射的箭：
+    give 一把弓（普通弓即可，可附 power 力量附魔）
+    give 若干支特制箭：{ item: "minecraft:arrow", customData: "{soul_tnt_arrow:1b}" }
+    execute（loop:true）: at @e[type=minecraft:arrow,nbt={inGround:1b,data:{soul_tnt_arrow:1b}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}
+    execute（loop:true）: as @e[type=minecraft:arrow,nbt={inGround:1b,data:{soul_tnt_arrow:1b}}] run kill @s
+  两条 execute 都标 loop:true，只有插了 customData 标记的特制箭落地才爆炸，
+  部署后自动生效。末尾那条 kill 不能省，否则同一支箭会每 tick 重复触发。
+  explanation 里要提醒玩家：这些箭要用弓射出去才会触发，直接扔在地上不会。
 
 - 「地雷 / 落地即炸」：丢在地上的 TNT 掉落物一落地就引爆：
     execute（loop:true）: at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:"minecraft:tnt"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}

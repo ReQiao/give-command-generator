@@ -218,6 +218,15 @@ export interface GiveForm {
   defaultMiningSpeed: number;
   damagePerBlock: number;
   toolRules: ToolRuleRow[];
+  /**
+   * custom_data 组件的原始 SNBT 复合内容（含外层花括号，如 "{soul_tnt_arrow:1b}"）。
+   * 主要给 AI 模式用——给箭之类的抛射物打自定义标记，发射后箭实体上会保留这份
+   * 数据（含一份顶层 data:{...} 镜像，方便选择器 nbt= 直接匹配），可以用来区分
+   * "哪种特制箭/物品"，而不是让所有同类物品都触发同一个效果。已在
+   * scripts/mc-verifier 的 K8 探针里实测确认（见 results/26.2/semantic.json）。
+   * 手动模式 UI 目前没有对应输入框，留空即可，不影响现有功能。
+   */
+  customData: string;
 }
 
 export function createDefaultForm(): GiveForm {
@@ -265,6 +274,7 @@ export function createDefaultForm(): GiveForm {
     defaultMiningSpeed: 1,
     damagePerBlock: 0,
     toolRules: [],
+    customData: "",
   };
 }
 
@@ -297,6 +307,7 @@ export function normalizeForm(value: unknown): GiveForm {
     displayName: Array.isArray(data.displayName) ? data.displayName : [],
     itemName: Array.isArray(data.itemName) ? data.itemName : [],
     lore: Array.isArray(data.lore) ? data.lore : [],
+    customData: typeof data.customData === "string" ? data.customData : fallback.customData,
   };
 }
 
@@ -415,6 +426,7 @@ function buildModernFamily(form: GiveForm, profile: ModernProfile, warnings: str
   if (breakPredicates.length) add("can_break", wrapPredicates(breakPredicates));
 
   if (form.unbreakable) add("unbreakable", "{}");
+  if (form.customData.trim()) add("custom_data", form.customData.trim());
   if (profile.supportsGlider && form.glider) add("glider", "{}");
 
   if (profile.supportsDeathProtection) {
@@ -519,6 +531,7 @@ function buildJava121Legacy(form: GiveForm, warnings: string[] = []): string {
   if (breakPredicates.length) add("can_break", `{predicates:[${breakPredicates.join(",")}]}`);
 
   if (form.unbreakable) add("unbreakable", "{}");
+  if (form.customData.trim()) add("custom_data", form.customData.trim());
 
   if (form.damageEnabled) add("damage", String(normalizeInt(form.damage, 0, 0)));
   if (form.maxDamageEnabled) add("max_damage", String(normalizeInt(form.maxDamage, 1, 1)));

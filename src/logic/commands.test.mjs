@@ -641,6 +641,15 @@ console.log("\n[ai prompt]");
   expect("提示词给了拔刀剑组合范例", prompt.includes("拔刀剑"), true);
   // 装备附魔要走结构化字段，不要求 AI 手拼 SNBT
   expect("提示词教了装备附魔走结构化 enchantments 字段", prompt.includes("equipment.<slot>.enchantments"), true);
+  // custom_data 标记技巧——实测确认过（K8 探针）抛射物会保留物品的 custom_data，
+  // 且镜像出顶层 data:{...}，用来区分"这一件"特制物品，别把所有同类物品都误伤
+  expect("提示词声明了 give 的 customData 字段", prompt.includes("customData"), true);
+  expect("提示词教了 custom_data 会随抛射物保留并镜像出顶层 data 字段", prompt.includes("顶层"), true);
+  expect(
+    "提示词的爆炸箭范例改成了只让打标记的特制箭触发，不是所有箭",
+    prompt.includes("nbt={inGround:1b,data:{soul_tnt_arrow:1b}}"),
+    true,
+  );
 }
 {
   const r = parseAiContent('{"intents":[{"command":"say","form":{"message":"hi"}}],"explanation":"打个招呼"}');
@@ -754,6 +763,34 @@ console.log("\n[端到端：爆炸箭 / 地雷]");
     "地雷命令方块（嵌套引号正确转义，与实测读回一致）",
     r.command,
     'setblock ~ ~ ~ minecraft:repeating_command_block{Command:"execute at @e[type=minecraft:item,nbt={OnGround:1b,Item:{id:\\"minecraft:tnt\\"}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",auto:1b}',
+  );
+}
+{
+  // 新版爆炸箭：用 customData 打标记，只让这一批特制箭触发，不误伤普通箭
+  // （K8 探针实测确认：物品的 custom_data 组件会随抛射物保留并镜像出顶层 data 字段）
+  const ai = parseAiContent(
+    JSON.stringify({
+      intents: [
+        { command: "give", form: { item: "minecraft:bow", count: 1 } },
+        { command: "give", form: { item: "minecraft:arrow", count: 16, customData: "{soul_tnt_arrow:1b}" } },
+        {
+          command: "execute",
+          form: {
+            subcommands: ["at @e[type=minecraft:arrow,nbt={inGround:1b,data:{soul_tnt_arrow:1b}}]"],
+            run: "summon minecraft:tnt ~ ~ ~ {fuse:0s}",
+          },
+        },
+      ],
+      explanation: "特制箭打了标记，只有这种箭落地才炸",
+    }),
+  );
+  const [bowCmd, arrowCmd, executeCmd] = dispatchIntents(ai.intents, MODERN).map((r) => r.command);
+  expect("特制箭爆炸弓：普通弓不受影响", bowCmd, "give @a minecraft:bow 1");
+  expect("特制箭爆炸弓：特制箭带 custom_data 组件", arrowCmd, "give @a minecraft:arrow[custom_data={soul_tnt_arrow:1b}] 16");
+  expect(
+    "特制箭爆炸弓：execute 只过滤带标记的箭，不是所有箭",
+    executeCmd,
+    "execute at @e[type=minecraft:arrow,nbt={inGround:1b,data:{soul_tnt_arrow:1b}}] run summon minecraft:tnt ~ ~ ~ {fuse:0s}",
   );
 }
 {

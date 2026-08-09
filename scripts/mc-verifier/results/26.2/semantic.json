@@ -180,6 +180,33 @@
         "cmd": "setblock 20 -58 0 minecraft:air",
         "response": "Changed the block at 20, -58, 0"
       }
+    },
+    {
+      "id": "K8_fired_arrow_carries_custom_data",
+      "note": "关键问题：给箭物品加 custom_data 组件后发射出去，落地的箭实体身上还能不能查到这个标记——用来区分'哪种特制箭'，做到只有特制箭触发效果而不是所有箭都触发。这条不是本会话自动化 RCON 跑出来的（本会话 26.2 上遇到已知的栅栏乱序问题，读回全空，见 semantic-probe.mjs 里 K8 的注释），是用户在自己真实客户端手动验证、把 /data get 的真实输出贴回来的，query.response 是原样转录用户提供的文本。",
+      "setup": [
+        {
+          "cmd": "setblock ~ ~ ~1 minecraft:dispenser[facing=up]",
+          "response": "(用户本机手测，未记录逐条 RCON 响应)"
+        },
+        {
+          "cmd": "item replace block ~ ~ ~1 container.0 with minecraft:arrow[custom_data={soul_tnt_arrow:1b}]",
+          "response": "(用户本机手测，未记录逐条 RCON 响应)"
+        },
+        {
+          "cmd": "setblock ~ ~-1 ~1 minecraft:redstone_block",
+          "response": "(用户本机手测，未记录逐条 RCON 响应)"
+        }
+      ],
+      "query": {
+        "cmd": "data get entity @e[type=minecraft:arrow,limit=1,sort=nearest]",
+        "response": "Arrow has the following entity data: {Motion:[0.0d, 0.0d, 0.0d], damage:2.0d, PierceLevel:0b, item:{components:{\"minecraft:custom_data\":{soul_tnt_arrow:1b}}}, id:\"minecraft:arrow\", shake:0b, data:{soul_tnt_arrow:1b}, count:1, pickup:1b, inGround:1b, Invulnerable:0b, LeftOwner:1b, fall_distance:0.0d, Air:300s, OnGround:0b, PortalCooldown:0, Rotation:[-56.882732f,-89.395905f], life:54s, inBlockState:{Properties:{snowy:\"false\"},Name:\"minecraft:grass_block\"}, SoundEvent:\"minecraft:entity.arrow.hit\", crit:0b, HasBeenShot:1b, Fire:0s}"
+      },
+      "cleanup": {
+        "cmd": "kill @e[type=minecraft:arrow]",
+        "response": "(用户本机手测，未记录逐条 RCON 响应)"
+      },
+      "conclusion": "确认：物品的 custom_data 组件会随抛射物一起保留在 item.components 里，并且额外镜像出一份顶层 data:{...} 字段，方便选择器直接用 nbt={data:{...}} 匹配，不需要钻进 item.components 内部（内部字段名带冒号/引号，选择器 nbt= 语法里不好写）。"
     }
   ]
 }
