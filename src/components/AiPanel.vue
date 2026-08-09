@@ -132,6 +132,30 @@ async function recharge(coins: number) {
   }
 }
 
+/**
+ * 激活码兑换。后端只做格式校验 + 记录已兑换的码防止重复兑，没有真实性验证——
+ * 真正的一次性核销要么等服务器（能查这个码有没有被别人用过），要么用离线可
+ * 验证的签名码。所以下面的文案不要写成"已验证"之类，别暗示这是一道真防线。
+ */
+const licenseKey = ref("");
+const activating = ref(false);
+
+async function activate() {
+  const key = licenseKey.value.trim();
+  if (!key || activating.value) return;
+  activating.value = true;
+  try {
+    const st = await invoke<AuthState>("billing_activate", { licenseKey: key });
+    balance.value = st.balance;
+    licenseKey.value = "";
+    emit("toast", "激活码已兑换");
+  } catch (err) {
+    emit("toast", `兑换失败：${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    activating.value = false;
+  }
+}
+
 onMounted(() => {
   void refreshBalance();
   void loadTopupTiers();
@@ -395,6 +419,25 @@ function copyAll() {
           <span class="ai-topup-yuan">¥{{ tier.yuan }}</span>
           <span class="ai-topup-coins">{{ tier.coins }} 灵魂币</span>
         </button>
+      </div>
+
+      <div class="ai-license">
+        <span class="field-label">
+          激活码
+          <InfoTip text="在外部渠道购买后拿到的激活码，格式 SOUL-XXXX-XXXX-XXXX。同一个码只能兑换一次。" />
+        </span>
+        <div class="ai-license-row">
+          <input
+            v-model="licenseKey"
+            placeholder="SOUL-XXXX-XXXX-XXXX"
+            autocomplete="off"
+            spellcheck="false"
+            @keydown.enter="activate"
+          />
+          <button type="button" :disabled="!licenseKey.trim() || activating" @click="activate">
+            {{ activating ? "兑换中…" : "兑换" }}
+          </button>
+        </div>
       </div>
     </div>
 
