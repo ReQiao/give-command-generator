@@ -166,6 +166,46 @@ function base(version) {
   );
 }
 
+// --- 10b. 基岩版走自己的 ID 表，不能拿 Java 的 id 去拼 ---
+// 这批曾经是真 bug：早先 buildBedrock 查的是 Java 的 ITEMS/BLOCKS，
+// 下面这些物品在基岩版里的 id 和 Java 完全不同，生成出来的指令进游戏直接报错。
+{
+  const cases = [
+    ["蜘蛛网", "web"],            // Java: cobweb
+    ["枯萎的灌木", "deadbush"],    // Java: dead_bush
+    ["南瓜灯", "lit_pumpkin"],     // Java: jack_o_lantern
+    ["睡莲", "waterlily"],         // Java: lily_pad
+    ["音符盒", "noteblock"],       // Java: note_block
+    ["末地石砖", "end_bricks"],    // Java: end_stone_bricks
+  ];
+  for (const [zh, bedrockId] of cases) {
+    const f = base("bedrock");
+    f.item = zh;
+    expect(`基岩版「${zh}」用基岩 id ${bedrockId}`, buildGiveCommand(f), `give @a ${bedrockId} 1 0`);
+  }
+  // 对照：同样的中文名在 Java 版必须仍然走 Java 的 id，别把两边搞串了
+  const j = base("java_1_21_11_plus");
+  j.item = "蜘蛛网";
+  expect("Java 版「蜘蛛网」仍是 cobweb", buildGiveCommand(j), "give @a minecraft:cobweb 1");
+}
+{
+  // can_place_on/can_destroy 里的方块同理，要查基岩方块表
+  const f = base("bedrock");
+  f.blockLimits = [{ block: "音符盒", type: "可放置" }];
+  expect(
+    "基岩版方块限制也用基岩 id",
+    buildGiveCommand(f).includes('"noteblock"'),
+    true,
+  );
+}
+{
+  // 基岩独有物品（Java 根本没有）应该也能正常生成
+  const f = base("bedrock");
+  f.item = "边界";
+  const cmd = buildGiveCommand(f);
+  expect("基岩独有物品能生成", cmd, "give @a border_block 1 0");
+}
+
 // --- 11. Java 1.21 lore is SNBT string array ---
 {
   const f = base("java_1_21");

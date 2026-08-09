@@ -14,6 +14,8 @@ import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import {
   ATTRIBUTES,
+  BEDROCK_BLOCKS,
+  BEDROCK_ITEMS,
   BLOCKS,
   CORRECT_FOR_DROPS,
   ENCHANTS,
@@ -125,7 +127,21 @@ const visibleTabs = computed(() => {
   return ["文本", "附魔", "属性", "方块", "基础", "死亡效果", "食物工具"];
 });
 
-const filteredBlocks = computed(() => BLOCKS.filter((row) => matches(row, blockSearch.value)));
+/**
+ * 物品/方块下拉用的目录要跟着版本走：基岩版是另一套 ID 体系，条目也不完全重合
+ * （基岩独有 62 个物品 / 157 个方块，Java 独有的那些在基岩里根本不存在）。
+ * 选基岩版时就该只看得到基岩真实有的东西，否则用户能选到一个基岩里没有的物品，
+ * 生成出来的指令进游戏直接报错。
+ *
+ * 注意"食物工具"页的 toolBlock 不走这里——tool 组件是 Java 1.20.5+ 独有的，
+ * 基岩版的 give 根本不输出它（见 buildBedrock），那边继续用 Java 方块表是对的。
+ */
+const bedrockMode = computed(() => form.version === "bedrock");
+const itemCatalog = computed(() => (bedrockMode.value ? BEDROCK_ITEMS : ITEMS));
+const blockCatalog = computed(() => (bedrockMode.value ? BEDROCK_BLOCKS : BLOCKS));
+const filteredBlocks = computed(() =>
+  blockCatalog.value.filter((row) => matches(row, blockSearch.value)),
+);
 const shellClass = computed(() => ({ "app-shell": true, "no-motion": !animationEnabled.value }));
 const legacyJava = computed(() => isJava121LegacyFamily(form.version));
 const supportsTooltipDisplay = computed(() =>
@@ -600,7 +616,7 @@ function textOptions(items: string[]): SelectOption[] {
 
           <span class="field-label">物品<InfoTip text="可以输入中文名、minecraft:ID 或不带 minecraft: 的 ID，按 Tab 可补全；也可以点「选择」从分类列表里挑。" /></span>
           <div class="item-field">
-            <CatalogCombo v-model="form.item" :catalog="ITEMS" placeholder="选择或输入物品" />
+            <CatalogCombo v-model="form.item" :catalog="itemCatalog" placeholder="选择或输入物品" />
             <button class="pick-btn" type="button" @click="itemPickerOpen = true">选择…</button>
           </div>
 
@@ -839,7 +855,7 @@ function textOptions(items: string[]): SelectOption[] {
 
     <ItemPickerModal
       v-model:open="itemPickerOpen"
-      :catalog="ITEMS"
+      :catalog="itemCatalog"
       :current="form.item"
       @select="selectItem"
     />

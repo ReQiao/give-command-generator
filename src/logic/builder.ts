@@ -1,5 +1,7 @@
 import {
   ATTRIBUTES,
+  BEDROCK_BLOCKS,
+  BEDROCK_ITEMS,
   BLOCKS,
   CORRECT_FOR_DROPS,
   ENCHANTS,
@@ -557,14 +559,20 @@ function buildJava121Legacy(form: GiveForm, warnings: string[] = []): string {
   return `${slash}give ${normalizeTarget(form.target)} ${mapCatalog(ITEMS, form.item)}${body} ${normalizeInt(form.count, 1, 1)}`;
 }
 
+/**
+ * 基岩版走自己的 ID 表，不能复用上面 Java 的 ITEMS/BLOCKS——两版 ID 体系不通用，
+ * 同一个东西名字经常不一样（蜘蛛网 cobweb/web、南瓜灯 jack_o_lantern/lit_pumpkin、
+ * 音符盒 note_block/noteblock……物品 42 处、方块 56 处），而且各有独占条目。
+ * 早先这里查的是 Java 表，这些物品在基岩版里生成出来的指令是无效的。
+ */
 function buildBedrock(form: GiveForm): string {
   const components: Record<string, unknown> = {};
   const place = form.blockLimits
     .filter((row) => ["place", "both"].includes(pairValue(LIMIT_TYPES, row.type)) && String(row.block ?? "").trim())
-    .map((row) => componentId(mapCatalog(BLOCKS, row.block)));
+    .map((row) => componentId(mapCatalog(BEDROCK_BLOCKS, row.block)));
   const brk = form.blockLimits
     .filter((row) => ["break", "both"].includes(pairValue(LIMIT_TYPES, row.type)) && String(row.block ?? "").trim())
-    .map((row) => componentId(mapCatalog(BLOCKS, row.block)));
+    .map((row) => componentId(mapCatalog(BEDROCK_BLOCKS, row.block)));
 
   if (place.length) components["minecraft:can_place_on"] = { blocks: place };
   if (brk.length) components["minecraft:can_destroy"] = { blocks: brk };
@@ -575,7 +583,7 @@ function buildBedrock(form: GiveForm): string {
 
   const suffix = Object.keys(components).length ? ` ${compact(components)}` : "";
   const slash = form.withSlash ? "/" : "";
-  return `${slash}give ${normalizeTarget(form.target)} ${componentId(mapCatalog(ITEMS, form.item))} ${normalizeInt(form.count, 1, 1)} ${normalizeInt(form.bedrockDataValue, 0, 0)}${suffix}`;
+  return `${slash}give ${normalizeTarget(form.target)} ${componentId(mapCatalog(BEDROCK_ITEMS, form.item))} ${normalizeInt(form.count, 1, 1)} ${normalizeInt(form.bedrockDataValue, 0, 0)}${suffix}`;
 }
 
 function buildJava121Food(form: GiveForm): string {

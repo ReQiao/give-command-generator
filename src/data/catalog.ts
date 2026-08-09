@@ -1,8 +1,12 @@
 export type CatalogRow = readonly [string, string, ...unknown[]];
 export type PairRow = readonly [string, string];
 
-// 物品与方块清单由 Mojang 官方数据生成器产出，见 scripts/gen-catalog.mjs
+// Java 版物品与方块清单由 Mojang 官方数据生成器产出，见 scripts/gen-catalog.mjs
 export { ITEMS, BLOCKS, ENTITIES, GENERATED_MC_VERSION } from "./items.generated";
+
+// 基岩版是另一套 ID 体系，不能拿上面 Java 的表去拼基岩指令（蜘蛛网 Java 叫
+// cobweb、基岩叫 web，这类同物不同名的有近百处），见 scripts/gen-bedrock-catalog.mjs
+export { BEDROCK_ITEMS, BEDROCK_BLOCKS, BEDROCK_ENTITIES } from "./bedrock.generated";
 
 export const ENCHANTS = [
   [
@@ -16,6 +20,12 @@ export const ENCHANTS = [
     "节肢杀手",
     5,
     "提高对节肢生物伤害"
+  ],
+  [
+    "minecraft:binding_curse",
+    "绑定诅咒",
+    1,
+    "穿上后无法主动脱下，死亡才掉落"
   ],
   [
     "minecraft:blast_protection",
@@ -238,6 +248,12 @@ export const ENCHANTS = [
     "耐久",
     3,
     "降低物品损耗概率"
+  ],
+  [
+    "minecraft:vanishing_curse",
+    "消失诅咒",
+    1,
+    "死亡时物品直接消失，不掉落"
   ],
   [
     "minecraft:wind_burst",
