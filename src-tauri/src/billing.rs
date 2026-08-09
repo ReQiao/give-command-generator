@@ -13,10 +13,54 @@
 //! 余额和激活状态会落盘（见 `state_path`）。这一步是变现的前提：在此之前状态
 //! 只活在内存里，重启就回到初始额度，等于无限免费。落盘之后初始额度变成
 //! "首次安装送一次"的体验额度，用完就得充值/激活。
+//!
+//! 落盘之后立刻会有下一个问题：状态文件是纯文本 JSON，用户拿记事本把 balance
+//! 后面的数字改大，保存、重启就生效——这台机器是用户自己的，他对自己的文件
+//! 有完全的读写权限，任何本地校验都无法从根本上禁止这件事，只能提高门槛。
+//! 这里加的是 HMAC 签名（见 `signature`）：写盘时把状态和一个内置密钥一起算出
+//! 签名存进文件，读盘时重新算一遍，对不上就判定为被手动改过，不予信任。
+//! 这挡得住"打开记事本改一个数字"，挡不住愿意拆这个程序找出密钥的人——密钥
+//! 编译进了这个二进制里，对真下决心逆向的人来说本来就是可读的。真正做到
+//! "改了也没用"，只能把余额的权威数据挪到用户碰不到的服务器上，这是本模块
+//! 顶部注释里"等真要变现时再接账号服务端"要做的事，现在还没有服务器。
 
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::path::PathBuf;
 use std::sync::Mutex;
+
+type HmacSha256 = Hmac<Sha256>;
+
+/// 签名用的内置密钥。它跟着程序一起分发到用户机器上，对愿意拆包/反编译的人
+/// 来说不是真正意义上的秘密——这一点在任何客户端本地校验里都是天然的，
+/// 不是这里实现得不够好。它能挡住的只是"没意愿逆向、单纯拿记事本改数字"
+/// 这一档，这也是加这层签名唯一想解决的问题。
+const INTEGRITY_KEY: &[u8] = b"soul-lantern-local-billing-integrity-v1-not-a-real-secret";
+
+/// 给状态的关键字段算一个签名。故意手动按固定顺序拼字段，而不是直接对整份
+/// JSON 文本取哈希——那样的话 JSON 序列化时字段顺序、空格这些跟数值无关的
+/// 细节变了，签名就会跟着变，会把无害的格式变化也误判成篡改。
+fn signature(state: &AuthState) -> String {
+    let mut mac = HmacSha256::new_from_slice(INTEGRITY_KEY).expect("固定长度的密钥总是合法");
+    mac.update(&[state.activated as u8]);
+    mac.update(state.license_key.as_deref().unwrap_or("").as_bytes());
+    mac.update(&state.balance.to_le_bytes());
+    for key in &state.redeemed_keys {
+        mac.update(key.as_bytes());
+    }
+    mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// 落盘时在 AuthState 基础上多带一个签名字段；`sig` 用 Option 是因为要兼容
+/// 加签名校验之前（上一版本）写出去的旧文件——那些文件没有这个字段。
+#[derive(Serialize, Deserialize)]
+struct SignedState {
+    #[serde(flatten)]
+    state: AuthState,
+    #[serde(default)]
+    sig: Option<String>,
+}
 
 /// 首次安装赠送的体验额度。按每次生成几十灵魂币算，够用一百多次。
 /// 真开始收费时按需调小；注意它只在"配置文件还不存在"时发放一次，
@@ -68,23 +112,50 @@ impl Default for Billing {
 
 impl Billing {
     /// 从磁盘读回上次的状态；文件不存在就发放首次体验额度并立刻落盘。
-    ///
-    /// 文件损坏（手改坏了、写到一半断电）时**不**清空重来，而是退回默认值并把
-    /// 坏文件留在原地不覆盖——用户的余额记录比一次干净启动重要，留着还有救。
     pub fn load_or_default() -> Self {
-        let Some(path) = state_path() else {
-            return Billing::default();
-        };
+        match state_path() {
+            Some(path) => Self::load_from(path),
+            None => Billing::default(),
+        }
+    }
+
+    /// `load_or_default` 的实际逻辑，接受可注入的路径方便测试
+    /// （真实路径来自系统配置目录，测试不该依赖那个）。
+    ///
+    /// 三种结果分开处理，别混在一起：
+    ///   1. 文件不存在 → 第一次运行，发体验额度并立刻落盘（否则"首次赠送"会在
+    ///      下次启动前一直重发）。
+    ///   2. 文件存在但连 JSON 都解析不了（写到一半断电、手滑删了一半内容）→
+    ///      这大概率是意外损坏而不是故意的，退回默认值但把坏文件原样留在原地
+    ///      不覆盖——用户的余额记录比一次干净启动重要，留着还有人工恢复的机会。
+    ///   3. 文件是合法 JSON、字段也对，但签名核对不上 → 这不是"意外损坏"，
+    ///      是"内容本身被改过但改的人不知道/不管签名"，退回默认值，并且**要**
+    ///      覆盖写盘（不像情形 2 那样保留），因为这份数字本来就不该被信任，
+    ///      留着它没有情形 2 那种"也许还能抢救"的意义。
+    ///      · 签名字段缺失（sig: None）是特例：这是加签名之前的老版本写的正常
+    ///        文件，不是篡改，直接信任里面的数字，然后立刻补签名。
+    fn load_from(path: PathBuf) -> Self {
         match std::fs::read_to_string(&path) {
-            Ok(text) => match serde_json::from_str::<AuthState>(&text) {
-                Ok(state) => Billing { state: Mutex::new(state), path: Some(path) },
+            Ok(text) => match serde_json::from_str::<SignedState>(&text) {
+                Ok(signed) => {
+                    let expected = signature(&signed.state);
+                    let state = match &signed.sig {
+                        None => signed.state, // 老版本文件，没有签名，信任并在下面补签
+                        Some(sig) if *sig == expected => signed.state,
+                        Some(_) => {
+                            eprintln!("计费状态签名核对失败，疑似被直接改动，已重置为默认值。");
+                            AuthState::default()
+                        }
+                    };
+                    let billing = Billing { state: Mutex::new(state), path: Some(path) };
+                    billing.persist(); // 补签名 / 把重置后的默认值写回去
+                    billing
+                }
                 Err(e) => {
                     eprintln!("计费状态文件解析失败（保留原文件不覆盖）：{e}");
                     Billing { state: Mutex::new(AuthState::default()), path: None }
                 }
             },
-            // 读不到基本就是第一次运行：发体验额度，并马上写一次，
-            // 这样"首次赠送"才真的只发一次。
             Err(_) => {
                 let billing = Billing { state: Mutex::new(AuthState::default()), path: Some(path) };
                 billing.persist();
@@ -93,13 +164,14 @@ impl Billing {
         }
     }
 
-    /// 单元测试用：指定状态文件路径。
+    /// 单元测试用：指定状态文件路径，但不读取已有内容（用来测试全新写入场景）。
+    /// 要测试"读回已有文件"的路径，用 `load_from`。
     #[cfg(test)]
     fn with_path(path: PathBuf) -> Self {
         Billing { state: Mutex::new(AuthState::default()), path: Some(path) }
     }
 
-    /// 把当前状态写回磁盘。写失败只打日志不打断调用方——
+    /// 把当前状态连同签名一起写回磁盘。写失败只打日志不打断调用方——
     /// 扣费/充值本身已经在内存里生效了，为了存盘失败去回滚反而更难理解。
     fn persist(&self) {
         let (Some(path), Ok(state)) = (self.path.as_ref(), self.state.lock()) else {
@@ -111,7 +183,8 @@ impl Billing {
                 return;
             }
         }
-        match serde_json::to_string_pretty(&*state) {
+        let signed = SignedState { state: state.clone(), sig: Some(signature(&state)) };
+        match serde_json::to_string_pretty(&signed) {
             Ok(text) => {
                 if let Err(e) = std::fs::write(path, text) {
                     eprintln!("写入计费状态失败：{e}");
@@ -402,6 +475,56 @@ mod tests {
             "{ 这不是合法 json",
             "坏文件必须原样保留，不能被覆盖",
         );
+    }
+
+    #[test]
+    fn hand_edited_balance_is_rejected_on_reload() {
+        // 这就是用户提的场景：拿文本编辑器直接把 balance 后面的数字改大。
+        let path = temp_state_file("tampered");
+        let billing = Billing::with_path(path.clone());
+        billing.consume(1000); // WELCOME_BALANCE - 1000，正常落盘，带合法签名
+
+        // 手改文件里的余额，但不知道/不管签名怎么算——这正是"记事本改数字"的行为，
+        // 不是能算出合法签名的攻击者。
+        let text = std::fs::read_to_string(&path).unwrap();
+        let tampered = text.replacen(
+            &format!("\"balance\": {}", WELCOME_BALANCE - 1000),
+            "\"balance\": 999999999",
+            1,
+        );
+        assert_ne!(text, tampered, "前置条件：确实替换到了 balance 字段");
+        std::fs::write(&path, &tampered).unwrap();
+
+        // 重新"启动"：签名对不上，不该采信这个改过的天文数字，应该重置为默认值
+        let reloaded = Billing::load_from(path.clone());
+        assert_eq!(reloaded.balance(), WELCOME_BALANCE, "签名不匹配就不该信任文件里的余额");
+
+        // 而且这次要覆盖写盘（不同于纯损坏 JSON 的情形）：被篡改的数字不值得保留，
+        // 磁盘上应该已经是一份新的、签名合法的默认状态。
+        assert_eq!(reload(&path).balance, WELCOME_BALANCE);
+    }
+
+    #[test]
+    fn legacy_file_without_signature_is_trusted_then_signed() {
+        // 上一版本（加签名校验之前）写出去的文件没有 sig 字段。这批文件不能被当成
+        // "被篡改"处理，否则这次更新一上线，所有老用户的余额都会被误判清零。
+        let path = temp_state_file("legacy");
+        std::fs::write(
+            &path,
+            r#"{"activated":true,"licenseKey":"builtin","balance":6666,"redeemedKeys":[]}"#,
+        )
+        .unwrap();
+
+        let billing = Billing::load_from(path.clone());
+        assert_eq!(billing.balance(), 6666, "没有签名字段的老文件应该被信任，不能清零");
+
+        // 信任之后要立刻补签名，不然下次重启这份"合法"数据又会被当成异常
+        let persisted_text = std::fs::read_to_string(&path).unwrap();
+        assert!(persisted_text.contains("\"sig\""), "读到老文件后应该马上补签名落盘");
+
+        // 补签名之后，"篡改检测"对这份文件才算真正生效
+        let again = Billing::load_from(path.clone());
+        assert_eq!(again.balance(), 6666, "补签名后重新读取，余额应保持不变");
     }
 
     #[test]

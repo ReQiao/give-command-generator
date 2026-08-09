@@ -31,4 +31,8 @@ dirs = "6"
 # 读 level.dat（gzip 压缩的 NBT）里的 Data.Version.Name，识别存档实际版本
 # crates.io 上包名是 hematite-nbt，但 lib 名字仍是 nbt，这里重命名回来方便代码里写 nbt::
 nbt = { package = "hematite-nbt", version = "0.5" }
+# 给本地计费状态文件签名，防的是"拿记事本手改余额数字"这种随手篡改。
+# sha2 已经是 reqwest/rustls 链路里的传递依赖，这里只多引入 hmac 一个小包。
+hmac = "0.12"
+sha2 = "0.10"
 
