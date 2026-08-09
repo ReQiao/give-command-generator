@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -53,6 +53,33 @@ interface SelectOption {
 
 const autosaveKey = "give-generator-pyside-autosave";
 const animationKey = "give-generator-animation";
+
+// ---------------- 使用须知（EULA）：必须同意才能进入软件 ----------------
+// 版本号写进 key 里——以后条款有实质性修改，把这个数字改大，老用户会被
+// 重新要求同意一遍，而不是永远沿用当初点过的那次同意。
+const EULA_VERSION = "1";
+const eulaKey = `give-generator-eula-accepted-v${EULA_VERSION}`;
+const eulaAccepted = ref(localStorage.getItem(eulaKey) === "true");
+const eulaScrolledToEnd = ref(false);
+const eulaTextEl = ref<HTMLElement | null>(null);
+
+function checkEulaScrolled() {
+  const el = eulaTextEl.value;
+  if (!el) return;
+  // 容差 8px：字体渲染/滚动条误差，卡在最后几像素不该拦着用户点不了同意。
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 8) eulaScrolledToEnd.value = true;
+}
+
+function acceptEula() {
+  eulaAccepted.value = true;
+  localStorage.setItem(eulaKey, "true");
+}
+
+function declineEula() {
+  // 桌面端（Tauri webview）关掉这个窗口等于退出程序；浏览器里 close() 可能被拦，
+  // 拦不掉也没关系——不同意就是不让往下走，界面本来就还停在须知页。
+  window.close();
+}
 const builtinTemplateModules = import.meta.glob("../templates/*.json", { eager: true, import: "default" }) as Record<string, unknown>;
 
 const status = ref("状态：未生成");
@@ -182,6 +209,12 @@ const autosaveTimer = window.setInterval(() => {
 
 onBeforeUnmount(() => {
   window.clearInterval(autosaveTimer);
+});
+
+onMounted(() => {
+  // 须知内容如果短到不用滚动就能看完（小字号/大窗口），不该因为用户压根没机会
+  // 触发 scroll 事件就一直卡在"未同意"按钮不能点，挂载后主动检查一次。
+  void nextTick(checkEulaScrolled);
 });
 
 function loadAutosave(): GiveForm {
@@ -440,7 +473,47 @@ function textOptions(items: string[]): SelectOption[] {
 </script>
 
 <template>
-  <main :class="shellClass">
+  <div v-if="!eulaAccepted" class="eula-gate">
+    <div class="eula-box">
+      <h2>使用须知</h2>
+      <div ref="eulaTextEl" class="eula-text" @scroll="checkEulaScrolled">
+        <p>
+          本软件（含全部源代码、界面设计，以及"自然语言 → AI 意图 → 确定性指令构建器"这一实现方式）
+          版权归开发者所有，受《中华人民共和国著作权法》及相关法律法规保护，未经明示授予的权利均予保留。
+        </p>
+        <p>
+          开发者仅授予您在自有设备上运行本软件、使用其生成的游戏内指令的权利；
+          您因安装或使用本软件，不因此获得对源代码本身的任何权利。
+        </p>
+        <p>未经开发者书面许可，您不得从事以下行为：</p>
+        <ul>
+          <li>对本软件进行反编译、反汇编、逆向工程，或以其他方式还原其源代码；</li>
+          <li>复制、传播、出售、二次分发本软件的源代码或其实质性部分（包括但不限于指令构建逻辑）；</li>
+          <li>移除、隐藏或篡改本软件内的版权声明、作者信息或本协议。</li>
+        </ul>
+        <p>
+          本软件按"现状"提供，不对因使用本软件（含 AI 生成的指令、一键部署功能）
+          导致的存档损坏、数据丢失或其他后果承担责任，请自行做好存档备份后再使用一键部署功能。
+        </p>
+        <p>
+          违反上述条款的，开发者保留通过一切合法手段（包括但不限于公开说明情况、提起诉讼）
+          追究相应法律责任的权利。
+        </p>
+        <p>
+          点击下方"我已阅读并同意"，即表示您已完整阅读、理解并同意接受本协议的全部条款；
+          如不同意，请勿使用本软件。
+        </p>
+      </div>
+      <div class="eula-actions">
+        <button type="button" @click="declineEula">不同意（退出）</button>
+        <button type="button" class="primary-btn" :disabled="!eulaScrolledToEnd" @click="acceptEula">
+          {{ eulaScrolledToEnd ? "我已阅读并同意" : "请先滑到底部" }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main v-else :class="shellClass">
     <section class="card top-card">
       <div class="brand-group">
         <div class="logo"></div>

@@ -886,6 +886,64 @@ button#primary,
   background: rgba(3, 8, 22, 0.82);
 }
 
+.eula-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #05070f;
+}
+
+.eula-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: clamp(320px, 90vw, 560px);
+  max-height: calc(100vh - 48px);
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.13));
+  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+}
+
+.eula-box h2 {
+  margin: 0;
+  color: #e7ecff;
+  font-size: 14pt;
+  font-weight: 900;
+}
+
+.eula-text {
+  overflow-y: auto;
+  padding-right: 6px;
+  color: #dce7ff;
+  font-size: 10pt;
+  line-height: 1.7;
+}
+
+.eula-text p {
+  margin: 0 0 12px;
+}
+
+.eula-text ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.eula-text li {
+  margin-bottom: 6px;
+}
+
+.eula-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 /*
  * 弹窗尺寸用 clamp(下限, 视口占比, 上限) 而不是固定 px，
  * 这样窗口在下限～上限之间会随窗口比例连续缩放，不会一超过某个
