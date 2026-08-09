@@ -568,9 +568,12 @@ function textOptions(items: string[]): SelectOption[] {
       </div>
     </section>
 
-    <!-- v-show，不是 v-if：同上面手动面板的道理，切走再切回不能丢用户已经打好的字/生成结果。 -->
+    <!-- v-show，不是 v-if：同上面手动面板的道理，切走再切回不能丢用户已经打好的字/生成结果。
+         :active 单独传 mode==='ai'，给 AiPanel 用来判断"这次是不是刚切进来"，
+         好在每次切入时重放点灯特效——面板本身常驻挂载，不能再靠组件创建时机触发动画了。 -->
     <AiPanel
       v-show="mode === 'ai'"
+      :active="mode === 'ai'"
       :version="form.version"
       :animate="animationEnabled"
       @toast="showToast"

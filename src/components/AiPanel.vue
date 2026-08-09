@@ -14,7 +14,14 @@ import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
 
-const props = defineProps<{ version: GiveVersion; animate?: boolean }>();
+/**
+ * active：当前是不是正显示在 AI 模式（由 App.vue 传 mode === 'ai' 进来）。
+ * 面板本身用 v-show 常驻挂载（切模式不能丢掉用户已经填的内容/生成结果），
+ * 所以点灯特效不能再靠"组件创建时机"触发一次——那样只有第一次切进 AI 模式
+ * 才会放，之后来回切都不放了。改成监听这个 prop，每次从 false 变 true
+ * （也就是每次切进 AI 模式）都重新点一次。
+ */
+const props = defineProps<{ version: GiveVersion; animate?: boolean; active?: boolean }>();
 const emit = defineEmits<{
   (e: "toast", message: string, duration?: number): void;
   (e: "update:version", version: GiveVersion): void;
@@ -22,28 +29,51 @@ const emit = defineEmits<{
 
 // ---------------- 启动特效 ----------------
 // 切进 AI 模式时点亮「灵魂灯笼」：灰烬上浮 + 一道扫光。
-// 纯 CSS 动画，只在挂载时放一次；期间面板照常可用，不挡任何操作。
+// 纯 CSS 动画，期间面板照常可用，不挡任何操作。
 const prefersReducedMotion =
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-/** 关掉界面动画、或系统要求减弱动效时，直接不渲染特效层。 */
-const showIgnition = ref(props.animate !== false && !prefersReducedMotion);
+const showIgnition = ref(false);
+let igniteTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** 上浮的灰烬：位置/延时/时长/漂移各自随机，避免看出是同一套循环。 */
-const embers = Array.from({ length: 18 }, (_, i) => ({
-  key: i,
-  left: `${Math.random() * 100}%`,
-  delay: `${Math.random() * 620}ms`,
-  duration: `${1100 + Math.random() * 900}ms`,
-  drift: `${(Math.random() - 0.5) * 60}px`,
-  size: `${3 + Math.random() * 4}px`,
-}));
+/** 上浮的灰烬：位置/延时/时长/漂移各自随机，每次点燃都重新生成一遍，避免看出是同一套循环。 */
+const embers = ref(
+  Array.from({ length: 18 }, (_, i) => ({
+    key: i,
+    left: `${Math.random() * 100}%`,
+    delay: `${Math.random() * 620}ms`,
+    duration: `${1100 + Math.random() * 900}ms`,
+    drift: `${(Math.random() - 0.5) * 60}px`,
+    size: `${3 + Math.random() * 4}px`,
+  })),
+);
 
-if (showIgnition.value) {
+/** 点亮一次特效；关了界面动画、或系统要求减弱动效时直接不放。 */
+function ignite() {
+  if (props.animate === false || prefersReducedMotion) return;
+  embers.value = embers.value.map((e) => ({
+    ...e,
+    left: `${Math.random() * 100}%`,
+    delay: `${Math.random() * 620}ms`,
+    duration: `${1100 + Math.random() * 900}ms`,
+    drift: `${(Math.random() - 0.5) * 60}px`,
+    size: `${3 + Math.random() * 4}px`,
+  }));
+  clearTimeout(igniteTimer);
+  showIgnition.value = true;
   // 特效放完就把节点摘掉，别在 DOM 里留一层常驻的 overlay。
-  setTimeout(() => {
+  igniteTimer = setTimeout(() => {
     showIgnition.value = false;
   }, 2200);
 }
+
+if (props.active !== false) ignite(); // 面板一开始就是激活状态（比如刷新页面正停在 AI 模式）时，照常点一次
+
+watch(
+  () => props.active,
+  (active, wasActive) => {
+    if (active && !wasActive) ignite();
+  },
+);
 
 interface AiResponse {
   ok: boolean;
