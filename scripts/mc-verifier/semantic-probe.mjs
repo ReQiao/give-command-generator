@@ -308,6 +308,23 @@ const SEMANTIC_PROBES = [
     query: `data get block 20 -58 0 Command`,
     cleanup: `setblock 20 -58 0 minecraft:air`,
   },
+  {
+    id: "K8_fired_arrow_carries_custom_data",
+    note:
+      "关键问题：用发射器（模拟'弓射出特制箭'，RCON 没法模拟玩家真的拉弓，" +
+      "发射器发箭是同一条'物品->抛射物实体'代码路径，用它代替）发射一支带 " +
+      "custom_data 组件的箭，落地/飞行中的箭实体 NBT 里是否还能查到这个" +
+      "custom_data——如果能，就可以用它区分'哪种特制箭'，做到只有这种箭" +
+      "触发效果而不是所有箭都触发；如果查不到，这条路走不通，得换别的办法。",
+    setup: [
+      "setblock 25 -58 0 minecraft:dispenser[facing=up]",
+      `item replace block 25 -58 0 container.0 with minecraft:arrow[custom_data={soul_tnt_arrow:1b}]`,
+      "setblock 25 -59 0 minecraft:redstone_block",
+    ],
+    settleMs: 1200,
+    query: `data get entity @e[type=minecraft:arrow,limit=1,sort=nearest,x=25,y=-58,z=0]`,
+    cleanup: `kill @e[type=minecraft:arrow]`,
+  },
 ];
 
 /** 会话级前置命令：不 forceload 的话，出生区块可能不 tick，实体落不下去也查不到。 */
