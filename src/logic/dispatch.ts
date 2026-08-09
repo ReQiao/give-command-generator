@@ -159,6 +159,57 @@ function equipmentCatalogMiss(equipment: unknown, cats: VersionCatalogs): string
   return null;
 }
 
+/** 校验 summon.passengers[]：每个乘客也是一个实体，同样不能是编出来的。 */
+function passengersCatalogMiss(passengers: unknown, cats: VersionCatalogs): string | null {
+  if (!Array.isArray(passengers)) return null;
+  for (const p of passengers) {
+    if (!p || typeof p !== "object") continue;
+    const err = catalogMiss("乘客实体类型", (p as Record<string, unknown>).entityType, cats.entities);
+    if (err) return err;
+  }
+  return null;
+}
+
+/** 校验 setblock.containerItems[]：{ slot, item: { id, enchantments? } }。 */
+function containerItemsCatalogMiss(items: unknown, cats: VersionCatalogs): string | null {
+  if (!Array.isArray(items)) return null;
+  for (const entry of items) {
+    const item = (entry as { item?: unknown })?.item;
+    if (!item || typeof item !== "object") continue;
+    const itemObj = item as Record<string, unknown>;
+    const err =
+      catalogMiss("容器内物品", itemObj.id, cats.items) ??
+      firstCatalogMissInList("附魔", itemObj.enchantments, ENCHANT_CAT);
+    if (err) return err;
+  }
+  return null;
+}
+
+/** 校验 fill.replaceFilter / clone.filter 这种 { block, blockstate? } 过滤器。 */
+function blockFilterCatalogMiss(kind: string, filter: unknown, cats: VersionCatalogs): string | null {
+  if (!filter || typeof filter !== "object") return null;
+  return catalogMiss(kind, (filter as Record<string, unknown>).block, cats.blocks);
+}
+
+/**
+ * 校验 scoreboard 判据里内嵌的物品 id。
+ *
+ * 提示词主动教了 minecraft.used:minecraft.<item> / minecraft.custom:minecraft.<stat>
+ * 这类统计判据（见 prompt.ts 的"特殊计分板判据"一节），冒号后面那截是真实的物品 id，
+ * 编错了整个计分板就永远不会涨分，而且失败得很安静——不报错，只是没反应。
+ * 只挑 used/mined/crafted/broken/picked_up/dropped/killed 这几类"后面接物品 id"的
+ * 判据来查；custom 后面接的是统计项名（sneak_time、jump 之类），不在物品表里，跳过。
+ */
+const ITEM_BACKED_CRITERIA = /^minecraft\.(used|mined|crafted|broken|picked_up|dropped)/;
+function criteriaCatalogMiss(criteria: unknown, cats: VersionCatalogs): string | null {
+  if (typeof criteria !== "string" || !criteria.includes(":")) return null;
+  const [head, tail] = [criteria.slice(0, criteria.indexOf(":")), criteria.slice(criteria.indexOf(":") + 1)];
+  if (!ITEM_BACKED_CRITERIA.test(head)) return null;
+  // 判据里用点号分隔命名空间（minecraft.stone），转成正常 id 再查
+  const asId = tail.replace(".", ":");
+  return catalogMiss("计分板判据里的物品", asId, cats.items);
+}
+
 /** 按意图类型校验涉及官方目录的字段。返回非 null 即视为构建失败。 */
 function validateIntentCatalog(intent: CommandIntent, version: GiveVersion): string | null {
   const form = intent.form as Record<string, unknown>;
@@ -170,19 +221,34 @@ function validateIntentCatalog(intent: CommandIntent, version: GiveVersion): str
         firstCatalogMissInList("附魔", form.enchantments, ENCHANT_CAT)
       );
     case "setblock":
+      return (
+        catalogMiss("方块", form.block, cats.blocks) ??
+        containerItemsCatalogMiss(form.containerItems, cats)
+      );
     case "fill":
-      return catalogMiss("方块", form.block, cats.blocks);
+      return (
+        catalogMiss("方块", form.block, cats.blocks) ??
+        blockFilterCatalogMiss("替换过滤方块", form.replaceFilter, cats)
+      );
+    case "clone":
+      return blockFilterCatalogMiss("克隆过滤方块", form.filter, cats);
     case "enchant":
       return catalogMiss("附魔", form.enchantment, ENCHANT_CAT);
     case "effect_give":
       return catalogMiss("药水效果", form.effect, EFFECT_CAT);
+    case "effect_clear":
+      // effect_give 一直有校验，effect_clear 之前漏了，两者不该不一致
+      return catalogMiss("药水效果", form.effect, EFFECT_CAT);
     case "attribute":
       return catalogMiss("属性", form.attribute, ATTRIBUTE_CAT);
+    case "scoreboard":
+      return criteriaCatalogMiss((form.action as Record<string, unknown> | undefined)?.criteria, cats);
     case "summon":
       return (
         catalogMiss("实体类型", form.entityType, cats.entities) ??
         firstCatalogMissInList("药水效果", form.effects, EFFECT_CAT) ??
-        equipmentCatalogMiss(form.equipment, cats)
+        equipmentCatalogMiss(form.equipment, cats) ??
+        passengersCatalogMiss(form.passengers, cats)
       );
     case "particle":
       // 参数化粒子（minecraft:dust{color:[...]}）的花括号部分不参与查表，

@@ -611,6 +611,66 @@ console.log("\n[目录存在性校验]");
   expect("summon.equipment 里真实物品正常通过", realEquip.command.includes("minecraft:diamond_sword"), true);
 }
 
+// ---------------- 之前漏掉校验的字段 ----------------
+// 这些字段都引用官方 id，但以前全落到 validateIntentCatalog 的 default 分支，
+// AI 编在这里的东西一路畅通无阻拼进最终命令。
+console.log("\n[补齐漏掉校验的字段]");
+{
+  const d = (i) => dispatchIntent(i, MODERN);
+  const blocked = (label, intent) => expect(label, d(intent).command, null);
+  const passes = (label, intent) => expect(label, d(intent).command !== null, true);
+
+  // effect_give 一直有校验，effect_clear 之前没有——两者不该不一致
+  blocked("effect_clear 编造的效果被拦", { command: "effect_clear", form: { target: "@s", effect: "minecraft:super_buff" } });
+  passes("effect_clear 真实效果通过", { command: "effect_clear", form: { target: "@s", effect: "minecraft:speed" } });
+  passes("effect_clear 省略 effect（清全部）不被误伤", { command: "effect_clear", form: { target: "@s" } });
+
+  // 只校验了顶层 entityType，乘客逃过
+  blocked("summon 乘客实体编造被拦", {
+    command: "summon",
+    form: { entityType: "zombie", passengers: [{ entityType: "minecraft:dragon_lord" }] },
+  });
+  passes("summon 真实乘客通过", {
+    command: "summon",
+    form: { entityType: "pig", passengers: [{ entityType: "chicken" }] },
+  });
+
+  // 只校验了 form.block，容器里塞的物品逃过
+  blocked("setblock 容器内编造物品被拦", {
+    command: "setblock",
+    form: { x: "0", y: "0", z: "0", block: "chest", containerItems: [{ slot: 0, item: { id: "minecraft:excalibur" } }] },
+  });
+  passes("setblock 容器内真实物品通过", {
+    command: "setblock",
+    form: { x: "0", y: "0", z: "0", block: "chest", containerItems: [{ slot: 0, item: { id: "diamond", count: 5 } }] },
+  });
+
+  // fill/clone 的过滤方块是第二个方块字段，之前只查了主方块
+  blocked("fill 替换过滤方块编造被拦", {
+    command: "fill",
+    form: { from: ["0", "0", "0"], to: ["1", "1", "1"], block: "stone", replaceFilter: { block: "minecraft:fakeore" } },
+  });
+  passes("fill 真实过滤方块通过", {
+    command: "fill",
+    form: { from: ["0", "0", "0"], to: ["1", "1", "1"], block: "air", replaceFilter: { block: "water" } },
+  });
+  blocked("clone 过滤方块编造被拦", {
+    command: "clone",
+    form: {
+      begin: ["0", "0", "0"], end: ["1", "1", "1"], destination: ["5", "5", "5"],
+      maskMode: "filtered", filter: { block: "minecraft:fakeore" },
+    },
+  });
+
+  // 计分板判据里内嵌的物品 id——提示词主动教了这类写法，是幻觉重灾区
+  const crit = (criteria) => ({ command: "scoreboard", form: { action: { kind: "objectives_add", objective: "x", criteria } } });
+  blocked("计分板 used 判据里编造物品被拦", crit("minecraft.used:minecraft.magic_wand"));
+  passes("计分板 used 判据真实物品通过", crit("minecraft.used:minecraft.fishing_rod"));
+  // custom 后面接的是统计项名不是物品，不该拿去查物品表
+  passes("计分板 custom 判据（统计项非物品）不被误杀", crit("minecraft.custom:minecraft.sneak_time"));
+  passes("计分板 dummy 判据不被误杀", crit("dummy"));
+}
+
 // ---------------- 粒子目录校验 ----------------
 console.log("\n[粒子目录校验]");
 {
