@@ -83,8 +83,14 @@ pub fn coins_to_charge(model: &str, usage: Option<&AiUsage>) -> i64 {
 
 /// 真正打上游大模型接口。失败原因直接透传给客户端展示（同客户端 ai.rs 的做法），
 /// 里面不含任何密钥信息，可以放心展示给用户。
+///
+/// `model` 由调用方决定用哪一个——不再固定死用 `config.model`，因为客户端
+/// 恢复了模型下拉可选（Plus/Max/Flash/Long/DeepSeek 价格/能力差很多，用户
+/// 想自己权衡）。`config` 里的 endpoint/key 依然是服务器唯一权威来源，
+/// 不接受客户端指定——那两个是真正跟钱/身份挂钩的东西，模型名不是。
 pub async fn call_upstream(
     config: &AiConfig,
+    model: &str,
     system_prompt: &str,
     user_text: &str,
     history: Vec<ChatTurn>,
@@ -96,7 +102,7 @@ pub async fn call_upstream(
     messages.push(serde_json::json!({ "role": "user", "content": user_text }));
 
     let body = serde_json::json!({
-        "model": config.model,
+        "model": model,
         "messages": messages,
         "response_format": { "type": "json_object" },
         "temperature": 0.2,

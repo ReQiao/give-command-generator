@@ -10,6 +10,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
 import { dispatchIntents } from "../logic/dispatch";
 import type { GiveVersion } from "../logic/builder";
+import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
 
@@ -164,6 +165,23 @@ onMounted(() => {
   void loadTopupTiers();
 });
 
+/**
+ * 大模型调用现在统一转发到自建服务器（key 只在服务器上，见
+ * src-tauri/src/remote.rs 顶部注释），但模型选哪个仍然交给用户——价格/
+ * 上下文/靠谱程度差很多（详见与用户的成本讨论）：Plus 最稳，Long 性价比
+ * 最高，Flash 便宜但有 32k 阶梯计费跳档风险，Max/DeepSeek 贵但能力更强。
+ * 留空/选不到就用服务器 .env 里 AI_MODEL 配置的默认值。
+ */
+const MODEL_OPTIONS = [
+  { label: "服务器默认", value: "" },
+  { label: "Qwen Plus（稳）", value: "qwen3.7-plus" },
+  { label: "Qwen Max（旗舰，贵）", value: "qwen3.8-max" },
+  { label: "Qwen Flash（最便宜，注意32k阶梯跳价）", value: "qwen3.7-flash" },
+  { label: "Qwen Long（长上下文，性价比高）", value: "qwen-long-latest" },
+  { label: "DeepSeek V4 Pro", value: "deepseek-v4-pro" },
+] as const;
+const apiModel = ref<string>("");
+
 const userText = ref("");
 const busy = ref(false);
 const errorText = ref("");
@@ -246,6 +264,7 @@ async function generate() {
     const res = await invoke<AiResponse>("ai_generate", {
       systemPrompt: buildSystemPrompt(props.version),
       userText: thisTurnText,
+      model: apiModel.value.trim() || null,
       history: history.value,
     });
 
@@ -390,6 +409,16 @@ function copyAll() {
         想要什么效果
         <InfoTip text="用大白话描述你想要的游戏内效果就行，不用管指令怎么写。例如「做一把能射 TNT 的弓」。" />
       </span>
+      <div class="ai-model-row">
+        <span class="field-label">
+          模型
+          <InfoTip text="不同模型价格/能力差很多：Plus 最稳，Long 性价比最高，Flash 便宜但有 32k 阶梯计费跳档风险，Max/DeepSeek 贵但能力更强。选「服务器默认」就用服务器统一配置的那个。" />
+        </span>
+        <CustomSelect
+          v-model="apiModel"
+          :options="MODEL_OPTIONS as unknown as { label: string; value: string }[]"
+        />
+      </div>
     </div>
 
     <div v-if="isContinuing" class="ai-context-bar">

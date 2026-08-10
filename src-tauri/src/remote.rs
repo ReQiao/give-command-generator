@@ -139,6 +139,12 @@ struct AiGenerateReq<'a> {
     system_prompt: &'a str,
     user_text: &'a str,
     history: &'a [ChatTurn],
+    /// 留空/不传时服务器退回 .env 里 AI_MODEL 配置的默认值（见
+    /// server/src/main.rs::ai_generate）。endpoint/key 依然只由服务器决定，
+    /// 不接受客户端指定——那两个是真正的凭证，模型名只是"选哪档价格/能力"
+    /// 的偏好，交给用户选没有安全问题。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -155,11 +161,12 @@ pub async fn ai_generate(
     device_id: &str,
     system_prompt: &str,
     user_text: &str,
+    model: Option<&str>,
     history: &[ChatTurn],
 ) -> Result<AiGenerateResp, String> {
     let resp = client()
         .post(format!("{}/v1/ai/generate", server_base()))
-        .json(&AiGenerateReq { device_id, system_prompt, user_text, history })
+        .json(&AiGenerateReq { device_id, system_prompt, user_text, history, model })
         .send()
         .await
         .map_err(describe_connect_err)?;

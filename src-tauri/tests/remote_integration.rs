@@ -159,7 +159,7 @@ async fn full_client_flow_against_real_server() {
 
     // AI 生成：走真实 HTTPS 请求到测试服务器，服务器再转发给本地 mock 上游，
     // 全链路验证——包括证书锁定握手、请求/响应的 JSON 结构对得上。
-    let ai_resp = ai::ai_generate("system prompt".to_string(), "做一把弓".to_string(), None)
+    let ai_resp = ai::ai_generate("system prompt".to_string(), "做一把弓".to_string(), None, None)
         .await
         .expect("ai_generate 本身不应该返回 Err（失败信息走 AiResponse.error 字段）");
     assert!(ai_resp.ok, "mock 上游应该让这次调用成功：{:?}", ai_resp.error);

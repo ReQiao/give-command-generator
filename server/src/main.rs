@@ -116,6 +116,11 @@ struct AiGenerateReq {
     user_text: String,
     #[serde(default)]
     history: Vec<ai_proxy::ChatTurn>,
+    /// 客户端想用哪个模型；留空/不传就退回 .env 里 AI_MODEL 配置的默认值。
+    /// 不接受客户端指定 endpoint/key——那两个是真正的凭证，模型名只是个
+    /// "选哪档价格/能力"的偏好，交给客户端选没有安全问题。
+    #[serde(default)]
+    model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -145,10 +150,17 @@ async fn ai_generate(
         }));
     }
 
-    match ai_proxy::call_upstream(&state.ai, &req.system_prompt, &req.user_text, req.history).await {
+    let model = req
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .unwrap_or(&state.ai.model);
+
+    match ai_proxy::call_upstream(&state.ai, model, &req.system_prompt, &req.user_text, req.history).await {
         Ok((content, usage)) => {
             // 成功才扣费，按真实 token 用量折算，跟此前客户端版本的原则一致。
-            let coins = ai_proxy::coins_to_charge(&state.ai.model, usage.as_ref());
+            let coins = ai_proxy::coins_to_charge(model, usage.as_ref());
             let after = state.ledger.consume(&req.device_id, coins);
             Ok(Json(AiGenerateResp {
                 ok: true,
