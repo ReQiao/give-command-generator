@@ -26,14 +26,20 @@ fn server_base() -> String {
     std::env::var("SOUL_LANTERN_SERVER_BASE").unwrap_or_else(|_| SERVER_BASE.to_string())
 }
 
-/// 锁定的证书公钥（PEM），来自 server/certs/server.crt。
-///
-/// ⚠️ 这是占位符，不是真实证书——真实部署时，服务器上用 generate.sh 现场
-/// 生成证书（私钥永远留在服务器上，不经过这里），把生成出来的 server.crt
-/// 内容整段替换到这里。放错了，或者和服务器实际在用的证书对不上，客户端
-/// 会在握手阶段直接报错——这不是 bug，是证书锁定本该有的行为。
+/// 锁定的证书公钥（PEM），来自服务器上 generate.sh 现场生成的 server.crt
+/// （私钥留在服务器上，从未经过这里）。已核对 SAN 是 IP:120.26.175.121、
+/// basicConstraints 是 CA:FALSE（不是早前踩过的 CaUsedAsEndEntity 那个坑）。
 const PINNED_CERT_PEM: &str = r#"-----BEGIN CERTIFICATE-----
-REPLACE_WITH_REAL_server.crt_CONTENT
+MIIBvTCCAWKgAwIBAgIUVhcCDUQFkiyA4NZdNFAz+LmngucwCgYIKoZIzj0EAwIw
+GTEXMBUGA1UEAwwOMTIwLjI2LjE3NS4xMjEwHhcNMjYwODEwMTIxNTAyWhcNNDYw
+ODA1MTIxNTAyWjAZMRcwFQYDVQQDDA4xMjAuMjYuMTc1LjEyMTBZMBMGByqGSM49
+AgEGCCqGSM49AwEHA0IABKTtZ2fmCxZyqYSp8UTNAr1FcH8dW4OMsyCq8jeDVX1F
+qX/MUmhP4VaQ7vli6Y3BpFfPlYFKY2tlr7lEz47ScSijgYcwgYQwHQYDVR0OBBYE
+FGW0U9WJSAUO/CWlP8QP+SEZTFe4MB8GA1UdIwQYMBaAFGW0U9WJSAUO/CWlP8QP
++SEZTFe4MA8GA1UdEQQIMAaHBHgar3kwDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8E
+BAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwCgYIKoZIzj0EAwIDSQAwRgIhAOmb
+AGZkXgptheFQ73NyscnWdNew9Pv5CJW5IXAqndn0AiEA+Bo5zYfdCNEPw62aMkrH
+qXn++VziEGlP1US9zfaXJw0=
 -----END CERTIFICATE-----"#;
 
 /// 测试 / 联调用的逃生舱：设了这个环境变量就读文件内容代替内置的
@@ -162,4 +168,34 @@ pub async fn ai_generate(
         return Err(if detail.is_empty() { "服务器拒绝了这次请求。".to_string() } else { detail });
     }
     resp.json().await.map_err(|e| format!("解析服务器响应失败：{e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 防的是"占位符忘了换成真实证书"或者"贴的时候手滑改坏了"这两种情况——
+    /// 光靠人眼看 PEM 那一长串 base64 是看不出来对不对的，跑这条测试
+    /// 至少能保证它现在是一份能被 reqwest 正常解析的合法证书。
+    #[test]
+    fn pinned_cert_is_a_valid_parseable_certificate() {
+        reqwest::Certificate::from_pem(PINNED_CERT_PEM.as_bytes())
+            .expect("PINNED_CERT_PEM 应该是一份合法证书——是不是还是占位符，或者粘贴时手滑改坏了？");
+    }
+
+    /// 证书内容长度做个粗筛：早前的占位符字符串远比一份真实证书短。
+    /// SERVER_BASE 打的地址和证书 SAN 是否匹配这件事，靠的是
+    /// tests/remote_integration.rs 那条真实 TLS 握手的集成测试来验证——
+    /// 单测这里只检查"这不再是那句占位符英文"这种低成本但有效的粗筛。
+    #[test]
+    fn pinned_cert_is_not_the_placeholder() {
+        assert!(
+            PINNED_CERT_PEM.len() > 200,
+            "证书内容看起来太短，多半还是占位符没换成真实证书"
+        );
+        assert!(
+            !PINNED_CERT_PEM.contains("REPLACE_WITH_REAL"),
+            "PINNED_CERT_PEM 还是占位符文本，没有换成真实证书内容"
+        );
+    }
 }
