@@ -92,6 +92,12 @@ src-tauri/tauri.*.local.json
 *.csr
 *.mobileprovision
 *.provisionprofile
+
+# 例外：server/certs/server.crt 是公钥证书，本来就打算被复制/编进客户端源码
+# 做证书锁定，随客户端一起公开分发——不是需要保密的东西，留在仓库里方便
+# 协作者/以后的自己核对"服务器现在用的是哪一张证书"。server.key（私钥）
+# 不在这条例外里，继续被上面的 *.key 挡住，那才是真正不能进仓库的东西。
+!server/certs/server.crt
 src-tauri/private.key
 src-tauri/*.key
 src-tauri/*.pem
