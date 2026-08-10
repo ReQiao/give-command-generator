@@ -49,13 +49,16 @@ pub struct AiResponse {
 pub async fn ai_generate(
     system_prompt: String,
     user_text: String,
+    // 用户在下拉框选的模型；留空/不传就用服务器 .env 里的默认值。
+    model: Option<String>,
     // 前端携带的历史轮次（本轮之前的 user/assistant 消息，已经封顶3轮，见 AiPanel）。
     history: Option<Vec<ChatTurn>>,
 ) -> Result<AiResponse, ()> {
     let device_id = device::get_or_create();
     let history = history.unwrap_or_default();
+    let model = model.as_deref().map(str::trim).filter(|m| !m.is_empty());
 
-    match remote::ai_generate(&device_id, &system_prompt, &user_text, &history).await {
+    match remote::ai_generate(&device_id, &system_prompt, &user_text, model, &history).await {
         Ok(resp) => Ok(AiResponse {
             ok: resp.ok,
             content: resp.content,
