@@ -43,6 +43,11 @@ chmod +x generate.sh
 跑完这一步，`/opt/soul-lantern/` 下会多出 `server.crt`（公钥，等下要用）和
 `server.key`（私钥，往后就一直留在这台服务器上，不要复制到别处）。
 
+> 用的是仓库里当前这版 `generate.sh`（已经踩过一次坑修好了）：早期版本生成
+> 的证书会被 openssl 默认标成 `CA:TRUE`，`curl --cacert` 校验不介意这个，
+> 但客户端实际用的 rustls 校验器会直接拒绝、报 `CaUsedAsEndEntity`。
+> 如果你手上的 `generate.sh` 比这个更早，务必重新拉一份最新的再生成。
+
 **执行完之后，把 `server.crt` 的内容显示出来发给我**（这个文件不是秘密，
 可以放心贴出来）：
 

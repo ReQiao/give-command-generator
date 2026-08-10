@@ -21,11 +21,20 @@ IP="${1:?用法: ./generate.sh <服务器公网IP>}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# basicConstraints=CA:FALSE + keyUsage/extendedKeyUsage 明确标成"服务器叶子
+# 证书"，不是"CA证书"——这个坑真实踩过一次：openssl req -x509 默认会给
+# 自签名证书打上 CA:TRUE，curl 用 --cacert 校验时不介意这个，但 rustls
+# （Tauri 客户端和这个服务器用的 TLS 库）的校验器严格得多，会直接拒绝
+# "一张标了 CA:TRUE 的证书被服务器当自己的叶子证书用"，报错是
+# CaUsedAsEndEntity。加上这三行明确身份就没有这个问题了。
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout server.key -out server.crt \
   -days 7300 -nodes \
   -subj "/CN=${IP}" \
-  -addext "subjectAltName=IP:${IP}"
+  -addext "subjectAltName=IP:${IP}" \
+  -addext "basicConstraints=critical,CA:FALSE" \
+  -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+  -addext "extendedKeyUsage=serverAuth"
 
 chmod 600 server.key
 chmod 644 server.crt
