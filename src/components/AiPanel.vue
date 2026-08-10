@@ -10,7 +10,6 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
 import { dispatchIntents } from "../logic/dispatch";
 import type { GiveVersion } from "../logic/builder";
-import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
 
@@ -79,7 +78,12 @@ interface AiResponse {
   ok: boolean;
   content: string | null;
   error: string | null;
-  balance: number;
+  /**
+   * 现在走远程服务器代理（真实大模型 key 只在服务器上，见 src-tauri/src/remote.rs
+   * 顶部注释——这个客户端曾经把 key 直接编译进安装包，被人拆出来盗刷过一次）。
+   * 连不上服务器时是 null，不能瞎填 0——那会让用户误以为余额真的清零了。
+   */
+  balance: number | null;
   usage: { prompt: number; completion: number; total: number } | null;
 }
 
@@ -92,7 +96,6 @@ const desktop = isTauri();
  */
 interface AuthState {
   activated: boolean;
-  licenseKey: string | null;
   balance: number;
 }
 interface TopupTier {
@@ -161,60 +164,7 @@ onMounted(() => {
   void loadTopupTiers();
 });
 
-/**
- * 后端调用的是通用的 OpenAI 兼容 chat/completions 接口，不绑定某一家服务商。
- * 这里只是给几个常见服务商预填接口地址 + 默认模型，方便切换；选「自定义」时
- * 两个输入框保持可编辑，填其他任何 OpenAI 兼容服务（接口地址需带完整路径）都行。
- */
-const PROVIDER_PRESETS = {
-  dashscope: {
-    label: "通义千问 Qwen（DashScope）",
-    endpoint: "https://ws-b2ui8x9tozwc8cq1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
-    model: "qwen-plus",
-  },
-  openai: {
-    label: "OpenAI",
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    model: "gpt-4o-mini",
-  },
-  custom: {
-    label: "自定义 / 其他 OpenAI 兼容接口",
-    endpoint: "",
-    model: "",
-  },
-} as const;
-type Provider = keyof typeof PROVIDER_PRESETS;
-
-/**
- * dashscope 这个工作空间接口下挂了好几个模型，价格/上下文/靠谱程度差很多
- * （详见与用户的成本讨论）：Plus 最稳，Long 性价比最高，Flash 便宜但有 32k
- * 阶梯计费跳档风险，Max/DeepSeek 贵但能力更强，谨慎使用。
- * 模型名是按控制台上显示的猜的，如果调不通以「自定义」输入框手动改。
- */
-const MODEL_OPTIONS = [
-  { label: "Qwen Plus（默认，稳）", value: "qwen3.7-plus" },
-  { label: "Qwen Max（旗舰，贵）", value: "qwen3.8-max" },
-  { label: "Qwen Flash（最便宜，注意32k阶梯跳价）", value: "qwen3.7-flash" },
-  { label: "Qwen Long（长上下文，性价比高）", value: "qwen-long-latest" },
-  { label: "DeepSeek V4 Pro", value: "deepseek-v4-pro" },
-] as const;
-
-const provider = ref<Provider>("dashscope");
-const providerOptions = (Object.keys(PROVIDER_PRESETS) as Provider[]).map((value) => ({
-  label: PROVIDER_PRESETS[value].label,
-  value,
-}));
-const apiBase = ref<string>(PROVIDER_PRESETS.dashscope.endpoint);
-const apiModel = ref<string>(PROVIDER_PRESETS.dashscope.model);
-
-watch(provider, (value) => {
-  const preset = PROVIDER_PRESETS[value];
-  apiBase.value = preset.endpoint;
-  apiModel.value = preset.model;
-});
-
 const userText = ref("");
-const apiKey = ref("");
 const busy = ref(false);
 const errorText = ref("");
 const explanation = ref("");
@@ -264,12 +214,7 @@ function newConversation() {
 const bedrockUnsupported = computed(() => props.version === "bedrock");
 
 const canGenerate = computed(
-  () =>
-    desktop &&
-    !bedrockUnsupported.value &&
-    !busy.value &&
-    userText.value.trim().length > 0 &&
-    apiBase.value.trim().length > 0,
+  () => desktop && !bedrockUnsupported.value && !busy.value && userText.value.trim().length > 0,
 );
 
 const examples = [
@@ -301,13 +246,12 @@ async function generate() {
     const res = await invoke<AiResponse>("ai_generate", {
       systemPrompt: buildSystemPrompt(props.version),
       userText: thisTurnText,
-      apiKey: apiKey.value.trim() || null,
-      endpoint: apiBase.value.trim() || null,
-      model: apiModel.value.trim() || null,
       history: history.value,
     });
 
-    balance.value = res.balance;
+    // 连不上服务器时 res.balance 是 null，不能拿它覆盖已经显示的余额——
+    // 那会让用户误以为余额真的清零了，其实只是网络问题。
+    if (res.balance !== null) balance.value = res.balance;
 
     if (!res.ok || !res.content) {
       errorText.value = res.error ?? "AI 调用失败。";
@@ -446,41 +390,6 @@ function copyAll() {
         想要什么效果
         <InfoTip text="用大白话描述你想要的游戏内效果就行，不用管指令怎么写。例如「做一把能射 TNT 的弓」。" />
       </span>
-      <div class="ai-provider-row">
-        <div class="ai-key">
-          <span class="field-label">
-            服务商
-            <InfoTip text="后端调用的是通用的 OpenAI 兼容接口，不绑定某一家。选一个预设会自动填接口地址和模型，也可以选「自定义」接入其他 OpenAI 兼容服务。" />
-          </span>
-          <CustomSelect v-model="provider" :options="providerOptions" />
-        </div>
-        <div class="ai-key">
-          <span class="field-label">
-            接口地址
-            <InfoTip text="OpenAI 兼容的 chat/completions 接口完整地址。切换服务商预设会自动填好，也可以手动改。" />
-          </span>
-          <input v-model="apiBase" placeholder="https://.../v1/chat/completions" autocomplete="off" />
-        </div>
-        <div class="ai-key">
-          <span class="field-label">
-            模型
-            <InfoTip text="要调用的模型名称。DashScope 预设下拉可选常用几个；选其他服务商，或下拉里没有的模型名，手动填。" />
-          </span>
-          <CustomSelect
-            v-if="provider === 'dashscope'"
-            v-model="apiModel"
-            :options="MODEL_OPTIONS as unknown as { label: string; value: string }[]"
-          />
-          <input v-else v-model="apiModel" placeholder="模型名" autocomplete="off" />
-        </div>
-        <div class="ai-key">
-          <span class="field-label">
-            API Key
-            <InfoTip text="所选服务商的 API key。留空则读取环境变量 AI_API_KEY。key 只在本机使用，不会存进模板。" />
-          </span>
-          <input v-model="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
-        </div>
-      </div>
     </div>
 
     <div v-if="isContinuing" class="ai-context-bar">
