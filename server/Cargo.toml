@@ -1,0 +1,28 @@
+[package]
+name = "soul-lantern-server"
+version = "0.1.0"
+edition = "2021"
+description = "灵魂灯笼账本 + AI 调用代理（跑在自己服务器上，客户端不再直接持有大模型 key）"
+
+[[bin]]
+name = "soul-lantern-server"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+axum = { version = "0.7", features = ["json"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 出站调用真实大模型接口。用 rustls 而非系统 openssl，交叉编译/部署更省心
+# （和 Tauri 端 src-tauri/Cargo.toml 里的选择理由一致）。
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# reqwest 和 axum-server 都传递依赖了 rustls，但都没有唯一地自动选定加密后端
+# （ring / aws-lc-rs），需要在 main() 里显式装一个默认 provider，不然启动直接 panic。
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+# 测试里直接发 HTTPS 请求验证证书锁定行为
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
