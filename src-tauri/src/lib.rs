@@ -1,6 +1,10 @@
-mod ai;
-mod billing;
+// pub mod（不是 mod）是为了 tests/ 下的集成测试能直接调用这些模块里的
+// tauri::command 函数，用真实网络请求走一遍完整链路，而不是只测内部逻辑。
+pub mod ai;
+pub mod billing;
 mod datapack;
+pub mod device;
+pub mod remote;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -8,7 +12,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .manage(billing::Billing::load_or_default())
         .invoke_handler(tauri::generate_handler![
             ai::ai_generate,
             billing::billing_state,
