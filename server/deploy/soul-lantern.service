@@ -1,0 +1,22 @@
+[Unit]
+Description=灵魂灯笼账本 + AI 调用代理
+After=network.target
+
+[Service]
+Type=simple
+User=soul-lantern
+WorkingDirectory=/opt/soul-lantern
+EnvironmentFile=/opt/soul-lantern/.env
+ExecStart=/opt/soul-lantern/soul-lantern-server
+Restart=on-failure
+RestartSec=3
+
+# 加固：这个服务不需要 root 权限做任何事，用专门的低权限账号跑；
+# 也不需要写系统其它地方，只给它自己的工作目录读写权限。
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/soul-lantern
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
