@@ -70,7 +70,11 @@ fn spawn_mock_upstream() -> u16 {
             let Ok(mut stream) = stream else { continue };
             let mut buf = [0u8; 4096];
             let _ = stream.read(&mut buf);
-            let body = r#"{"choices":[{"message":{"content":"{\"ok\":true}"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#;
+            // content 必须是服务器 give::parse::parse_ai_content 认得的
+            // {intents, explanation} 形状——服务器现在会真的解析这段内容再走
+            // dispatch（不再透传原始 content 给客户端）。一条 say 意图足以
+            // 验证全链路（含证书锁定握手 + 服务器端 dispatch + 扣费）。
+            let body = r#"{"choices":[{"message":{"content":"{\"intents\":[{\"command\":\"say\",\"form\":{\"message\":\"hi\"}}],\"explanation\":\"ok\"}"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#;
             let resp = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
                 body.len(), body
@@ -159,11 +163,17 @@ async fn full_client_flow_against_real_server() {
 
     // AI 生成：走真实 HTTPS 请求到测试服务器，服务器再转发给本地 mock 上游，
     // 全链路验证——包括证书锁定握手、请求/响应的 JSON 结构对得上。
-    let ai_resp = ai::ai_generate("system prompt".to_string(), "做一把弓".to_string(), None, None)
-        .await
-        .expect("ai_generate 本身不应该返回 Err（失败信息走 AiResponse.error 字段）");
+    let ai_resp = ai::ai_generate(
+        "system prompt".to_string(),
+        "做一把弓".to_string(),
+        None,
+        "java_1_21_5".to_string(),
+        None,
+    )
+    .await
+    .expect("ai_generate 本身不应该返回 Err（失败信息走 AiResponse.error 字段）");
     assert!(ai_resp.ok, "mock 上游应该让这次调用成功：{:?}", ai_resp.error);
-    assert!(ai_resp.content.is_some());
+    assert_eq!(ai_resp.commands, vec!["say hi".to_string()], "服务器应该已经把意图分派构建成命令字符串");
     assert!(ai_resp.balance.is_some(), "成功调用后余额应该是具体数字而不是 None");
     // mock 上游返回 usage 15 token，qwen3.7-plus 保底扣费不会是 0
     assert!(ai_resp.balance.unwrap() < activated.balance, "成功调用应该扣了费");
