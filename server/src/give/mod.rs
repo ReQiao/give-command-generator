@@ -10,3 +10,4 @@
 pub mod builder;
 pub mod catalog;
 mod catalog_data;
+pub mod commands;
