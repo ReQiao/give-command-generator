@@ -118,6 +118,11 @@ impl CommandIntent {
         }
     }
 
+    /// 供 `parse.rs` 在"忘记套 form 包装"兜底逻辑里构造意图。
+    pub fn new_public(command: &str, form: Value) -> Self {
+        Self::new(command, form)
+    }
+
     fn new(command: &str, form: Value) -> Self {
         match command {
             "give" => CommandIntent::Give(form),
