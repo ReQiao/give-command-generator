@@ -37,6 +37,10 @@ fn generate_cert(dir: &PathBuf, cn: &str) -> (PathBuf, PathBuf) {
 
 /// mock 上游：把收到的请求体里的 "model" 字段原样回显在响应 content 里，
 /// 这样测试能断言服务器到底转发了哪个模型名，而不用真的连大模型。
+///
+/// content 必须是 parse_ai_content 认得的 `{intents, explanation}` 形状——
+/// 服务器现在会真的解析这段内容再走 dispatch（不再透传原始 content 给客户端），
+/// 所以把回显的模型名塞进 explanation 里，断言时改看响应体的 explanation 字段。
 fn spawn_model_echo_upstream() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -51,7 +55,7 @@ fn spawn_model_echo_upstream() -> u16 {
                 serde_json::from_str(&text[body_start..]).unwrap_or(serde_json::json!({}));
             let requested_model = body.get("model").and_then(|v| v.as_str()).unwrap_or("MISSING").to_string();
 
-            let content = serde_json::json!({ "echoed_model": requested_model }).to_string();
+            let content = serde_json::json!({ "intents": [], "explanation": format!("echoed_model:{requested_model}") }).to_string();
             let resp_body = serde_json::json!({
                 "choices": [{"message": {"content": content}}],
                 "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
@@ -107,6 +111,7 @@ async fn client_supplied_model_overrides_env_default() {
             "system_prompt": "sys",
             "user_text": "hi",
             "model": "qwen3.8-max",
+            "version": "java_1_21_5",
         }))
         .send()
         .await
@@ -114,8 +119,7 @@ async fn client_supplied_model_overrides_env_default() {
         .json()
         .await
         .unwrap();
-    let content: serde_json::Value = serde_json::from_str(resp["content"].as_str().unwrap()).unwrap();
-    assert_eq!(content["echoed_model"], "qwen3.8-max", "客户端指定了模型，服务器应该转发这个而不是 .env 默认值");
+    assert_eq!(resp["explanation"], "echoed_model:qwen3.8-max", "客户端指定了模型，服务器应该转发这个而不是 .env 默认值");
 
     // 客户端没传 model 字段：应该退回 .env 里的默认值
     let resp: serde_json::Value = client
@@ -124,6 +128,7 @@ async fn client_supplied_model_overrides_env_default() {
             "device_id": "dev-model-b",
             "system_prompt": "sys",
             "user_text": "hi",
+            "version": "java_1_21_5",
         }))
         .send()
         .await
@@ -131,8 +136,7 @@ async fn client_supplied_model_overrides_env_default() {
         .json()
         .await
         .unwrap();
-    let content: serde_json::Value = serde_json::from_str(resp["content"].as_str().unwrap()).unwrap();
-    assert_eq!(content["echoed_model"], "qwen-env-default", "没传 model 字段应该退回 .env 默认值");
+    assert_eq!(resp["explanation"], "echoed_model:qwen-env-default", "没传 model 字段应该退回 .env 默认值");
 
     // 客户端传了空字符串：视同没传，同样退回默认值（防的是前端 apiModel.trim() 传空串这种情况）
     let resp: serde_json::Value = client
@@ -142,6 +146,7 @@ async fn client_supplied_model_overrides_env_default() {
             "system_prompt": "sys",
             "user_text": "hi",
             "model": "   ",
+            "version": "java_1_21_5",
         }))
         .send()
         .await
@@ -149,6 +154,5 @@ async fn client_supplied_model_overrides_env_default() {
         .json()
         .await
         .unwrap();
-    let content: serde_json::Value = serde_json::from_str(resp["content"].as_str().unwrap()).unwrap();
-    assert_eq!(content["echoed_model"], "qwen-env-default", "空白字符串的 model 应该等同于没传");
+    assert_eq!(resp["explanation"], "echoed_model:qwen-env-default", "空白字符串的 model 应该等同于没传");
 }
