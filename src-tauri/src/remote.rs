@@ -145,15 +145,26 @@ struct AiGenerateReq<'a> {
     /// 的偏好，交给用户选没有安全问题。
     #[serde(skip_serializing_if = "Option::is_none")]
     model: Option<&'a str>,
+    /// 目标 Minecraft 版本字符串（如 "java_1_21_11_plus"/"bedrock"），原样
+    /// 透传给服务器——`give::dispatch`/`give::builder` 现在跑在服务器上，
+    /// 版本感知的目录校验/指令构建都需要这个信息（见迁移计划）。这里不用
+    /// 客户端自己的 GiveVersion 类型，直接收一个前端已经算好的字符串即可，
+    /// 客户端 Rust 侧不需要再理解这个枚举的具体取值。
+    version: &'a str,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiGenerateResp {
     pub ok: bool,
-    pub content: Option<String>,
+    pub commands: Vec<String>,
+    pub loop_commands: Vec<String>,
+    pub failures: Vec<String>,
+    pub explanation: String,
     pub error: Option<String>,
     pub usage: Option<AiUsage>,
+    /// 供客户端存入多轮对话历史使用，不在 UI 展示。
+    pub raw_content: Option<String>,
     pub balance: i64,
 }
 
@@ -162,11 +173,12 @@ pub async fn ai_generate(
     system_prompt: &str,
     user_text: &str,
     model: Option<&str>,
+    version: &str,
     history: &[ChatTurn],
 ) -> Result<AiGenerateResp, String> {
     let resp = client()
         .post(format!("{}/v1/ai/generate", server_base()))
-        .json(&AiGenerateReq { device_id, system_prompt, user_text, history, model })
+        .json(&AiGenerateReq { device_id, system_prompt, user_text, history, model, version })
         .send()
         .await
         .map_err(describe_connect_err)?;

@@ -1,14 +1,17 @@
 <script setup lang="ts">
 /**
- * AI 模式面板：自然语言 → AI 意图 → 确定性命令 → 一键部署为 datapack。
+ * AI 模式面板：自然语言 → 确定性命令 → 一键部署为 datapack。
  *
- * 语法安全性来自分层：AI 只产出「意图」，命令字符串由 logic/dispatch.ts 下经服务器
- * 实证的构建器生成，所以即便 AI 想歪了，也不会产出语法非法的命令。
+ * 语法安全性来自分层：AI 只产出「意图」，命令字符串由服务器上经 mc-verifier
+ * 实证的确定性构建器生成（server/src/give/），所以即便 AI 想歪了，也不会产出
+ * 语法非法的命令。这套构建逻辑此前跑在这个客户端里，现在已经搬到服务器——
+ * 它才是这个项目真正的护城河，比服务器保管的 API key 更值得保护，留在客户端
+ * 容易被逆向。搬迁后这个面板只管展示服务器返回的结果，不再自己解析 AI 输出、
+ * 不再自己校验目录、不再自己拼指令字符串。
  */
 import { computed, onMounted, ref, watch } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
-import { dispatchIntents } from "../logic/dispatch";
+import { buildSystemPrompt } from "../logic/ai/prompt";
 import type { GiveVersion } from "../logic/builder";
 import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
@@ -77,15 +80,26 @@ watch(
 
 interface AiResponse {
   ok: boolean;
-  content: string | null;
+  /** 一次性命令，可直接复制/一键部署——服务器已经跑完 dispatch+校验。 */
+  commands: string[];
+  /** 需要持续侦测的命令（execute 意图标了 loop:true 的）。 */
+  loopCommands: string[];
+  /** 构建失败的意图描述，格式 "${command}：${error}"。 */
+  failures: string[];
+  /** AI 给出的一句话说明。 */
+  explanation: string;
+  /** 顶层失败原因（余额不足/上游调用失败/AI 内容解析失败）。 */
   error: string | null;
   /**
-   * 现在走远程服务器代理（真实大模型 key 只在服务器上，见 src-tauri/src/remote.rs
-   * 顶部注释——这个客户端曾经把 key 直接编译进安装包，被人拆出来盗刷过一次）。
-   * 连不上服务器时是 null，不能瞎填 0——那会让用户误以为余额真的清零了。
+   * 现在走远程服务器代理（真实大模型 key + Builder 构建逻辑都只在服务器上，
+   * 见 src-tauri/src/remote.rs 顶部注释——这个客户端曾经把 key 直接编译进
+   * 安装包，被人拆出来盗刷过一次）。连不上服务器时是 null，不能瞎填 0——
+   * 那会让用户误以为余额真的清零了。
    */
   balance: number | null;
   usage: { prompt: number; completion: number; total: number } | null;
+  /** 供本组件存入多轮对话历史使用，不在 UI 展示。 */
+  rawContent: string | null;
 }
 
 const desktop = isTauri();
@@ -265,6 +279,7 @@ async function generate() {
       systemPrompt: buildSystemPrompt(props.version),
       userText: thisTurnText,
       model: apiModel.value.trim() || null,
+      version: props.version,
       history: history.value,
     });
 
@@ -272,21 +287,17 @@ async function generate() {
     // 那会让用户误以为余额真的清零了，其实只是网络问题。
     if (res.balance !== null) balance.value = res.balance;
 
-    if (!res.ok || !res.content) {
+    if (!res.ok) {
       errorText.value = res.error ?? "AI 调用失败。";
       return;
     }
 
-    const parsed = parseAiContent(res.content);
-    explanation.value = parsed.explanation;
-
-    const results = dispatchIntents(parsed.intents, props.version);
-    const ok = results.filter((r): r is typeof r & { command: string } => Boolean(r.command));
-    commands.value = ok.filter((r) => !r.loop).map((r) => r.command);
-    loopCommands.value = ok.filter((r) => r.loop).map((r) => r.command);
-    failures.value = results
-      .filter((r) => r.error)
-      .map((r) => `${r.intent.command}：${r.error}`);
+    // 解析/校验/构建现在全部在服务器上完成（server/src/give/），这里直接
+    // 用服务器已经分好类的结果，不用再自己解析 AI 输出、跑目录校验。
+    explanation.value = res.explanation;
+    commands.value = res.commands;
+    loopCommands.value = res.loopCommands;
+    failures.value = res.failures;
 
     const total = commands.value.length + loopCommands.value.length;
     if (total === 0) {
@@ -296,10 +307,11 @@ async function generate() {
     }
 
     // 只在成功拿到回复后才计入历史——调用失败/解析失败不该污染上下文。
+    // rawContent 是服务器专供多轮历史使用的原始 AI 输出，不在 UI 展示。
     history.value = [
       ...history.value,
       { role: "user", content: thisTurnText },
-      { role: "assistant", content: res.content },
+      { role: "assistant", content: res.rawContent ?? "" },
     ];
     userText.value = "";
   } catch (err) {
