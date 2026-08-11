@@ -14,6 +14,7 @@
 //! 公共信任链）。证书生成脚本见 server/certs/README.md。
 
 mod ai_proxy;
+mod give;
 mod ledger;
 
 use axum::extract::{Query, State};
