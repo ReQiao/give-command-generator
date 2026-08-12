@@ -96,6 +96,7 @@ const modal = reactive({ open: false, title: "", message: "", error: false });
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedBuiltinTemplate = ref("");
 const itemPickerOpen = ref(false);
+const pickBtnEl = ref<HTMLButtonElement | null>(null);
 /** 手动填表 / AI 自然语言，两种模式共用顶部的版本选择。 */
 const mode = ref<"manual" | "ai">("manual");
 const generateButtonText = ref("生成指令");
@@ -617,7 +618,7 @@ function textOptions(items: string[]): SelectOption[] {
           <span class="field-label">物品<InfoTip text="可以输入中文名、minecraft:ID 或不带 minecraft: 的 ID，按 Tab 可补全；也可以点「选择」从分类列表里挑。" /></span>
           <div class="item-field">
             <CatalogCombo v-model="form.item" :catalog="itemCatalog" placeholder="选择或输入物品" />
-            <button class="pick-btn" type="button" @click="itemPickerOpen = true">选择…</button>
+            <button ref="pickBtnEl" class="pick-btn" type="button" @click="itemPickerOpen = true">选择…</button>
           </div>
 
           <span class="field-label">数量<InfoTip text="生成物品数量。可以直接输入，也可以用右侧箭头微调。" /></span>
@@ -857,6 +858,8 @@ function textOptions(items: string[]): SelectOption[] {
       v-model:open="itemPickerOpen"
       :catalog="itemCatalog"
       :current="form.item"
+      :origin="pickBtnEl"
+      :animate="animationEnabled"
       @select="selectItem"
     />
 
