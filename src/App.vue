@@ -490,6 +490,32 @@ function textOptions(items: string[]): SelectOption[] {
 </script>
 
 <template>
+  <!-- 液态玻璃折射滤镜：只是几个 SVG <filter> 定义，不渲染任何可见内容，常驻挂载
+       一份即可，全局靠 backdrop-filter: url(#lensXxx) 引用。feTurbulence +
+       feDisplacementMap 这套组合是原型里反复调过的真折射效果，不是简单的
+       blur——每个元素引用时都会各自独立算一份，元素多的地方性能开销会叠加，
+       所以只接给数量少的面板/按钮用（.card/.modal-card、primary-btn 等），
+       没有接给 picker-grid 里最多同时渲染 300 个的物品格子按钮。 -->
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <defs>
+      <filter id="lensPanel" x="-15%" y="-15%" width="130%" height="130%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="5" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="10" result="soft" />
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="16" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <filter id="lensBtnNormal" x="-40%" y="-40%" width="180%" height="180%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.02 0.03" numOctaves="2" seed="3" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="5" result="soft" />
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="14" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <filter id="lensBtnPressed" x="-50%" y="-50%" width="200%" height="200%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.017 0.026" numOctaves="2" seed="27" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="4" result="soft" />
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="34" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+
   <div v-if="!eulaAccepted" class="eula-gate">
     <div class="eula-box">
       <h2>使用须知</h2>
