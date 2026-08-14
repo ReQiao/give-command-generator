@@ -14,7 +14,6 @@
 //! 公共信任链）。证书生成脚本见 server/certs/README.md。
 
 mod ai_proxy;
-mod give;
 mod ledger;
 
 use axum::extract::{Query, State};
@@ -117,54 +116,16 @@ struct AiGenerateReq {
     user_text: String,
     #[serde(default)]
     history: Vec<ai_proxy::ChatTurn>,
-    /// 客户端想用哪个模型；留空/不传就退回 .env 里 AI_MODEL 配置的默认值。
-    /// 不接受客户端指定 endpoint/key——那两个是真正的凭证，模型名只是个
-    /// "选哪档价格/能力"的偏好，交给客户端选没有安全问题。
-    #[serde(default)]
-    model: Option<String>,
-    /// 目标 Minecraft 版本（Java 各分档 / 基岩）。dispatch 层要按版本选
-    /// Java/基岩两套目录做存在性校验、给 give/setblock/summon/attribute
-    /// 等构建器注入正确的语法分支。
-    version: give::builder::GiveVersion,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AiGenerateResp {
     ok: bool,
-    /// 一次性命令，可直接复制/一键部署。
-    commands: Vec<String>,
-    /// 需要持续侦测的命令（execute 意图标了 loop:true 的），单独列出——
-    /// 原版没有"持续执行"这回事，必须部署成 datapack 才生效。
-    loop_commands: Vec<String>,
-    /// 构建失败的意图描述，格式 "${command}：${error}"，与迁移前客户端
-    /// AiPanel.vue 的展示格式一致。
-    failures: Vec<String>,
-    /// AI 给出的一句话说明。
-    explanation: String,
-    /// 顶层流程性失败（余额不足/上游调用失败/AI 返回内容解析失败）时的
-    /// 错误信息；部分意图构建失败走 `failures`，不算整体失败。
+    content: Option<String>,
     error: Option<String>,
     usage: Option<ai_proxy::AiUsage>,
-    /// 供客户端存入多轮对话历史使用的原始 AI 输出；不在 UI 展示。
-    raw_content: Option<String>,
     balance: i64,
-}
-
-impl AiGenerateResp {
-    fn failure(error: impl Into<String>, balance: i64) -> Self {
-        AiGenerateResp {
-            ok: false,
-            commands: Vec::new(),
-            loop_commands: Vec::new(),
-            failures: Vec::new(),
-            explanation: String::new(),
-            error: Some(error.into()),
-            usage: None,
-            raw_content: None,
-            balance,
-        }
-    }
 }
 
 async fn ai_generate(
@@ -175,60 +136,36 @@ async fn ai_generate(
 
     let account = state.ledger.snapshot(&req.device_id);
     if account.balance <= 0 {
-        return Ok(Json(AiGenerateResp::failure("余额不足，请先激活 / 充值。", account.balance)));
+        return Ok(Json(AiGenerateResp {
+            ok: false,
+            content: None,
+            error: Some("余额不足，请先激活 / 充值。".to_string()),
+            usage: None,
+            balance: account.balance,
+        }));
     }
 
-    let model = req
-        .model
-        .as_deref()
-        .map(str::trim)
-        .filter(|m| !m.is_empty())
-        .unwrap_or(&state.ai.model);
-
-    let (content, usage) =
-        match ai_proxy::call_upstream(&state.ai, model, &req.system_prompt, &req.user_text, req.history).await {
-            Ok(pair) => pair,
-            Err(e) => return Ok(Json(AiGenerateResp::failure(e, account.balance))),
-        };
-
-    // 成功调用大模型才扣费，按真实 token 用量折算，跟此前客户端版本的原则一致——
-    // 即便下面解析/构建阶段失败，钱也已经花在真实的大模型调用上了，不能不扣费。
-    let coins = ai_proxy::coins_to_charge(model, usage.as_ref());
-    let after = state.ledger.consume(&req.device_id, coins);
-
-    let parsed = match give::parse::parse_ai_content(&content) {
-        Ok(p) => p,
-        Err(e) => {
-            let mut resp = AiGenerateResp::failure(e, after.balance);
-            resp.usage = usage;
-            resp.raw_content = Some(content);
-            return Ok(Json(resp));
+    match ai_proxy::call_upstream(&state.ai, &req.system_prompt, &req.user_text, req.history).await {
+        Ok((content, usage)) => {
+            // 成功才扣费，按真实 token 用量折算，跟此前客户端版本的原则一致。
+            let coins = ai_proxy::coins_to_charge(&state.ai.model, usage.as_ref());
+            let after = state.ledger.consume(&req.device_id, coins);
+            Ok(Json(AiGenerateResp {
+                ok: true,
+                content: Some(content),
+                error: None,
+                usage,
+                balance: after.balance,
+            }))
         }
-    };
-
-    let results = give::dispatch::dispatch_intents(parsed.intents, req.version);
-    let mut commands = Vec::new();
-    let mut loop_commands = Vec::new();
-    let mut failures = Vec::new();
-    for r in results {
-        if let Some(cmd) = r.command {
-            if r.r#loop { loop_commands.push(cmd) } else { commands.push(cmd) }
-        } else if let Some(err) = r.error {
-            failures.push(format!("{}：{}", r.intent.command_name(), err));
-        }
+        Err(e) => Ok(Json(AiGenerateResp {
+            ok: false,
+            content: None,
+            error: Some(e),
+            usage: None,
+            balance: account.balance,
+        })),
     }
-
-    Ok(Json(AiGenerateResp {
-        ok: true,
-        commands,
-        loop_commands,
-        failures,
-        explanation: parsed.explanation,
-        error: None,
-        usage,
-        raw_content: Some(content),
-        balance: after.balance,
-    }))
 }
 
 #[tokio::main]

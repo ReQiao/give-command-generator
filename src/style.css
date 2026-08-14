@@ -53,12 +53,7 @@ button {
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
   box-shadow: 0 22px 52px rgba(0, 0, 0, 0.24);
-  /* lensPanel（App.vue 里挂的 SVG feTurbulence+feDisplacementMap 滤镜）做真折射；
-     WebKit 系（macOS/Linux 的 Tauri webview）对 backdrop-filter 里引用 SVG
-     滤镜支持不稳定，所以单独留一条不带 url() 的 -webkit- 前缀声明兜底，
-     退化成纯 blur+saturate+brightness，不会整条失效变成完全不模糊。 */
-  backdrop-filter: url(#lensPanel) blur(18px) saturate(150%) brightness(1.03);
-  -webkit-backdrop-filter: blur(18px) saturate(150%) brightness(1.03);
+  backdrop-filter: blur(18px);
 }
 
 .modal-card {
@@ -267,29 +262,6 @@ button:hover {
 
 button:active {
   transform: translateY(0) scale(0.98);
-}
-
-/* 液态玻璃折射只接给数量少、常驻可见的按钮（主按钮/选择按钮），不接给
-   picker-grid/picker-cats/preset-row/named-row 这些可能同屏几十上百个的
-   重复按钮——同样的 SVG 滤镜每个元素各自独立算一份，数量一多性能会叠加。 */
-button#primary,
-.primary-btn,
-.pick-btn {
-  backdrop-filter: url(#lensBtnNormal) blur(2px) saturate(140%);
-  -webkit-backdrop-filter: blur(6px) saturate(140%);
-  transition:
-    transform 150ms ease,
-    border-color 150ms ease,
-    background 150ms ease,
-    opacity 150ms ease,
-    backdrop-filter 150ms ease;
-}
-
-button#primary:active,
-.primary-btn:active,
-.pick-btn:active {
-  backdrop-filter: url(#lensBtnPressed) blur(1px) saturate(160%) brightness(1.08);
-  -webkit-backdrop-filter: blur(3px) saturate(160%) brightness(1.08);
 }
 
 button#primary,
@@ -1630,14 +1602,25 @@ button#primary,
   flex-wrap: wrap;
 }
 
-.ai-model-row {
+.ai-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-key {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.ai-model-row .custom-select {
-  width: clamp(150px, 17vw, 220px);
+.ai-key input {
+  width: clamp(120px, 14vw, 180px);
+}
+
+.ai-key .custom-select {
+  width: clamp(150px, 17vw, 210px);
 }
 
 .ai-input {

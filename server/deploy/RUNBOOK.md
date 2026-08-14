@@ -1,57 +1,17 @@
-# 部署清单：一步步在你的阿里云 ECS 上跑起来（Windows 本机版）
+# 部署清单：一步步在你的阿里云 ECS 上跑起来
 
 全程你自己在自己的终端里操作（SSH 连你的服务器），密码/私钥全程不经过我。
 我会把编译好的二进制文件发给你，其余步骤都是复制粘贴命令。
 
-服务器本身是 Ubuntu，只要 SSH 连上去了、后续在服务器里敲的命令（第 1～5 步）
-全都是远程 Linux 环境里的 bash，跟你自己电脑是 Windows 没有任何关系，照抄
-不用改。真正跟"你是 Windows"有关系的只有第 0 步（从本机传文件）和第 6 步
-（从本机验证），下面这两步给了 Windows 专用的写法。
-
-**终端用什么**：推荐用 **Windows Terminal**（Win11 自带，Win10 可以在
-微软商店免费装）或者直接用系统自带的 **PowerShell**，都能用。不推荐老式的
-`cmd.exe`（部分命令语法不兼容）。
-
-**先确认自带了 SSH 客户端**：Windows 10（1809 之后）和 Windows 11 都默认
-自带了 OpenSSH 客户端，`ssh`/`scp` 直接能用，一般不用额外装任何东西。打开
-PowerShell 敲一下确认：
-
-```powershell
-ssh -V
-```
-
-能看到类似 `OpenSSH_for_Windows_...` 这样的版本号就说明有；如果提示"不是
-内部或外部命令"，去「设置 → 应用 → 可选功能 → 添加功能」搜索
-"OpenSSH 客户端" 装上（不用重启），或者用下面提到的 WinSCP 图形界面工具
-代替命令行操作。
-
-**你是用密码登录服务器**（不是密钥），下面每一条 `ssh`/`scp` 命令敲回车后
-都会停下来问你密码——这是正常的，不是卡住了：
-- 输入密码的时候屏幕上**不会显示任何字符**（连星号 `*` 都没有），这是
-  Linux/OpenSSH 一贯的行为，正常打字然后回车就行，不是你的电脑坏了。
-- 第一次连这台服务器，可能会先弹出一段类似
-  "The authenticity of host ... can't be established... Are you sure you
-  want to continue connecting (yes/no)?" 的英文提示，这也是正常的（只在
-  第一次连接时出现），直接打 `yes` 回车，再输密码。
-
 ## 第 0 步：把二进制传到服务器
 
 我会把 `soul-lantern-server`（已经编译好、静态链接，不需要服务器上装 Rust）
-发给你，下载到你电脑上随便一个位置，比如 `C:\Users\你的用户名\Downloads\`。
+发给你。在**你自己电脑的终端**里，把这个文件传到服务器（把路径换成你实际
+下载到的位置）：
 
-打开 PowerShell，`cd` 到这个文件所在的目录，然后：
-
-```powershell
-scp .\soul-lantern-server root@120.26.175.121:/tmp/
+```bash
+scp soul-lantern-server root@120.26.175.121:/tmp/
 ```
-
-（`scp` 命令本身在 PowerShell 里跟在 Linux/Mac 终端里写法完全一样，只是
-路径前面 Windows 习惯加个 `.\`，不加也一样能跑。）
-
-**如果不想用命令行**：装一个 [WinSCP](https://winscp.net/)（免费、图形界面），
-连接方式选 SFTP，主机名填 `120.26.175.121`，用户名 `root`，输入密码连接后，
-直接把 `soul-lantern-server` 这个文件拖到服务器的 `/tmp/` 目录就行，效果
-一样，纯拖拽不用记命令。
 
 ## 第 1 步：SSH 上服务器，创建运行账号和目录
 
@@ -73,20 +33,9 @@ chmod +x /opt/soul-lantern/soul-lantern-server
 如果你更习惯直接在服务器上拉仓库，也可以 `git clone` 整个项目下来，用的就是
 仓库里那一份，效果一样。
 
-具体粘贴方法（在已经 SSH 连上服务器的窗口里）：
-
 ```bash
 cd /opt/soul-lantern
-nano generate.sh
-```
-
-`nano` 是个简单的文本编辑器，打开后是一片空白，直接在你自己电脑先复制好
-`generate.sh` 的内容，然后**在这个终端窗口里点右键**（Windows Terminal 和
-经典 PowerShell 窗口默认右键就是粘贴，`Ctrl+V` 在有些终端里不生效，右键
-最保险），粘贴完之后按 `Ctrl+X` 退出，它会问要不要保存，按 `Y`，再回车确认
-文件名，就存好了。
-
-```bash
+# 把 generate.sh 的内容粘贴保存到这里之后：
 chmod +x generate.sh
 ./generate.sh 120.26.175.121
 ```
@@ -129,14 +78,8 @@ chown -R soul-lantern:soul-lantern /opt/soul-lantern
 
 ## 第 4 步：装成系统服务，开机自启、崩了自动重启
 
-同样用 `nano` 打开一个新文件粘贴保存（粘贴方法同第 2 步：终端窗口里点右键，
-`Ctrl+X` → `Y` → 回车保存）：
-
-```bash
-nano /etc/systemd/system/soul-lantern.service
-```
-
-粘贴仓库里 `server/deploy/soul-lantern.service` 的内容，保存退出后：
+同样，把仓库里 `server/deploy/soul-lantern.service` 的内容复制粘贴保存成
+`/etc/systemd/system/soul-lantern.service`，然后：
 
 ```bash
 systemctl daemon-reload
@@ -165,28 +108,14 @@ journalctl -u soul-lantern -f   # 看实时日志，Ctrl+C 退出
 
 ## 第 6 步：从你自己电脑验证
 
-回到**你自己的 Windows 电脑**，把第 2 步里 `cat server.crt` 显示出来的内容
-复制一份，在本机随便一个目录（比如刚才第 0 步用的那个文件夹）用记事本新建
-一个文件，粘贴保存成 `server.crt`（内容不是秘密，之前已经贴给我了，你自己
-留一份也行，方便以后随时验证服务器还活着）。
+回到**你自己的电脑**，把服务器上的 `server.crt` 也复制一份到本地（内容不是
+秘密，之前已经贴给我了，你自己留一份也行），然后：
 
-打开 PowerShell，`cd` 到这个文件所在目录，然后：
-
-```powershell
-curl.exe --cacert server.crt https://120.26.175.121:8443/v1/health
+```bash
+curl --cacert server.crt https://120.26.175.121:8443/v1/health
 ```
 
-**注意这里必须写 `curl.exe`，不能只写 `curl`**——PowerShell 里 `curl` 这个
-名字默认是 `Invoke-WebRequest` 的别名，跟真正的 curl 命令参数写法不一样，
-`--cacert` 这个参数它不认，会报错。加上 `.exe` 后缀就是明确调用 Windows
-自带的那个真正的 curl 程序，不会被别名接管。
-
 看到返回 `ok` 就说明整条链路（证书、防火墙、安全组、服务本身）全部打通了。
-
-如果提示"找不到 curl.exe"：说明你这台电脑的 Windows 版本比较老，自带的
-curl 还没更新（2018 年之后的 Windows 10/11 都有）。这种情况可以直接用
-WinSCP 连上去看看服务是不是真的在跑（`systemctl status soul-lantern`），
-或者去 [curl 官网](https://curl.se/windows/) 下载一份单独装上。
 
 ## 以后要注意的事
 
