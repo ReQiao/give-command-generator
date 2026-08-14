@@ -31,16 +31,8 @@ dirs = "6"
 # 读 level.dat（gzip 压缩的 NBT）里的 Data.Version.Name，识别存档实际版本
 # crates.io 上包名是 hematite-nbt，但 lib 名字仍是 nbt，这里重命名回来方便代码里写 nbt::
 nbt = { package = "hematite-nbt", version = "0.5" }
-# 给这台安装生成一个稳定的随机设备 id，服务器账本靠它认领"这是同一个人"。
-uuid = { version = "1", features = ["v4"] }
-# 连自建服务器（server/）走的是自签名证书 + 客户端证书锁定，需要手动构造
-# rustls 的信任链配置（reqwest::Certificate 只是包了一层，真正的锁定逻辑
-# 得自己接进 reqwest::ClientBuilder），所以要显式依赖 rustls 本身。
-rustls = { version = "0.23", default-features = false, features = ["ring"] }
-
-[dev-dependencies]
-# 集成测试（tests/remote_integration.rs）要真的起服务器子进程、真的发 HTTPS
-# 请求，需要一个异步运行时；主依赖里没有直接依赖 tokio（用的是 tauri 自带的
-# 运行时），只有测试需要自己拉一份。
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+# 给本地计费状态文件签名，防的是"拿记事本手改余额数字"这种随手篡改。
+# sha2 已经是 reqwest/rustls 链路里的传递依赖，这里只多引入 hmac 一个小包。
+hmac = "0.12"
+sha2 = "0.10"
 
