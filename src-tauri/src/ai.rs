@@ -10,7 +10,6 @@
 //! 比 API key 更值得保护。现在这套逻辑也已经搬到服务器（server/src/give/），
 //! 服务器直接返回构建好的指令字符串，这个文件从此也碰不到未经校验的原始
 //! AI 输出。
-use crate::device;
 use crate::remote;
 use serde::{Deserialize, Serialize};
 
@@ -67,11 +66,10 @@ pub async fn ai_generate(
     // 前端携带的历史轮次（本轮之前的 user/assistant 消息，已经封顶3轮，见 AiPanel）。
     history: Option<Vec<ChatTurn>>,
 ) -> Result<AiResponse, ()> {
-    let device_id = device::get_or_create();
     let history = history.unwrap_or_default();
     let model = model.as_deref().map(str::trim).filter(|m| !m.is_empty());
 
-    match remote::ai_generate(&device_id, &system_prompt, &user_text, model, &version, &history).await {
+    match remote::ai_generate(&system_prompt, &user_text, model, &version, &history).await {
         Ok(resp) => Ok(AiResponse {
             ok: resp.ok,
             commands: resp.commands,

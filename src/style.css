@@ -1960,3 +1960,128 @@ button#primary,
     max-height: calc(100vh - 16px);
   }
 }
+
+/* ---------------- 账号：登录门禁 + 登录/注册弹窗 ---------------- */
+
+/* 门禁复用 .ai-notice 的黄条外观（同 bedrockUnsupported 那块），
+   这里只补一个放按钮的行。 */
+.ai-gate-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ai-gate-offline {
+  color: rgba(255, 196, 105, 0.75);
+}
+
+/* 余额栏里的"当前账号 + 退出登录" */
+.ai-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 10px;
+  color: #aeb7da;
+  font-size: 9.5pt;
+}
+
+.auth-card {
+  display: flex;
+  width: clamp(300px, 42vw, 420px);
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-head h2 {
+  margin: 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.auth-field > span {
+  color: #aeb7da;
+  font-size: 9.5pt;
+}
+
+.auth-submit {
+  margin-top: 4px;
+}
+
+.auth-hint {
+  margin: 0;
+  color: #dce7ff;
+  font-size: 10pt;
+  line-height: 1.6;
+}
+
+/* 「短信签名不是灵魂灯笼」那段提示。用和 .ai-notice 一致的黄色语义——
+   它不是装饰性说明，是用户不读就可能把验证码当诈骗短信忽略掉的关键信息。 */
+.auth-notice {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 196, 105, 0.35);
+  border-radius: 10px;
+  color: #ffd79a;
+  font-size: 9pt;
+  line-height: 1.6;
+  background: rgba(255, 196, 105, 0.1);
+}
+
+.auth-error {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 138, 138, 0.4);
+  border-radius: 10px;
+  color: #ffb4b4;
+  font-size: 9.5pt;
+  line-height: 1.55;
+  background: rgba(255, 96, 96, 0.12);
+}
+
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 文字按钮：不要长得像实心按钮，否则和主操作抢注意力 */
+.auth-link {
+  min-height: 0;
+  border: none;
+  padding: 2px 0;
+  color: #7aa2ff;
+  font-size: 9.5pt;
+  font-weight: 600;
+  background: none;
+}
+
+.auth-link:hover:not(:disabled) {
+  border: none;
+  background: none;
+  text-decoration: underline;
+  transform: none;
+}
+
+.auth-link:disabled {
+  color: rgba(174, 183, 218, 0.5);
+  cursor: default;
+}
