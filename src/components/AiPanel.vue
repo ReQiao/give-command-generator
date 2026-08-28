@@ -10,10 +10,19 @@
  * 不再自己校验目录、不再自己拼指令字符串。
  */
 import { computed, onMounted, ref, watch } from "vue";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { buildSystemPrompt } from "../logic/ai/prompt";
 import type { GiveVersion } from "../logic/builder";
-import AuthModal from "./AuthModal.vue";
+// 登录态是全局单一真相源（见 logic/auth.ts 顶部注释）：门禁判断现在也发生在
+// App.vue 的模式切换按钮上，两处各存一份 ref 会立刻不同步。
+import {
+  auth,
+  desktop,
+  gated,
+  logout as doLogout,
+  openAuth,
+  recheckAuth,
+} from "../logic/auth";
 import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
@@ -37,7 +46,18 @@ const emit = defineEmits<{
 const prefersReducedMotion =
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const showIgnition = ref(false);
+/**
+ * 特效层已经落地、可以起跑了。
+ *
+ * 为什么要和 showIgnition 分成两个：`v-if` 插入 DOM 的那一帧，浏览器要同时
+ * 完成「建元素 → 算样式 → 建合成层 → 栅格化那条渐变光带」，而 CSS 动画在元素
+ * 一插入就开始跑了。于是最开始的三五帧全被这些一次性开销吃掉，看起来就是
+ * 白线卡住不动。这里先只把节点放进去，隔两帧（一帧建层、一帧确认）再加
+ * `running` 把动画点着，起跑时图层已经是热的。
+ */
+const igniteRunning = ref(false);
 let igniteTimer: ReturnType<typeof setTimeout> | undefined;
+let igniteRaf = 0;
 
 /** 上浮的灰烬：位置/延时/时长/漂移各自随机，每次点燃都重新生成一遍，避免看出是同一套循环。 */
 const embers = ref(
@@ -63,10 +83,18 @@ function ignite() {
     size: `${3 + Math.random() * 4}px`,
   }));
   clearTimeout(igniteTimer);
+  cancelAnimationFrame(igniteRaf);
+  igniteRunning.value = false;
   showIgnition.value = true;
+  igniteRaf = requestAnimationFrame(() => {
+    igniteRaf = requestAnimationFrame(() => {
+      if (showIgnition.value) igniteRunning.value = true;
+    });
+  });
   // 特效放完就把节点摘掉，别在 DOM 里留一层常驻的 overlay。
   igniteTimer = setTimeout(() => {
     showIgnition.value = false;
+    igniteRunning.value = false;
   }, 2200);
 }
 
@@ -103,8 +131,6 @@ interface AiResponse {
   rawContent: string | null;
 }
 
-const desktop = isTauri();
-
 /**
  * 灵魂币余额 + 充值。真实扣费在后端（ai_generate 成功后按用量折算），
  * 这里只是展示余额和发起充值——充值现在是免费直接加余额（billing_recharge
@@ -122,95 +148,20 @@ const balance = ref<number | null>(null);
 const topupTiers = ref<TopupTier[]>([]);
 const showTopup = ref(false);
 
-/**
- * 登录态。
- *
- * 注意 token 不在这里——它由 Rust 侧 session.rs 存盘，前端只知道"登没登录、
- * 用户名是什么"。前端拿不到 token，也就少一条被注入脚本顺走的路径。
- *
- * `offline` 要和 `loggedIn=false` 分开：服务器连不上和没登录在界面上必须是
- * 两句不同的话，否则用户会以为自己账号出了问题，跑去反复重新注册。
- */
-interface AuthState {
-  loggedIn: boolean;
-  username: string;
-  phoneMasked: string;
-  balance: number;
-  activated: boolean;
-  offline: boolean;
-}
-const auth = ref<AuthState>({
-  loggedIn: false,
-  username: "",
-  phoneMasked: "",
-  balance: 0,
-  activated: false,
-  offline: false,
-});
-const authModalOpen = ref(false);
-/** 弹窗打开时停在哪一屏。改密码要能直接跳到那一屏，不然用户得先看到登录表单再自己找。 */
-const authModalMode = ref<"login" | "register" | "reset" | "change">("login");
-
-function openAuth(mode: "login" | "register" | "reset" | "change") {
-  authModalMode.value = mode;
-  authModalOpen.value = true;
-}
-/**
- * 服务端的登录门禁开关（/v1/version 的 authRequired）。
- * 取不到时默认 false——宁可放行也不要把用户锁死在一个连不上服务器的门禁后面。
- * 真去调 /v1/ai/generate 还是会被服务端 401 挡住，安全性不受影响，
- * 但用户至少能看清"是服务器连不上"而不是对着打不开的登录框发呆。
- */
-const authRequired = ref(false);
-/** 未登录且服务端要求登录时，整个 AI 面板挡住。 */
-const gated = computed(() => desktop && authRequired.value && !auth.value.loggedIn);
-
-async function refreshAuth() {
-  if (!desktop) return;
-  try {
-    auth.value = await invoke<AuthState>("auth_state");
-    if (auth.value.loggedIn) balance.value = auth.value.balance;
-  } catch {
-    // auth_state 自己已经把各种失败折叠成"未登录"了，走到这里说明 invoke 本身炸了
-  }
-}
-
-async function refreshAuthRequired() {
-  if (!desktop) return;
-  try {
-    authRequired.value = await invoke<boolean>("auth_required");
-  } catch {
-    authRequired.value = false;
-  }
-}
-
-/**
- * 重新确认一次登录态和门禁开关。
- *
- * 存在的理由是一个真实的死锁：`authRequired` 默认 false，而 `auth_required`
- * 在**服务器连不上时也返回 false**（那是刻意的——宁可放行也不要把用户锁死在
- * 一个连不上服务器的门禁后面）。如果这两个值只在 onMounted 拉一次，那么
- * "软件启动那一刻恰好断网/服务器在重启" 就会让用户永远停在
- * "不显示门禁、也不显示账号区" 的状态里，界面上没有任何一处能打开登录框，
- * 网络恢复了也不行，除非重启软件。
- *
- * 所以凡是拿到"需要登录"这类信号的地方（充值 401、生成失败）都回头刷一次。
- */
-async function recheckAuth() {
-  await Promise.all([refreshAuthRequired(), refreshAuth()]);
-}
+// refreshAuth 现在住在 logic/auth.ts 里，它不知道余额条这回事，
+// 所以余额跟随登录态的同步放在这里做。
+watch(
+  () => auth.value.loggedIn,
+  (loggedIn) => {
+    if (loggedIn) balance.value = auth.value.balance;
+  },
+  { immediate: true },
+);
 
 async function logout() {
-  try {
-    await invoke("auth_logout");
-  } finally {
-    auth.value = {
-      loggedIn: false, username: "", phoneMasked: "",
-      balance: 0, activated: false, offline: false,
-    };
-    balance.value = null;
-    emit("toast", "已退出登录");
-  }
+  await doLogout();
+  balance.value = null;
+  emit("toast", "已退出登录");
 }
 
 async function refreshBalance() {
@@ -292,8 +243,7 @@ async function checkUpgradeNotice() {
 
 onMounted(() => {
   void checkUpgradeNotice();
-  void refreshAuthRequired();
-  void refreshAuth();
+  // 登录态/门禁开关由 App.vue 在挂载时统一拉一次（模式切换按钮要用），这里不重复。
   void refreshBalance();
   void loadTopupTiers();
 });
@@ -455,9 +405,13 @@ function copyAll() {
 </script>
 
 <template>
-  <section class="card ai-card" :class="{ igniting: showIgnition }">
-    <!-- 启动特效层：纯装饰，pointer-events:none，不拦任何点击 -->
-    <div v-if="showIgnition" class="ai-ignite" aria-hidden="true">
+  <!-- ignite-flat 跟着 showIgnition 走（比 igniting 早两帧）：它负责在特效期间
+       摘掉卡片的 backdrop-filter，那一下会让整张卡重绘，必须发生在预热窗口里，
+       不能和动画起跑撞在同一帧。原因见 style.css 里 .ai-card.ignite-flat 的注释。 -->
+  <section class="card ai-card" :class="{ 'ignite-flat': showIgnition, igniting: igniteRunning }">
+    <!-- 启动特效层：纯装饰，pointer-events:none，不拦任何点击。
+         节点先插进来（showIgnition），隔两帧再加 running 起跑，见上面注释。 -->
+    <div v-if="showIgnition" class="ai-ignite" :class="{ running: igniteRunning }" aria-hidden="true">
       <span class="ai-sweep"></span>
       <span
         v-for="e in embers"
@@ -652,12 +606,5 @@ function copyAll() {
       @update:version="(v) => emit('update:version', v)"
     />
     </template>
-
-    <AuthModal
-      v-model:open="authModalOpen"
-      :initial-mode="authModalMode"
-      @authed="refreshAuth"
-      @toast="(m) => emit('toast', m)"
-    />
   </section>
 </template>

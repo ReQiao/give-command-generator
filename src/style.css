@@ -13,6 +13,48 @@
   box-sizing: border-box;
 }
 
+/*
+ * ---------------- 液态玻璃材质：统一的一组变量 ----------------
+ *
+ * 三件事一起才叫"液态玻璃"，缺一件都会退化成普通半透明：
+ *   1. 折射   —— backdrop-filter: url(#lensXxx)，SVG feTurbulence + feDisplacementMap
+ *   2. 高斯模糊 —— blur()，把背后的内容化成色块
+ *   3. 取色于背景 —— saturate() 把背后的颜色提出来，配合**低不透明度**的中性底色，
+ *                  面板颜色就跟着它盖住的东西走，而不是自己写死一个蓝色
+ *
+ * 第 3 点最容易被写坏：只要底色不透明度上了 0.9，前两条做得再好也白搭——
+ * 背后的颜色根本透不过来，看着就是一块深蓝色板子。所以下面这些面板的底色
+ * 全部压在 0.6 以下，靠 blur + saturate 保证文字对比度，而不是靠堆不透明度。
+ *
+ * 两档的区别见 App.vue 里 #lensMenu 的注释：大面板用 lensPanel（位移 16），
+ * 小浮层用 lensMenu（位移 7），后者位移大了会把文字糊掉。
+ */
+:root {
+  --glass-tint: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+  --glass-tint-strong: linear-gradient(180deg, rgba(23, 34, 64, 0.58), rgba(14, 22, 44, 0.52));
+  --glass-border: 1px solid rgba(255, 255, 255, 0.13);
+  --glass-border-soft: 1px solid rgba(122, 162, 255, 0.24);
+  --glass-shadow: 0 22px 52px rgba(0, 0, 0, 0.28);
+  --glass-shadow-sm: 0 16px 38px rgba(0, 0, 0, 0.32);
+  /* 高光描边：让玻璃有个"边缘更亮"的厚度感，纯 box-shadow，不占布局 */
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.14);
+}
+
+/*
+ * 小浮层的玻璃。菜单、气泡、toast 共用。
+ *
+ * -webkit- 那条兜底不能删：WebKit 系（macOS/Linux 的 Tauri webview）对
+ * backdrop-filter 里引用 SVG 滤镜支持不稳定，url() 认不出来会让**整条声明失效**，
+ * 结果是完全不模糊、直接看穿——所以单独留一条不带 url() 的退化版。
+ */
+.glass-float {
+  border: var(--glass-border-soft);
+  background: var(--glass-tint-strong);
+  box-shadow: var(--glass-shadow-sm), var(--glass-edge);
+  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+}
+
 body {
   margin: 0;
   width: 100vw;
@@ -51,14 +93,14 @@ button {
 .modal-card {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
-  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.24);
+  background: var(--glass-tint);
+  box-shadow: var(--glass-shadow), var(--glass-edge);
   /* lensPanel（App.vue 里挂的 SVG feTurbulence+feDisplacementMap 滤镜）做真折射；
      WebKit 系（macOS/Linux 的 Tauri webview）对 backdrop-filter 里引用 SVG
      滤镜支持不稳定，所以单独留一条不带 url() 的 -webkit- 前缀声明兜底，
      退化成纯 blur+saturate+brightness，不会整条失效变成完全不模糊。 */
-  backdrop-filter: url(#lensPanel) blur(18px) saturate(150%) brightness(1.03);
-  -webkit-backdrop-filter: blur(18px) saturate(150%) brightness(1.03);
+  backdrop-filter: url(#lensPanel) blur(18px) saturate(180%) brightness(1.04);
+  -webkit-backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
 }
 
 .modal-card {
@@ -387,8 +429,11 @@ button#primary,
   line-height: 1.55;
   text-align: left;
   pointer-events: none;
-  background: rgba(17, 26, 51, 0.98);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.34);
+  border-color: rgba(122, 162, 255, 0.24);
+  background: var(--glass-tint-strong);
+  box-shadow: var(--glass-shadow-sm), var(--glass-edge);
+  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
 }
 
 .info-bubble.center {
@@ -408,7 +453,10 @@ button#primary,
   width: 9px;
   height: 9px;
   content: "";
-  background: rgba(17, 26, 51, 0.98);
+  /* 小三角伸在气泡外面，拿不到气泡那层 backdrop-filter（父级已经是 backdrop 根，
+     它这块的背景是空的）。所以只能用一个和玻璃视觉均值接近的半透明色对齐——
+     不能留 0.98 的实色，那样气泡是玻璃、尖角是块实心，一眼就看出接缝。 */
+  background: rgba(23, 34, 64, 0.56);
 }
 
 .info-bubble.center::after {
@@ -610,12 +658,15 @@ button#primary,
   z-index: 9000;
   max-height: min(280px, 42vh);
   overflow: auto;
-  border: 1px solid rgba(122, 162, 255, 0.25);
   border-radius: 14px;
   padding: 5px;
-  background: rgba(17, 26, 51, 0.98);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(16px);
+  /* 原来是 rgba(17,26,51,0.98) + blur(16px)：0.98 的底色等于把背后完全糊死，
+     那层 blur 一点作用都没有，看着就是块实心板。 */
+  border: var(--glass-border-soft);
+  background: var(--glass-tint-strong);
+  box-shadow: var(--glass-shadow-sm), var(--glass-edge);
+  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
 }
 
 .floating-menu {
@@ -900,10 +951,22 @@ button#primary,
   color: #e7ecff;
   font-weight: 700;
   word-break: break-all;
-  background: rgba(17, 26, 51, 0.94);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+  border-color: rgba(122, 162, 255, 0.26);
+  background: var(--glass-tint-strong);
+  box-shadow: var(--glass-shadow-sm), var(--glass-edge);
+  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
 }
 
+/*
+ * 弹窗遮罩。
+ *
+ * 【别把不透明度调回 0.82】遮罩是弹窗卡片的**背景来源**——卡片的
+ * backdrop-filter 采样的就是这一层的合成结果。遮罩 0.82 近乎全黑，卡片再怎么
+ * 折射、再怎么 saturate，采到的都是一片黑，玻璃质感等于零。压到 0.42 并把
+ * 模糊放在遮罩自己身上：底下的界面被化开成色块但颜色还在，卡片于是能从中
+ * 取到色，"根据背景变换颜色"这件事才成立。
+ */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -911,9 +974,13 @@ button#primary,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(3, 8, 22, 0.82);
+  background: rgba(3, 8, 22, 0.42);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
 }
 
+/* 使用须知门禁。背景从纯色 #05070f 换成半透明——底下那层
+   body 的三段蓝色渐变透上来，玻璃盒子才有东西可折射。 */
 .eula-gate {
   position: fixed;
   inset: 0;
@@ -921,7 +988,9 @@ button#primary,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: #05070f;
+  background: rgba(5, 7, 15, 0.55);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 }
 
 .eula-box {
@@ -931,11 +1000,14 @@ button#primary,
   width: clamp(320px, 90vw, 560px);
   max-height: calc(100vh - 48px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: var(--glass-border);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.13));
-  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(18px);
+  /* 之前是 0.17/0.13 的白纱 + 纯 blur，没有折射也没有取色。
+     跟 .card 用同一套材质，全应用只有一种玻璃。 */
+  background: var(--glass-tint);
+  box-shadow: var(--glass-shadow), var(--glass-edge);
+  backdrop-filter: url(#lensPanel) blur(18px) saturate(180%) brightness(1.04);
+  -webkit-backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
 }
 
 .eula-box h2 {
@@ -948,6 +1020,11 @@ button#primary,
 .eula-text {
   overflow-y: auto;
   padding-right: 6px;
+  /* 底部渐隐。这一屏强制"滑到底才能点同意"，所以必须让人一眼看出下面还有内容；
+     硬切一刀的边缘反而像文章已经完了，用户会以为按钮坏了。
+     用 mask 而不是叠一层渐变 div：叠 div 要跟着玻璃底色调，换个背景就穿帮。 */
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
   color: #dce7ff;
   font-size: 10pt;
   line-height: 1.7;
@@ -964,6 +1041,37 @@ button#primary,
 
 .eula-text li {
   margin-bottom: 6px;
+}
+
+/* v2 的条款分了六节，没有小标题会糊成一大坨读不下去。 */
+.eula-text h3 {
+  margin: 18px 0 8px;
+  color: #b9c8f4;
+  font-size: 10.5pt;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.eula-text h3:first-child {
+  margin-top: 0;
+}
+
+.eula-text strong {
+  color: #ffffff;
+}
+
+/* 开头那段"手动模式不联网"是全篇最该被看到的一句，给它一条高亮边。 */
+.eula-lead {
+  border-left: 3px solid rgba(77, 228, 201, 0.55);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  background: rgba(77, 228, 201, 0.08);
+}
+
+.eula-mono {
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5pt;
+  word-break: break-all;
 }
 
 .eula-actions {
@@ -1417,29 +1525,70 @@ button#primary,
   pointer-events: none;
 }
 
-/* 面板整体先暗一下再亮起来，像被点着 */
-.ai-card.igniting {
-  animation: ai-card-glow 1200ms ease-out;
+/*
+ * 【这条规则是整个特效流畅与否的关键，别删】
+ *
+ * 特效期间把卡片自己的 backdrop-filter 摘掉。
+ *
+ * 液态玻璃和"玻璃上面有东西在动"是天然冲突的：backdrop-filter 的结果依赖它
+ * 背后的合成内容，而上面盖着一层逐帧变化的东西时，浏览器每一帧都要把整套
+ * SVG 折射（feTurbulence + feDisplacementMap）加 18px 高斯模糊重算一遍。
+ *
+ * 实测（headless Chromium，1.3 秒窗口内的 rAF 帧数 / 最长卡顿）：
+ *   url(#lensPanel) + blur(18px)     19 帧 / 205ms   ← 原样
+ *   只去掉 url() 折射，留 blur        31 帧 /  74ms
+ *   特效期间整层摘掉                  66 帧 /  39ms   ← 现在这样
+ * 同一台机器空白页是 64fps、应用静止时 66fps，所以 19 帧是真卡，不是环境问题。
+ *
+ * 视觉上不亏：这 1.2 秒里卡片正被扫光和辉光盖着，底下玻璃糊不糊没人看得出来；
+ * 而 15fps 和 60fps 的差别一眼就能看出来。
+ */
+.ai-card.ignite-flat {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* 面板整体先暗一下再亮起来，像被点着。
+   这层辉光挂在特效层的伪元素上，只动 opacity——不要回到"给 .ai-card 动
+   box-shadow"的老写法：box-shadow 是绘制属性，逐帧动会让整张卡片连同它的
+   backdrop-filter 一起重绘，正是扫光开头卡顿的另一半原因。 */
+.ai-ignite::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 40px rgba(122, 162, 255, 0.28), 0 0 34px rgba(77, 228, 201, 0.24);
+  opacity: 0;
+  will-change: opacity;
+}
+
+.ai-ignite.running::after {
+  animation: ai-card-glow 1200ms ease-out forwards;
 }
 
 @keyframes ai-card-glow {
-  0% {
-    box-shadow: inset 0 0 0 1px rgba(122, 162, 255, 0), 0 0 0 rgba(77, 228, 201, 0);
-  }
-  35% {
-    box-shadow: inset 0 0 40px rgba(122, 162, 255, 0.28), 0 0 34px rgba(77, 228, 201, 0.24);
-  }
-  100% {
-    box-shadow: inset 0 0 0 1px rgba(122, 162, 255, 0), 0 0 0 rgba(77, 228, 201, 0);
-  }
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* 横扫而过的高光 */
+/* 横扫而过的高光。
+ *
+ * 【别改回动 left】早先这里动的是 `left: -45% → 105%`。left 是布局属性，
+ * 浏览器每一帧都要重排 + 重绘，而这条光带正盖在一张开了 backdrop-filter 的
+ * 卡片上——前几帧全花在建合成层和栅格化上，肉眼看到的就是"白线开头三五帧
+ * 不动，然后突然窜出去"。改成 transform 之后整条动画只走合成器。
+ *
+ * 位移换算：元素宽 40%（相对容器），要让它的左边缘从 -45% 走到 105%（相对容器），
+ * 就是 -45/40 = -112.5% 到 105/40 = 262.5%（相对元素自身宽度）。
+ * skewX 必须写进每一个关键帧，否则会被 transform 整体覆盖掉。
+ */
 .ai-sweep {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -40%;
+  left: 0;
   width: 40%;
   background: linear-gradient(
     100deg,
@@ -1448,13 +1597,27 @@ button#primary,
     rgba(77, 228, 201, 0.24) 55%,
     rgba(122, 162, 255, 0) 100%
   );
-  transform: skewX(-14deg);
-  animation: ai-sweep-move 1100ms cubic-bezier(0.3, 0, 0.2, 1) 120ms forwards;
+  transform: translateX(-112.5%) skewX(-14deg);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/*
+ * 【曲线别再换回带慢起步的】原来是 cubic-bezier(0.3, 0, 0.2, 1) + 120ms 延迟。
+ * 那条曲线前 20% 的时间只走完 5% 的距离，加上延迟，头三百毫秒里光带几乎钉在
+ * 原地——看起来就是"卡了几帧才窜出去"。实测采样：
+ *   -553 → -553 → -553 → -553 → -540 → -428 → -169 → 182  （每 80ms 一个点）
+ * 光带这种东西是"扫"过去的，本来就该带着速度进场。换成起步即有速度、末端收慢
+ * 的 ease-out 曲线，延迟也从 120ms 收到 40ms（合成层的预热已经由组件侧那两帧
+ * 兜住了，不需要再用延迟来凑）。
+ */
+.ai-ignite.running .ai-sweep {
+  animation: ai-sweep-move 1100ms cubic-bezier(0.22, 0.68, 0.3, 1) 40ms forwards;
 }
 
 @keyframes ai-sweep-move {
   0% {
-    left: -45%;
+    transform: translateX(-112.5%) skewX(-14deg);
     opacity: 0;
   }
   15% {
@@ -1464,7 +1627,7 @@ button#primary,
     opacity: 1;
   }
   100% {
-    left: 105%;
+    transform: translateX(262.5%) skewX(-14deg);
     opacity: 0;
   }
 }
@@ -1477,9 +1640,16 @@ button#primary,
   background: radial-gradient(circle, #b8f5e6 0%, #4de4c9 45%, rgba(77, 228, 201, 0) 70%);
   box-shadow: 0 0 8px rgba(77, 228, 201, 0.75);
   opacity: 0;
-  animation-name: ai-ember-rise;
+  /* 这里刻意**不写** will-change：灰烬有 18 个，逐个提示浏览器提前建合成层
+     等于一瞬间要它建 18 张纹理，反而把起跑那几帧压垮。它们只有 3~7px，
+     动的又只是 transform/opacity，合成器临时处理得过来。
+     will-change 只留给那条全高的扫光带——那才是真正大面积的一层。 */
   animation-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
   animation-fill-mode: forwards;
+}
+
+.ai-ignite.running .ai-ember {
+  animation-name: ai-ember-rise;
 }
 
 @keyframes ai-ember-rise {
@@ -1566,8 +1736,13 @@ button#primary,
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
+  border: 1px solid rgba(255, 209, 138, 0.22);
   border-radius: 12px;
-  background: rgba(255, 209, 138, 0.06);
+  /* 暖色调的玻璃：底色带一点琥珀，其余交给 backdrop-filter 取景 */
+  background: linear-gradient(180deg, rgba(255, 209, 138, 0.12), rgba(255, 209, 138, 0.05));
+  box-shadow: var(--glass-edge);
+  backdrop-filter: url(#lensMenu) blur(14px) saturate(175%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
 }
 
 .ai-topup-note {

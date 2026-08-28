@@ -12,6 +12,16 @@ import AiPanel from "./components/AiPanel.vue";
 import DeployPanel from "./components/DeployPanel.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
+import AuthModal from "./components/AuthModal.vue";
+import {
+  authModalMode,
+  authModalOpen,
+  gated as authGated,
+  openAuth,
+  pendingAiSwitch,
+  recheckAuth,
+  refreshAuth,
+} from "./logic/auth";
 import {
   ATTRIBUTES,
   BEDROCK_BLOCKS,
@@ -59,7 +69,9 @@ const animationKey = "give-generator-animation";
 // ---------------- 使用须知（EULA）：必须同意才能进入软件 ----------------
 // 版本号写进 key 里——以后条款有实质性修改，把这个数字改大，老用户会被
 // 重新要求同意一遍，而不是永远沿用当初点过的那次同意。
-const EULA_VERSION = "1";
+// v2：加了账号体系之后要收手机号，按《个人信息保护法》必须单独告知并取得同意。
+// 只改文案不改这个数字的话，已经点过同意的老用户永远看不到新条款，那份告知等于没做。
+const EULA_VERSION = "2";
 const eulaKey = `give-generator-eula-accepted-v${EULA_VERSION}`;
 const eulaAccepted = ref(localStorage.getItem(eulaKey) === "true");
 const eulaScrolledToEnd = ref(false);
@@ -99,6 +111,54 @@ const itemPickerOpen = ref(false);
 const pickBtnEl = ref<HTMLButtonElement | null>(null);
 /** 手动填表 / AI 自然语言，两种模式共用顶部的版本选择。 */
 const mode = ref<"manual" | "ai">("manual");
+
+/**
+ * 切模式。未登录点「AI 模式」时**不切过去**——停在手动模式，直接把登录框弹出来。
+ *
+ * 为什么不是像以前那样"先切进 AI 面板、再在面板里显示一块登录提示"：那样用户
+ * 已经离开了手动模式，界面整个换了一套，却什么都干不了；而且切过去的那一下会
+ * 放点灯动画，等于为一个进不去的地方演了一遍开场。现在动画只在真正能用的时候放。
+ *
+ * 登录成功后由 onAuthed 补上这次切换，那时 AiPanel 的 active 从 false 变 true，
+ * 点灯动画照常触发——用户看到的顺序是「登录 → 灯亮 → 进 AI」，比反过来顺。
+ */
+function selectMode(next: "manual" | "ai") {
+  if (next === "ai" && authGated.value) {
+    pendingAiSwitch.value = true;
+    openAuth("login");
+    // 顺手再确认一次门禁开关：如果是"启动那一刻连不上服务器"导致的误判，
+    // 这一次刷新就能纠正过来，用户不用重启软件。
+    void recheckAuth().then(() => {
+      if (!authGated.value && pendingAiSwitch.value) {
+        pendingAiSwitch.value = false;
+        authModalOpen.value = false;
+        mode.value = "ai";
+      }
+    });
+    return;
+  }
+  mode.value = next;
+}
+
+/**
+ * 用户没登录就把弹窗关掉了，那次"我要进 AI 模式"的意图就此作废。
+ * 不清掉的话它会一直挂着，等到很久以后用户从账号区点登录时突然跳进 AI 模式——
+ * 那是他这次完全没要求过的事。
+ */
+watch(authModalOpen, (open) => {
+  if (!open) pendingAiSwitch.value = false;
+});
+
+/** 登录/注册成功。只有"被 AI 门禁拦下来"那条路径才顺势切进 AI 模式。 */
+async function onAuthed() {
+  // 【必须同步取】AuthModal 的顺序是 emit("authed") → open = false，而下面要
+  // await。等 await 回来时，上面那个"关窗就清空 pendingAiSwitch"的 watch 早就
+  // 跑过了，读到的一定是 false，模式切换永远不会发生。
+  const wanted = pendingAiSwitch.value;
+  pendingAiSwitch.value = false;
+  await refreshAuth();
+  if (wanted && !authGated.value) mode.value = "ai";
+}
 const generateButtonText = ref("生成指令");
 const copyButtonText = ref("复制指令");
 const rowFlash = reactive<Record<string, boolean>>({});
@@ -232,6 +292,9 @@ onMounted(() => {
   // 须知内容如果短到不用滚动就能看完（小字号/大窗口），不该因为用户压根没机会
   // 触发 scroll 事件就一直卡在"未同意"按钮不能点，挂载后主动检查一次。
   void nextTick(checkEulaScrolled);
+  // 登录态在这一层拉，不放 AiPanel 里：门禁判断发生在这儿的模式切换按钮上，
+  // 拉取要早于用户可能点到「AI 模式」的那一刻。
+  void recheckAuth();
 });
 
 function loadAutosave(): GiveForm {
@@ -513,37 +576,118 @@ function textOptions(items: string[]): SelectOption[] {
         <feGaussianBlur in="noise" stdDeviation="4" result="soft" />
         <feDisplacementMap in="SourceGraphic" in2="soft" scale="34" xChannelSelector="R" yChannelSelector="G" />
       </filter>
+      <!-- 小尺寸浮层（下拉菜单、气泡提示、toast）专用。
+           不能直接复用 lensPanel：那一份的位移 scale=16，放在一张大卡片上只是
+           轻微的水波感，但同样的 16px 位移落在一个高 34px 的菜单项上就是整整
+           半行字的错位，文字会糊到读不出来。这里把 scale 收到 7、把噪声频率
+           调高（波长更短），效果是"细密的磨砂玻璃"而不是"大块水纹"。 -->
+      <filter id="lensMenu" x="-20%" y="-20%" width="140%" height="140%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014 0.019" numOctaves="2" seed="11" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="6" result="soft" />
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="7" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
     </defs>
   </svg>
 
   <div v-if="!eulaAccepted" class="eula-gate">
     <div class="eula-box">
-      <h2>使用须知</h2>
+      <h2>使用须知与隐私说明</h2>
       <div ref="eulaTextEl" class="eula-text" @scroll="checkEulaScrolled">
+        <p class="eula-lead">
+          本软件分为<strong>手动模式</strong>和 <strong>AI 模式</strong>两部分。
+          手动模式完全在你的电脑本地运行，<strong>不联网、不收集任何信息</strong>；
+          只有当你主动使用 AI 模式时，才需要注册账号并联网。下面第三、四节专门讲这件事，请重点看。
+        </p>
+
+        <h3>一、版权与授权</h3>
         <p>
           本软件（含全部源代码、界面设计，以及"自然语言 → AI 意图 → 确定性指令构建器"这一实现方式）
           版权归开发者所有，受《中华人民共和国著作权法》及相关法律法规保护，未经明示授予的权利均予保留。
         </p>
         <p>
-          开发者仅授予您在自有设备上运行本软件、使用其生成的游戏内指令的权利；
-          您因安装或使用本软件，不因此获得对源代码本身的任何权利。
+          开发者仅授予你在自有设备上运行本软件、使用其生成的游戏内指令的权利；
+          你因安装或使用本软件，不因此获得对源代码本身的任何权利。
         </p>
-        <p>未经开发者书面许可，您不得从事以下行为：</p>
+
+        <h3>二、禁止行为</h3>
+        <p>未经开发者书面许可，你不得从事以下行为：</p>
         <ul>
           <li>对本软件进行反编译、反汇编、逆向工程，或以其他方式还原其源代码；</li>
           <li>复制、传播、出售、二次分发本软件的源代码或其实质性部分（包括但不限于指令构建逻辑）；</li>
-          <li>移除、隐藏或篡改本软件内的版权声明、作者信息或本协议。</li>
+          <li>移除、隐藏或篡改本软件内的版权声明、作者信息或本协议；</li>
+          <li>
+            以脚本、自动化程序或其他非正常手段批量注册账号、批量索取短信验证码、
+            绕过计费或干扰服务器正常运行。
+          </li>
+        </ul>
+
+        <h3>三、账号与手机号（个人信息处理告知）</h3>
+        <p>
+          <strong>只有使用 AI 模式才需要注册账号。</strong>注册时我们会收集你的
+          <strong>用户名、密码和手机号码</strong>，用途仅限于以下三项，不作他用：
+        </p>
+        <ul>
+          <li><strong>手机号</strong>——通过短信验证码完成注册验证、找回密码，以及在账号异常时作为唯一的身份凭据；</li>
+          <li><strong>用户名与密码</strong>——用于登录。密码以加盐哈希形式存储，开发者无法查看你的原始密码；</li>
+          <li><strong>灵魂币余额与消费记录</strong>——用于计费，也让你换电脑、重装系统之后余额还在。</li>
         </ul>
         <p>
-          本软件按"现状"提供，不对因使用本软件（含 AI 生成的指令、一键部署功能）
-          导致的存档损坏、数据丢失或其他后果承担责任，请自行做好存档备份后再使用一键部署功能。
+          <strong>关于短信</strong>：验证码短信经由阿里云发出，短信开头方括号里显示的是
+          <strong>短信服务商的签名，不是"灵魂灯笼"</strong>。这不是诈骗短信，请以你在本软件内主动点击"获取验证码"
+          为准；你没有操作过却收到验证码时，请不要提供给任何人。
         </p>
         <p>
-          违反上述条款的，开发者保留通过一切合法手段（包括但不限于公开说明情况、提起诉讼）
+          <strong>存储与共享</strong>：上述信息存储在开发者自行租用的服务器上，
+          <strong>不会出售、不会共享给任何第三方</strong>，也不用于广告或用户画像。
+          手机号仅在向短信服务商发送验证码时传递给该服务商，用完即止。
+        </p>
+        <p>
+          <strong>你的权利</strong>：你可以随时查询、更正你的账号信息，或要求注销账号并删除全部相关数据。
+          注销后余额与消费记录一并清除且不可恢复。目前的办理渠道是本项目的
+          GitHub Issues（<span class="eula-mono">github.com/ReQiao/give-command-generator</span>）。
+        </p>
+        <p>
+          <strong>未成年人</strong>：如果你未满 14 周岁，请在监护人陪同下阅读本协议，
+          并在取得监护人同意后再注册使用 AI 模式。
+        </p>
+
+        <h3>四、AI 生成、灵魂币与计费</h3>
+        <p>
+          AI 模式会把你输入的<strong>需求描述</strong>发送到开发者的服务器，再由服务器转发给第三方大模型服务商处理。
+          请不要在描述里填写真实姓名、住址、账号密码等与生成指令无关的个人信息。
+        </p>
+        <p>
+          AI 生成按<strong>真实调用量</strong>折算扣除灵魂币，不是固定单价。
+          当前处于免费测试阶段，充值不会真实扣款；未来若开放付费，会在充值页面明确标示，
+          <strong>不会在你不知情的情况下扣费</strong>。
+        </p>
+        <p>
+          AI 的输出可能出错。软件已经用确定性构建器兜住语法合法性，
+          但<strong>不保证生成结果符合你的预期</strong>，请在使用前自行确认。
+        </p>
+
+        <h3>五、免责</h3>
+        <p>
+          本软件按"现状"提供，不对因使用本软件（含 AI 生成的指令、一键部署功能）
+          导致的存档损坏、数据丢失或其他后果承担责任，<strong>请自行做好存档备份后再使用一键部署功能</strong>。
+        </p>
+        <p>
+          服务器可能因维护、故障、欠费、第三方服务中断等原因暂时或永久不可用。
+          开发者会尽力维持服务，但不对服务的持续可用性作出承诺。
+        </p>
+
+        <h3>六、违约与协议变更</h3>
+        <p>
+          违反上述条款的，开发者保留通过一切合法手段（包括但不限于中止账号、公开说明情况、提起诉讼）
           追究相应法律责任的权利。
         </p>
         <p>
-          点击下方"我已阅读并同意"，即表示您已完整阅读、理解并同意接受本协议的全部条款；
+          本协议如有实质性修改，软件会在下次启动时再次向你完整展示并请求同意，
+          不会沿用你此前的同意。
+        </p>
+        <p>
+          点击下方"我已阅读并同意"，即表示你已完整阅读、理解并同意接受本协议的全部条款，
+          <strong>并同意开发者按第三节所述的目的和范围处理你的手机号等个人信息</strong>；
           如不同意，请勿使用本软件。
         </p>
       </div>
@@ -567,14 +711,14 @@ function textOptions(items: string[]): SelectOption[] {
             role="tab"
             :aria-selected="mode === 'manual'"
             :class="{ active: mode === 'manual' }"
-            @click="mode = 'manual'"
+            @click="selectMode('manual')"
           >手动模式</button>
           <button
             type="button"
             role="tab"
             :aria-selected="mode === 'ai'"
             :class="{ active: mode === 'ai' }"
-            @click="mode = 'ai'"
+            @click="selectMode('ai')"
           >AI 模式</button>
         </div>
       </div>
@@ -901,4 +1045,17 @@ function textOptions(items: string[]): SelectOption[] {
       </div>
     </Transition>
   </main>
+
+  <!--
+    登录弹窗提到 App 这一层来了。以前它挂在 AiPanel 里，但现在"点 AI 模式"
+    这个动作本身就要弹它，而那个按钮在这儿；挂在 AiPanel 里就会出现
+    「面板还没显示、弹窗却要弹」的尴尬。它自己 Teleport 到 body，
+    所以放在 EULA 门禁的 v-else 分支外面也不影响层级。
+  -->
+  <AuthModal
+    v-model:open="authModalOpen"
+    :initial-mode="authModalMode"
+    @authed="onAuthed"
+    @toast="showToast"
+  />
 </template>
