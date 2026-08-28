@@ -148,6 +148,13 @@ const auth = ref<AuthState>({
   offline: false,
 });
 const authModalOpen = ref(false);
+/** 弹窗打开时停在哪一屏。改密码要能直接跳到那一屏，不然用户得先看到登录表单再自己找。 */
+const authModalMode = ref<"login" | "register" | "reset" | "change">("login");
+
+function openAuth(mode: "login" | "register" | "reset" | "change") {
+  authModalMode.value = mode;
+  authModalOpen.value = true;
+}
 /**
  * 服务端的登录门禁开关（/v1/version 的 authRequired）。
  * 取不到时默认 false——宁可放行也不要把用户锁死在一个连不上服务器的门禁后面。
@@ -175,6 +182,22 @@ async function refreshAuthRequired() {
   } catch {
     authRequired.value = false;
   }
+}
+
+/**
+ * 重新确认一次登录态和门禁开关。
+ *
+ * 存在的理由是一个真实的死锁：`authRequired` 默认 false，而 `auth_required`
+ * 在**服务器连不上时也返回 false**（那是刻意的——宁可放行也不要把用户锁死在
+ * 一个连不上服务器的门禁后面）。如果这两个值只在 onMounted 拉一次，那么
+ * "软件启动那一刻恰好断网/服务器在重启" 就会让用户永远停在
+ * "不显示门禁、也不显示账号区" 的状态里，界面上没有任何一处能打开登录框，
+ * 网络恢复了也不行，除非重启软件。
+ *
+ * 所以凡是拿到"需要登录"这类信号的地方（充值 401、生成失败）都回头刷一次。
+ */
+async function recheckAuth() {
+  await Promise.all([refreshAuthRequired(), refreshAuth()]);
 }
 
 async function logout() {
@@ -216,6 +239,9 @@ async function recharge(coins: number) {
     emit("toast", `已充值 ${coins} 灵魂币（当前免费测试阶段，未实际扣款）`);
   } catch (err) {
     emit("toast", `充值失败：${err instanceof Error ? err.message : String(err)}`);
+    // 失败多半是会话过期/根本没登录。回头刷一次登录态，让登录入口重新出现——
+    // 否则用户看到"请重新登录"却在界面上找不到任何地方能登录。
+    void recheckAuth();
   }
 }
 
@@ -455,7 +481,7 @@ function copyAll() {
         （现在连不上服务器，可能是网络问题或者服务器在维护，稍后再试试。）
       </p>
       <div class="ai-gate-actions">
-        <button class="primary-btn" type="button" @click="authModalOpen = true">登录 / 注册</button>
+        <button class="primary-btn" type="button" @click="openAuth('login')">登录 / 注册</button>
       </div>
     </div>
 
@@ -467,7 +493,14 @@ function copyAll() {
       </span>
       <span v-if="auth.loggedIn" class="ai-account">
         {{ auth.username }}
+        <button type="button" class="auth-link" @click="openAuth('change')">修改密码</button>
         <button type="button" class="auth-link" @click="logout">退出登录</button>
+      </span>
+      <!-- 未登录时这里必须有入口。走到这个分支说明 gated 是 false，
+           也就是门禁块（唯一另一个登录按钮所在处）没渲染——少了这个 v-else，
+           用户就会卡在"点充值报请登录、但界面上找不到哪里能登录"的死胡同里。 -->
+      <span v-else class="ai-account">
+        <button type="button" class="auth-link" @click="openAuth('login')">登录 / 注册</button>
       </span>
       <button type="button" class="ai-topup-toggle" @click="showTopup = !showTopup">
         充值
@@ -600,6 +633,7 @@ function copyAll() {
 
     <AuthModal
       v-model:open="authModalOpen"
+      :initial-mode="authModalMode"
       @authed="refreshAuth"
       @toast="(m) => emit('toast', m)"
     />

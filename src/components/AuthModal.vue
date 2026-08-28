@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * 登录 / 注册 / 找回密码弹窗。
+ * 登录 / 注册 / 找回密码 / 改密码弹窗。
  *
- * 三种模式共用一个弹窗，因为它们之间要频繁互相跳转（"没有账号？去注册"、
- * "忘记密码？"、"已有账号？去登录"），做成三个独立弹窗会让状态在组件之间
- * 来回搬，反而更乱。
+ * 四种模式共用一个弹窗，因为它们之间要频繁互相跳转（"没有账号？去注册"、
+ * "忘记密码？"、"已有账号？去登录"、"不记得原密码了？用短信重置"），
+ * 做成四个独立弹窗会让状态在组件之间来回搬，反而更乱。
  *
  * 两个必须遵守的约束：
  * 1. **必须 Teleport 到 body**：父级 `.ai-card` 有 `overflow-y: auto`
@@ -19,6 +19,14 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
+const props = withDefaults(
+  defineProps<{
+    /** 打开时停在哪一屏。改密码要能从账号区直接跳进来，不用先看到登录表单。 */
+    initialMode?: Mode;
+  }>(),
+  { initialMode: "login" },
+);
+
 const open = defineModel<boolean>("open", { required: true });
 const emit = defineEmits<{
   /** 登录/注册成功，父组件据此刷新登录态 */
@@ -26,7 +34,7 @@ const emit = defineEmits<{
   toast: [message: string];
 }>();
 
-type Mode = "login" | "register" | "reset";
+type Mode = "login" | "register" | "reset" | "change";
 const mode = ref<Mode>("login");
 const busy = ref(false);
 const errorText = ref("");
@@ -40,6 +48,13 @@ const username = ref("");
 const phone = ref("");
 const password = ref("");
 const confirmPassword = ref("");
+
+// 已登录改密码。走这条**不发短信**——服务端 auth.rs 里那个函数的注释白纸黑字
+// 写着"正常改密不该消耗短信配额"，而在补上这一屏之前，用户想改密码只能退出登录
+// 去走"找回密码"，每改一次烧一条真实短信（约 0.042 元）。
+const oldPassword = ref("");
+const changePassword_ = ref("");
+const changeConfirm = ref("");
 
 // 找回密码
 const resetPhone = ref("");
@@ -56,9 +71,13 @@ let cooldownTimer: ReturnType<typeof setInterval> | undefined;
 
 const firstInput = ref<HTMLInputElement | null>(null);
 
-const title = computed(() =>
-  mode.value === "login" ? "登录" : mode.value === "register" ? "注册账号" : "找回密码",
-);
+const TITLES: Record<Mode, string> = {
+  login: "登录",
+  register: "注册账号",
+  reset: "找回密码",
+  change: "修改密码",
+};
+const title = computed(() => TITLES[mode.value]);
 
 function startCooldown(secs: number) {
   cooldown.value = secs;
@@ -89,6 +108,7 @@ watch(open, async (isOpen) => {
     clearInterval(cooldownTimer);
     return;
   }
+  mode.value = props.initialMode;
   resetAll();
   await nextTick();
   firstInput.value?.focus();
@@ -173,6 +193,26 @@ async function doRegisterVerify() {
     emit("authed");
     emit("toast", "注册成功，已自动登录");
     open.value = false;
+  }
+}
+
+async function doChangePassword() {
+  const ok = await run(() =>
+    invoke("auth_change_password", {
+      oldPassword: oldPassword.value,
+      newPassword: changePassword_.value,
+      confirmPassword: changeConfirm.value,
+    }),
+  );
+  if (ok !== undefined) {
+    oldPassword.value = "";
+    changePassword_.value = "";
+    changeConfirm.value = "";
+    // 服务端改密会吊销全部会话（含本机这条），所以改完就是登出状态，
+    // 让父组件刷新一下，界面会回到"登录 / 注册"。
+    emit("authed");
+    emit("toast", "密码已修改，请用新密码重新登录");
+    switchTo("login");
   }
 }
 
@@ -323,6 +363,47 @@ function onKeydown(event: KeyboardEvent) {
                 <button type="button" class="auth-link" @click="codeSent = false">改一下信息</button>
               </div>
             </template>
+          </div>
+
+          <!-- ---------------- 已登录改密码 ---------------- -->
+          <!-- 这一屏的存在意义很具体：没有它，用户想改密码只能退出登录去走
+               "找回密码"，每改一次烧一条真实短信。服务端那条路径本来就是为了
+               不消耗短信配额而写的。 -->
+          <div v-else-if="mode === 'change'" class="auth-form">
+            <label class="auth-field">
+              <span>原密码</span>
+              <input
+                ref="firstInput"
+                v-model="oldPassword"
+                type="password"
+                autocomplete="current-password"
+              />
+            </label>
+            <label class="auth-field">
+              <span>新密码</span>
+              <input
+                v-model="changePassword_"
+                type="password"
+                placeholder="至少 8 个字符"
+                autocomplete="new-password"
+              />
+            </label>
+            <label class="auth-field">
+              <span>确认新密码</span>
+              <input
+                v-model="changeConfirm"
+                type="password"
+                autocomplete="new-password"
+                @keydown.enter="doChangePassword"
+              />
+            </label>
+            <p class="auth-hint">改完会退出当前登录，需要用新密码重新登录一次。</p>
+            <button class="primary-btn auth-submit" type="button" :disabled="busy" @click="doChangePassword">
+              {{ busy ? "提交中…" : "修改密码" }}
+            </button>
+            <div class="auth-links">
+              <button type="button" class="auth-link" @click="switchTo('reset')">不记得原密码了？用短信重置</button>
+            </div>
           </div>
 
           <!-- ---------------- 找回密码 ---------------- -->
