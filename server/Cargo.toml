@@ -9,9 +9,18 @@ name = "soul-lantern-server"
 path = "src/main.rs"
 
 [dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+# 注意 features 里没有 fs / time：axum-server 的 tls-rustls-no-provider 定义里
+# 已经带了 "tokio/fs" 和 "tokio/time"，重复写没意义（写了也不会错，只是容易让人
+# 误以为不写就没有）。
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 axum = { version = "0.7", features = ["json"] }
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+# 必须是 tls-rustls-no-provider 而不是 tls-rustls。
+# axum-server 0.7.3 里 `tls-rustls = ["tls-rustls-no-provider", "rustls/aws-lc-rs"]`,
+# 也就是说用 tls-rustls 会把 aws-lc-rs → aws-lc-sys 拖进来，那是一坨需要 C 编译器
+# 和 cmake 的 C 代码，和本 crate「纯 Rust、静态 musl 交叉编译省心」的选型直接冲突
+# （下面 rustls 那条注释里说的取舍，之前其实被这个 feature 悄悄破坏了）。
+# 换成 no-provider 之后加密后端唯一地由下面的 rustls[ring] 提供。
+axum-server = { version = "0.7", features = ["tls-rustls-no-provider"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 出站调用真实大模型接口。用 rustls 而非系统 openssl，交叉编译/部署更省心
@@ -20,8 +29,18 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 # reqwest 和 axum-server 都传递依赖了 rustls，但都没有唯一地自动选定加密后端
 # （ring / aws-lc-rs），需要在 main() 里显式装一个默认 provider，不然启动直接 panic。
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# 直接依赖 ring（此前只是 rustls 的传递依赖）：密码哈希用 pbkdf2、会话 token 和
+# 验证码摘要用 hmac、随机数用 rand::SystemRandom、阿里云 RPC 签名用
+# HMAC_SHA1_FOR_LEGACY_USE_ONLY。全都在这一个 crate 里，不用再引第二套加密库。
+ring = "0.17"
+# 阿里云 RPC 签名要把 HMAC 结果做 base64；serde_json 不提供这个。纯 Rust，很小。
+base64 = "0.22"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+# env-filter 不在默认 features 里。不开它 RUST_LOG 其实是不生效的；开了之后
+# 必须在代码里显式给一个默认过滤器（见 main.rs 的 init_tracing），否则
+# EnvFilter::from_default_env() 在 RUST_LOG 未设置时只放行 ERROR，会把启动日志
+# 和短信验证码兜底日志一起静音。
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 # 测试里直接发 HTTPS 请求验证证书锁定行为
