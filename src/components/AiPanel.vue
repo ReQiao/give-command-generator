@@ -13,6 +13,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { buildSystemPrompt } from "../logic/ai/prompt";
 import type { GiveVersion } from "../logic/builder";
+import AuthModal from "./AuthModal.vue";
 import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
@@ -109,7 +110,7 @@ const desktop = isTauri();
  * 这里只是展示余额和发起充值——充值现在是免费直接加余额（billing_recharge
  * 还没接真实支付网关），等真要收钱时只用换后端实现，这几个调用点不用动。
  */
-interface AuthState {
+interface AccountView {
   activated: boolean;
   balance: number;
 }
@@ -121,10 +122,78 @@ const balance = ref<number | null>(null);
 const topupTiers = ref<TopupTier[]>([]);
 const showTopup = ref(false);
 
+/**
+ * 登录态。
+ *
+ * 注意 token 不在这里——它由 Rust 侧 session.rs 存盘，前端只知道"登没登录、
+ * 用户名是什么"。前端拿不到 token，也就少一条被注入脚本顺走的路径。
+ *
+ * `offline` 要和 `loggedIn=false` 分开：服务器连不上和没登录在界面上必须是
+ * 两句不同的话，否则用户会以为自己账号出了问题，跑去反复重新注册。
+ */
+interface AuthState {
+  loggedIn: boolean;
+  username: string;
+  phoneMasked: string;
+  balance: number;
+  activated: boolean;
+  offline: boolean;
+}
+const auth = ref<AuthState>({
+  loggedIn: false,
+  username: "",
+  phoneMasked: "",
+  balance: 0,
+  activated: false,
+  offline: false,
+});
+const authModalOpen = ref(false);
+/**
+ * 服务端的登录门禁开关（/v1/version 的 authRequired）。
+ * 取不到时默认 false——宁可放行也不要把用户锁死在一个连不上服务器的门禁后面。
+ * 真去调 /v1/ai/generate 还是会被服务端 401 挡住，安全性不受影响，
+ * 但用户至少能看清"是服务器连不上"而不是对着打不开的登录框发呆。
+ */
+const authRequired = ref(false);
+/** 未登录且服务端要求登录时，整个 AI 面板挡住。 */
+const gated = computed(() => desktop && authRequired.value && !auth.value.loggedIn);
+
+async function refreshAuth() {
+  if (!desktop) return;
+  try {
+    auth.value = await invoke<AuthState>("auth_state");
+    if (auth.value.loggedIn) balance.value = auth.value.balance;
+  } catch {
+    // auth_state 自己已经把各种失败折叠成"未登录"了，走到这里说明 invoke 本身炸了
+  }
+}
+
+async function refreshAuthRequired() {
+  if (!desktop) return;
+  try {
+    authRequired.value = await invoke<boolean>("auth_required");
+  } catch {
+    authRequired.value = false;
+  }
+}
+
+async function logout() {
+  try {
+    await invoke("auth_logout");
+  } finally {
+    auth.value = {
+      loggedIn: false, username: "", phoneMasked: "",
+      balance: 0, activated: false, offline: false,
+    };
+    balance.value = null;
+    emit("toast", "已退出登录");
+  }
+}
+
 async function refreshBalance() {
   if (!desktop) return;
   try {
-    const st = await invoke<AuthState>("billing_state");
+    const st = await invoke<AccountView>("billing_state");
     balance.value = st.balance;
   } catch {
     // 读不到就算了，不影响主流程；余额会在下次生成成功后从 AiResponse 里更新。
@@ -142,7 +211,7 @@ async function loadTopupTiers() {
 
 async function recharge(coins: number) {
   try {
-    const st = await invoke<AuthState>("billing_recharge", { coins });
+    const st = await invoke<AccountView>("billing_recharge", { coins });
     balance.value = st.balance;
     emit("toast", `已充值 ${coins} 灵魂币（当前免费测试阶段，未实际扣款）`);
   } catch (err) {
@@ -163,7 +232,7 @@ async function activate() {
   if (!key || activating.value) return;
   activating.value = true;
   try {
-    const st = await invoke<AuthState>("billing_activate", { licenseKey: key });
+    const st = await invoke<AccountView>("billing_activate", { licenseKey: key });
     balance.value = st.balance;
     licenseKey.value = "";
     emit("toast", "激活码已兑换");
@@ -175,6 +244,8 @@ async function activate() {
 }
 
 onMounted(() => {
+  void refreshAuthRequired();
+  void refreshAuth();
   void refreshBalance();
   void loadTopupTiers();
 });
@@ -370,11 +441,33 @@ function copyAll() {
       <p>请切回<strong>手动模式</strong>使用基岩版的物品生成——那边的基岩 ID 是单独校对过的。</p>
     </div>
 
+    <!-- 登录门禁：和上面 bedrockUnsupported 那块用同一个范式（.ai-notice 黄条整块挡住），
+         这个写法这个文件里本来就有，直接复用不另起炉灶。
+         注意门禁写在 v-else 内部 —— 基岩版那条提示优先级更高，
+         选了基岩版就该先说"AI 模式不支持基岩版"，而不是先要求登录。 -->
+    <div v-else-if="gated" class="ai-notice ai-gate">
+      <p><strong>AI 模式需要先登录。</strong></p>
+      <p>
+        AI 生成会真实调用大模型、按用量计费，所以需要一个账号来记余额——
+        账号也让你换电脑、重装之后余额还在。注册只要用户名、密码和一个手机号。
+      </p>
+      <p v-if="auth.offline" class="ai-gate-offline">
+        （现在连不上服务器，可能是网络问题或者服务器在维护，稍后再试试。）
+      </p>
+      <div class="ai-gate-actions">
+        <button class="primary-btn" type="button" @click="authModalOpen = true">登录 / 注册</button>
+      </div>
+    </div>
+
     <template v-else>
     <div v-if="desktop" class="ai-balance-bar">
       <span>
         灵魂币余额：<strong>{{ balance ?? "—" }}</strong>
         <InfoTip text="每次 AI 生成会按真实调用花费（不同模型单价不同）折算扣除灵魂币，不是固定扣一个数。当前充值是免费测试阶段，不会真的扣款。" />
+      </span>
+      <span v-if="auth.loggedIn" class="ai-account">
+        {{ auth.username }}
+        <button type="button" class="auth-link" @click="logout">退出登录</button>
       </span>
       <button type="button" class="ai-topup-toggle" @click="showTopup = !showTopup">
         充值
@@ -504,5 +597,11 @@ function copyAll() {
       @update:version="(v) => emit('update:version', v)"
     />
     </template>
+
+    <AuthModal
+      v-model:open="authModalOpen"
+      @authed="refreshAuth"
+      @toast="(m) => emit('toast', m)"
+    />
   </section>
 </template>

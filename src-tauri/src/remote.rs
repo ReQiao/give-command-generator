@@ -13,6 +13,7 @@
 //! （见 server/tests/tls_pinning.rs）。
 
 use crate::ai::{AiUsage, ChatTurn};
+use crate::session;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
@@ -84,48 +85,219 @@ pub struct AccountView {
     pub balance: i64,
 }
 
-async fn get_account(path: &str, query: &[(&str, &str)]) -> Result<AccountView, String> {
-    let resp = client()
-        .get(format!("{}{path}", server_base()))
-        .query(query)
-        .send()
-        .await
-        .map_err(describe_connect_err)?;
-    parse_account_response(resp).await
+/// 所有需要登录的请求都从这里出去。
+///
+/// 没有本地 token 就直接返回"请先登录"，不发这一趟网络请求——省一次往返，
+/// 也让"未登录"和"服务器连不上"两种情况在 UI 上不会混成同一句话。
+fn bearer() -> Result<String, String> {
+    session::token().ok_or_else(|| "请先登录。".to_string())
 }
 
-async fn post_account(path: &str, body: &serde_json::Value) -> Result<AccountView, String> {
-    let resp = client()
-        .post(format!("{}{path}", server_base()))
-        .json(body)
-        .send()
-        .await
-        .map_err(describe_connect_err)?;
-    parse_account_response(resp).await
-}
-
-async fn parse_account_response(resp: reqwest::Response) -> Result<AccountView, String> {
-    if !resp.status().is_success() {
+/// 统一处理响应。
+///
+/// 401 在这里集中清掉本地会话，而不是让每个调用点各写一遍——漏掉一处就会
+/// 出现"服务器早就不认这个 token 了，客户端还一直拿它去撞"的状态。
+async fn parse_json<T: serde::de::DeserializeOwned>(resp: reqwest::Response) -> Result<T, String> {
+    let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        session::clear();
+        let detail = resp.text().await.unwrap_or_default();
+        return Err(if detail.is_empty() { "登录已过期，请重新登录。".to_string() } else { detail });
+    }
+    if !status.is_success() {
         let detail = resp.text().await.unwrap_or_default();
         return Err(if detail.is_empty() { "服务器拒绝了这次请求。".to_string() } else { detail });
     }
     resp.json().await.map_err(|e| format!("解析服务器响应失败：{e}"))
 }
 
-pub async fn balance(device_id: &str) -> Result<AccountView, String> {
-    get_account("/v1/balance", &[("device_id", device_id)]).await
+async fn get_auth<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, String> {
+    let token = bearer()?;
+    let resp = client()
+        .get(format!("{}{path}", server_base()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(describe_connect_err)?;
+    parse_json(resp).await
 }
 
-pub async fn activate(device_id: &str, license_key: &str) -> Result<AccountView, String> {
-    post_account(
-        "/v1/activate",
-        &serde_json::json!({ "device_id": device_id, "license_key": license_key }),
+async fn post_auth<T: serde::de::DeserializeOwned>(
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<T, String> {
+    let token = bearer()?;
+    let resp = client()
+        .post(format!("{}{path}", server_base()))
+        .bearer_auth(token)
+        .json(body)
+        .send()
+        .await
+        .map_err(describe_connect_err)?;
+    parse_json(resp).await
+}
+
+/// 不需要登录的 POST（注册、登录、找回密码这几个本来就是登录之前的动作）。
+async fn post_public<T: serde::de::DeserializeOwned>(
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<T, String> {
+    let resp = client()
+        .post(format!("{}{path}", server_base()))
+        .json(body)
+        .send()
+        .await
+        .map_err(describe_connect_err)?;
+    parse_json(resp).await
+}
+
+// ---------------------------------------------------------------- 账号
+//
+// 请求体一律 snake_case、**不加** rename_all；响应体一律 camelCase、加 rename_all。
+// 这不是风格洁癖，是和服务端 server/src/auth.rs 对齐的硬约定——两边字段名对不上时，
+// 各自的单测都是绿的，只有 tests/remote_integration.rs 那种真实 HTTP 往返才抓得到
+// （下面 AiGenerateReq 上那条注释记的就是真踩过的那一次）。
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserView {
+    pub username: String,
+    pub phone_masked: String,
+    pub created_at: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionView {
+    pub token: String,
+    pub expires_at: u64,
+    pub user: UserView,
+    pub balance: i64,
+    pub activated: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MeView {
+    pub user: UserView,
+    pub balance: i64,
+    pub activated: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeSentView {
+    pub ok: bool,
+    pub phone_masked: String,
+    pub expires_in_secs: u32,
+    /// 服务端 SMS_KIND=log 时为 true。界面上要提示"当前是日志模式，
+    /// 短信不会真的发出"，否则用户会一直等一条永远不会来的短信。
+    pub log_mode: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionView {
+    /// 服务端的逃生开关：短信通道整个挂掉时把它设成 false，客户端就不挡登录门禁。
+    pub auth_required: bool,
+    pub min_client: String,
+}
+
+pub async fn register_begin(username: &str, password: &str, phone: &str) -> Result<CodeSentView, String> {
+    post_public(
+        "/v1/auth/register/begin",
+        &serde_json::json!({ "username": username, "password": password, "phone": phone }),
     )
     .await
 }
 
-pub async fn topup(device_id: &str, coins: i64) -> Result<AccountView, String> {
-    post_account("/v1/topup", &serde_json::json!({ "device_id": device_id, "coins": coins })).await
+pub async fn register_resend(phone: &str) -> Result<CodeSentView, String> {
+    post_public("/v1/auth/register/resend", &serde_json::json!({ "phone": phone })).await
+}
+
+pub async fn register_verify(phone: &str, code: &str) -> Result<SessionView, String> {
+    post_public("/v1/auth/register/verify", &serde_json::json!({ "phone": phone, "code": code })).await
+}
+
+pub async fn login(account: &str, password: &str) -> Result<SessionView, String> {
+    post_public("/v1/auth/login", &serde_json::json!({ "account": account, "password": password })).await
+}
+
+pub async fn logout() -> Result<(), String> {
+    // 本地会话无论如何都要清掉：就算服务器这次没连上，用户点了"退出登录"
+    // 就该在这台机器上退出，不能因为网络问题把人留在登录态。
+    let result: Result<serde_json::Value, String> = post_auth("/v1/auth/logout", &serde_json::json!({})).await;
+    session::clear();
+    result.map(|_| ())
+}
+
+pub async fn me() -> Result<MeView, String> {
+    get_auth("/v1/auth/me").await
+}
+
+pub async fn change_password(old_password: &str, new_password: &str) -> Result<(), String> {
+    let _: serde_json::Value = post_auth(
+        "/v1/auth/password/change",
+        &serde_json::json!({ "old_password": old_password, "new_password": new_password }),
+    )
+    .await?;
+    // 服务端改密会吊销所有会话，本地这份也就作废了
+    session::clear();
+    Ok(())
+}
+
+pub async fn reset_begin(phone: &str) -> Result<CodeSentView, String> {
+    post_public("/v1/auth/reset/begin", &serde_json::json!({ "phone": phone })).await
+}
+
+pub async fn reset_confirm(phone: &str, code: &str, new_password: &str) -> Result<(), String> {
+    let _: serde_json::Value = post_public(
+        "/v1/auth/reset/confirm",
+        &serde_json::json!({ "phone": phone, "code": code, "new_password": new_password }),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn server_version() -> Result<VersionView, String> {
+    let resp = client()
+        .get(format!("{}/v1/version", server_base()))
+        .send()
+        .await
+        .map_err(describe_connect_err)?;
+    parse_json(resp).await
+}
+
+// ---------------------------------------------------------------- 账本
+
+pub async fn balance() -> Result<AccountView, String> {
+    get_auth("/v1/balance").await
+}
+
+pub async fn activate(license_key: &str) -> Result<AccountView, String> {
+    post_auth("/v1/activate", &serde_json::json!({ "license_key": license_key })).await
+}
+
+pub async fn topup(coins: i64) -> Result<AccountView, String> {
+    post_auth("/v1/topup", &serde_json::json!({ "coins": coins })).await
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TopupTier {
+    pub yuan: f64,
+    pub coins: i64,
+}
+
+/// 充值档位改成从服务器拉：以前客户端和服务端各维护一份静态表，改一边忘另一边
+/// 就会出现"界面上写着 5 元 5100 币、点下去服务器说这不是预设档位"。
+pub async fn topup_tiers() -> Result<Vec<TopupTier>, String> {
+    let resp = client()
+        .get(format!("{}/v1/topup/tiers", server_base()))
+        .send()
+        .await
+        .map_err(describe_connect_err)?;
+    parse_json(resp).await
 }
 
 // 注意：不能加 #[serde(rename_all = "camelCase")]——服务器那边
@@ -135,7 +307,6 @@ pub async fn topup(device_id: &str, coins: i64) -> Result<AccountView, String> {
 // 各自测各自的序列化/反序列化，两边"看起来都对"，问题只在两者对接的地方）。
 #[derive(Serialize)]
 struct AiGenerateReq<'a> {
-    device_id: &'a str,
     system_prompt: &'a str,
     user_text: &'a str,
     history: &'a [ChatTurn],
@@ -169,24 +340,21 @@ pub struct AiGenerateResp {
 }
 
 pub async fn ai_generate(
-    device_id: &str,
     system_prompt: &str,
     user_text: &str,
     model: Option<&str>,
     version: &str,
     history: &[ChatTurn],
 ) -> Result<AiGenerateResp, String> {
+    let token = bearer()?;
     let resp = client()
         .post(format!("{}/v1/ai/generate", server_base()))
-        .json(&AiGenerateReq { device_id, system_prompt, user_text, history, model, version })
+        .bearer_auth(token)
+        .json(&AiGenerateReq { system_prompt, user_text, history, model, version })
         .send()
         .await
         .map_err(describe_connect_err)?;
-    if !resp.status().is_success() {
-        let detail = resp.text().await.unwrap_or_default();
-        return Err(if detail.is_empty() { "服务器拒绝了这次请求。".to_string() } else { detail });
-    }
-    resp.json().await.map_err(|e| format!("解析服务器响应失败：{e}"))
+    parse_json(resp).await
 }
 
 #[cfg(test)]
