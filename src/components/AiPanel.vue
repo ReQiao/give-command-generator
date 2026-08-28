@@ -246,9 +246,16 @@ async function recharge(coins: number) {
 }
 
 /**
- * 激活码兑换。后端只做格式校验 + 记录已兑换的码防止重复兑，没有真实性验证——
- * 真正的一次性核销要么等服务器（能查这个码有没有被别人用过），要么用离线可
- * 验证的签名码。所以下面的文案不要写成"已验证"之类，别暗示这是一道真防线。
+ * 激活码兑换。
+ *
+ * 这段注释以前写的是"后端只做格式校验、没有真实性验证，别暗示这是一道真防线"——
+ * 那已经过时了，现在三条全都做到了：激活码带 HMAC 校验位（用只存在于服务器
+ * 环境变量里的 pepper 算，见 server/src/crypto.rs::verify_license）、全局一次性
+ * 核销、10 次/24h 的爆破限流。改造前那套只校验格式，等于约 36^12 个字符串
+ * 每一个都是能兑 100 币的一次性券，写个 for 循环就能刷。
+ *
+ * 客户端这边**只做"长得像不像"的即时提示，不判断有效性**——校验位客户端既
+ * 算不出也不该算得出，否则伪造能力就跟着安装包分发出去了。
  */
 const licenseKey = ref("");
 const activating = ref(false);
@@ -269,7 +276,22 @@ async function activate() {
   }
 }
 
+/**
+ * 服务端说这个版本太旧就提示一次。对已经装着旧版的用户没用（这段代码在新版里），
+ * 是给下一次不兼容变更留的通道——见 src-tauri/src/auth.rs::auth_upgrade_notice。
+ */
+async function checkUpgradeNotice() {
+  if (!desktop) return;
+  try {
+    const notice = await invoke<string | null>("auth_upgrade_notice");
+    if (notice) emit("toast", notice, 12000);
+  } catch {
+    // 拿不到就算了，不能因为版本检查失败挡住正常使用
+  }
+}
+
 onMounted(() => {
+  void checkUpgradeNotice();
   void refreshAuthRequired();
   void refreshAuth();
   void refreshBalance();

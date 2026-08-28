@@ -17,6 +17,7 @@ pub fn run() {
             ai::ai_generate,
             auth::auth_state,
             auth::auth_required,
+            auth::auth_upgrade_notice,
             auth::auth_register_begin,
             auth::auth_register_resend,
             auth::auth_register_verify,

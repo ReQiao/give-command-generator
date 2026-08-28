@@ -87,6 +87,50 @@ pub async fn auth_required() -> Result<bool, ()> {
     Ok(remote::server_version().await.map(|v| v.auth_required).unwrap_or(false))
 }
 
+/// 服务端认为客户端太旧时给出的升级提示；不需要升级就是 None。
+///
+/// **说清楚它救不了谁**：这段代码是随新版客户端一起分发的，所以它对
+/// "已经装着旧版、还没更新"的用户毫无作用——那批人只能靠服务端 401 文案
+/// 自救（见 server/src/auth.rs 的 NEED_LOGIN_HINT）。这里接上是为了**下一次**
+/// 不兼容变更时能提前告知，而不是为了这一次。
+///
+/// 之所以不上 tauri-plugin-updater：那要生成签名密钥对、配 pubkey/endpoints、
+/// 开 createUpdaterArtifacts、还要维护一份 latest.json 清单。而服务端
+/// `/v1/version` 的 minClient 字段本来就是为这件事留的，客户端也早就把它
+/// 反序列化进来了，只差最后这段比较。
+#[tauri::command]
+pub async fn auth_upgrade_notice() -> Result<Option<String>, ()> {
+    let Ok(v) = remote::server_version().await else { return Ok(None) };
+    let current = env!("CARGO_PKG_VERSION");
+    if !version_older_than(current, &v.min_client) {
+        return Ok(None);
+    }
+    Ok(Some(format!(
+        "当前版本 {current} 已经太旧，服务端要求至少 {}。\
+         请到项目的 GitHub Releases 页面下载新版本，否则 AI 模式可能用不了。",
+        v.min_client
+    )))
+}
+
+/// 语义化版本比较，只比数字段。
+///
+/// 不引 semver crate：这里的版本号形态由 give-builder/build_release.py 完全控制，
+/// 永远是 `x.y.0` 三段纯数字，没有预发布标签、没有 build metadata，
+/// 为这点需求拉一个依赖不划算。段数不一样时缺的位当 0（`4.2` < `4.2.1`）。
+fn version_older_than(current: &str, minimum: &str) -> bool {
+    let parse = |s: &str| -> Vec<u64> {
+        s.split('.').map(|p| p.trim().parse().unwrap_or(0)).collect()
+    };
+    let (a, b) = (parse(current), parse(minimum));
+    for i in 0..a.len().max(b.len()) {
+        let (x, y) = (a.get(i).copied().unwrap_or(0), b.get(i).copied().unwrap_or(0));
+        if x != y {
+            return x < y;
+        }
+    }
+    false
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeSent {
@@ -203,6 +247,21 @@ pub async fn auth_reset_confirm(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn version_comparison() {
+        assert!(version_older_than("4.1.0", "4.2.0"));
+        assert!(version_older_than("4.1.0", "5.0.0"));
+        assert!(!version_older_than("4.2.0", "4.2.0"), "相等不算旧");
+        assert!(!version_older_than("4.3.0", "4.2.0"));
+        // 段数不一样时缺的位当 0
+        assert!(version_older_than("4.2", "4.2.1"));
+        assert!(!version_older_than("4.2.0", "4.2"));
+        // 默认的 0.0.0 不该把任何版本判成过旧
+        assert!(!version_older_than("4.1.0", "0.0.0"));
+        // 多位数不能按字符串比（"10" > "9"）
+        assert!(!version_older_than("4.10.0", "4.9.0"), "10 比 9 新，按字符串比会判反");
+    }
 
     #[test]
     fn phone_precheck_matches_server_rules() {
