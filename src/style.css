@@ -17,7 +17,8 @@
  * ---------------- 液态玻璃材质：统一的一组变量 ----------------
  *
  * 三件事一起才叫"液态玻璃"，缺一件都会退化成普通半透明：
- *   1. 折射   —— backdrop-filter: url(#lensXxx)，SVG feTurbulence + feDisplacementMap
+ *   1. 折射   —— 边缘位移图，由 logic/glass.ts 运行时按元素尺寸生成（按钮除外，
+ *                 那几个仍用 App.vue 里的 feTurbulence 滤镜，原因见那儿的注释）
  *   2. 高斯模糊 —— blur()，把背后的内容化成色块
  *   3. 取色于背景 —— saturate() 把背后的颜色提出来，配合**低不透明度**的中性底色，
  *                  面板颜色就跟着它盖住的东西走，而不是自己写死一个蓝色
@@ -26,8 +27,9 @@
  * 背后的颜色根本透不过来，看着就是一块深蓝色板子。所以下面这些面板的底色
  * 全部压在 0.6 以下，靠 blur + saturate 保证文字对比度，而不是靠堆不透明度。
  *
- * 两档的区别见 App.vue 里 #lensMenu 的注释：大面板用 lensPanel（位移 16），
- * 小浮层用 lensMenu（位移 7），后者位移大了会把文字糊掉。
+ * 大面板和小浮层的区别在 --glass-depth / --glass-strength 两个变量上：小浮层的
+ * 倒角要薄、位移要小，否则那圈弯折会盖住菜单项的文字；模糊反而要更重，因为它们
+ * 承载密集文字，中间透亮会让对比度不够。
  */
 :root {
   --glass-tint: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
@@ -51,8 +53,15 @@
   border: var(--glass-border-soft);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
   -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
+     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
+  --glass-depth: 6;
+  --glass-strength: 26;
+  --glass-blur: 20;
+  --glass-saturate: 185;
+  --glass-brightness: 1.05;
 }
 
 body {
@@ -95,12 +104,25 @@ button {
   border-radius: 16px;
   background: var(--glass-tint);
   box-shadow: var(--glass-shadow), var(--glass-edge);
-  /* lensPanel（App.vue 里挂的 SVG feTurbulence+feDisplacementMap 滤镜）做真折射；
-     WebKit 系（macOS/Linux 的 Tauri webview）对 backdrop-filter 里引用 SVG
-     滤镜支持不稳定，所以单独留一条不带 url() 的 -webkit- 前缀声明兜底，
-     退化成纯 blur+saturate+brightness，不会整条失效变成完全不模糊。 */
-  backdrop-filter: url(#lensPanel) blur(18px) saturate(180%) brightness(1.04);
+  /* 这里写的是**降级版**：纯 blur + saturate，没有折射。
+     真正的边缘折射由 logic/glass.ts 在运行时按元素实际尺寸生成位移图滤镜、
+     覆盖写到 element.style.backdropFilter 上——位移图必须和元素像素尺寸一致，
+     CSS 里写不出来。
+
+     所以这一条不是多余的兜底，而是 WebKit（macOS 上 Tauri 用的 WKWebView）和
+     Gecko 上**唯一**生效的那条：它们不支持 backdrop-filter 里引用 SVG 滤镜，
+     而且不是报错、是整条声明失效——直接看穿，比不加还难看。glass.ts 在那些
+     引擎上探测到之后直接空转，把场子留给这里。 */
+  backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
   -webkit-backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
+  /* 下面这些是给 glass.ts 读的调参口，逐类面板可以各自覆盖。
+     --glass-radius 不设时它直接读 border-radius，所以圆角永远对得上。 */
+  --glass-depth: 11;
+  --glass-strength: 46;
+  --glass-aberration: 0;
+  --glass-blur: 14;
+  --glass-saturate: 180;
+  --glass-brightness: 1.04;
 }
 
 .modal-card {
@@ -432,8 +454,15 @@ button#primary,
   border-color: rgba(122, 162, 255, 0.24);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
   -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
+     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
+  --glass-depth: 6;
+  --glass-strength: 26;
+  --glass-blur: 20;
+  --glass-saturate: 185;
+  --glass-brightness: 1.05;
 }
 
 .info-bubble.center {
@@ -665,8 +694,15 @@ button#primary,
   border: var(--glass-border-soft);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
   -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
+     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
+  --glass-depth: 6;
+  --glass-strength: 26;
+  --glass-blur: 20;
+  --glass-saturate: 185;
+  --glass-brightness: 1.05;
 }
 
 .floating-menu {
@@ -954,8 +990,15 @@ button#primary,
   border-color: rgba(122, 162, 255, 0.26);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: url(#lensMenu) blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
   -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
+     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
+  --glass-depth: 6;
+  --glass-strength: 26;
+  --glass-blur: 20;
+  --glass-saturate: 185;
+  --glass-brightness: 1.05;
 }
 
 /*
@@ -1006,8 +1049,13 @@ button#primary,
      跟 .card 用同一套材质，全应用只有一种玻璃。 */
   background: var(--glass-tint);
   box-shadow: var(--glass-shadow), var(--glass-edge);
-  backdrop-filter: url(#lensPanel) blur(18px) saturate(180%) brightness(1.04);
+  backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
   -webkit-backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
+  /* 须知那一屏是全屏门禁，玻璃厚一点更像"一块摆在面前的板子" */
+  --glass-depth: 16;
+  --glass-strength: 60;
+  --glass-aberration: 4;
+  --glass-blur: 16;
 }
 
 .eula-box h2 {
@@ -1741,8 +1789,12 @@ button#primary,
   /* 暖色调的玻璃：底色带一点琥珀，其余交给 backdrop-filter 取景 */
   background: linear-gradient(180deg, rgba(255, 209, 138, 0.12), rgba(255, 209, 138, 0.05));
   box-shadow: var(--glass-edge);
-  backdrop-filter: url(#lensMenu) blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
   -webkit-backdrop-filter: blur(14px) saturate(175%);
+  --glass-depth: 5;
+  --glass-strength: 22;
+  --glass-blur: 13;
+  --glass-saturate: 175;
 }
 
 .ai-topup-note {

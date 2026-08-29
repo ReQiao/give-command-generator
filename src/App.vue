@@ -13,6 +13,7 @@ import DeployPanel from "./components/DeployPanel.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import AuthModal from "./components/AuthModal.vue";
+import { installLiquidGlass } from "./logic/glass";
 import {
   authModalMode,
   authModalOpen,
@@ -295,7 +296,13 @@ onMounted(() => {
   // 登录态在这一层拉，不放 AiPanel 里：门禁判断发生在这儿的模式切换按钮上，
   // 拉取要早于用户可能点到「AI 模式」的那一刻。
   void recheckAuth();
+  // 液态玻璃：按选择器认领所有浮层，后来 v-if 挂上来的弹窗也会自动接管。
+  // 不支持 SVG 滤镜的引擎（macOS 的 WKWebView）里它直接空转，交给 CSS 降级。
+  uninstallGlass = installLiquidGlass();
 });
+
+let uninstallGlass: (() => void) | undefined;
+onBeforeUnmount(() => uninstallGlass?.());
 
 function loadAutosave(): GiveForm {
   const saved = localStorage.getItem(autosaveKey);
@@ -553,19 +560,14 @@ function textOptions(items: string[]): SelectOption[] {
 </script>
 
 <template>
-  <!-- 液态玻璃折射滤镜：只是几个 SVG <filter> 定义，不渲染任何可见内容，常驻挂载
-       一份即可，全局靠 backdrop-filter: url(#lensXxx) 引用。feTurbulence +
-       feDisplacementMap 这套组合是原型里反复调过的真折射效果，不是简单的
-       blur——每个元素引用时都会各自独立算一份，元素多的地方性能开销会叠加，
-       所以只接给数量少的面板/按钮用（.card/.modal-card、primary-btn 等），
-       没有接给 picker-grid 里最多同时渲染 300 个的物品格子按钮。 -->
+  <!-- 按钮用的折射滤镜。
+       面板/弹窗**不在这里**——它们的折射由 logic/glass.ts 在运行时按元素实际
+       尺寸生成（边缘位移图，中间不扭、只有边缘一圈弯折，见那个文件的头注释）。
+       按钮留在这套 feTurbulence 里是权衡的结果：位移图必须逐元素按尺寸生成，
+       而按钮又多又小，给每个按钮挂一个 ResizeObserver 加一份 4KB 的滤镜串
+       不划算；而按钮那么小，边缘折射和噪声折射肉眼也分不出来。 -->
   <svg width="0" height="0" style="position: absolute" aria-hidden="true">
     <defs>
-      <filter id="lensPanel" x="-15%" y="-15%" width="130%" height="130%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.006 0.008" numOctaves="2" seed="5" result="noise" />
-        <feGaussianBlur in="noise" stdDeviation="10" result="soft" />
-        <feDisplacementMap in="SourceGraphic" in2="soft" scale="16" xChannelSelector="R" yChannelSelector="G" />
-      </filter>
       <filter id="lensBtnNormal" x="-40%" y="-40%" width="180%" height="180%">
         <feTurbulence type="fractalNoise" baseFrequency="0.02 0.03" numOctaves="2" seed="3" result="noise" />
         <feGaussianBlur in="noise" stdDeviation="5" result="soft" />
@@ -575,16 +577,6 @@ function textOptions(items: string[]): SelectOption[] {
         <feTurbulence type="fractalNoise" baseFrequency="0.017 0.026" numOctaves="2" seed="27" result="noise" />
         <feGaussianBlur in="noise" stdDeviation="4" result="soft" />
         <feDisplacementMap in="SourceGraphic" in2="soft" scale="34" xChannelSelector="R" yChannelSelector="G" />
-      </filter>
-      <!-- 小尺寸浮层（下拉菜单、气泡提示、toast）专用。
-           不能直接复用 lensPanel：那一份的位移 scale=16，放在一张大卡片上只是
-           轻微的水波感，但同样的 16px 位移落在一个高 34px 的菜单项上就是整整
-           半行字的错位，文字会糊到读不出来。这里把 scale 收到 7、把噪声频率
-           调高（波长更短），效果是"细密的磨砂玻璃"而不是"大块水纹"。 -->
-      <filter id="lensMenu" x="-20%" y="-20%" width="140%" height="140%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.014 0.019" numOctaves="2" seed="11" result="noise" />
-        <feGaussianBlur in="noise" stdDeviation="6" result="soft" />
-        <feDisplacementMap in="SourceGraphic" in2="soft" scale="7" xChannelSelector="R" yChannelSelector="G" />
       </filter>
     </defs>
   </svg>
