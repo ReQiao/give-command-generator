@@ -156,8 +156,34 @@ export function _clearLensCache() {
  * `CSS.supports` 在这里没用：Safari 能**解析** `url()` 语法、返回 true，
  * 只是运行时不生效，探测不出来。
  */
+/**
+ * 手动覆盖开关，`localStorage` 里的 `soul-lantern-glass`：
+ *   "off" —— 强制走降级（纯 blur，没有折射）
+ *   "on"  —— 强制上透镜
+ *   其它/没设 —— 自动探测
+ *
+ * 两个用途，都不是可有可无的：
+ *
+ * 1. **让降级路径可验证**。真正需要降级的是 macOS（WKWebView），但手上不一定有
+ *    Mac。降级的样子和平台无关，在 Windows 上把这个设成 "off" 就能看到 macOS
+ *    用户看到的完全一样的界面——否则那条路径只能靠"发出去等人反馈"来测。
+ * 2. **逃生开关**。万一某台机器上透镜出问题（显卡驱动、某个 WebView2 版本），
+ *    用户不用等新版本，开发者电话里指导他在控制台敲一行就能先用起来。
+ */
+function override(): "on" | "off" | null {
+  try {
+    const v = localStorage.getItem("soul-lantern-glass");
+    return v === "on" || v === "off" ? v : null;
+  } catch {
+    // 隐私模式/禁用了存储时 localStorage 会抛，不能让它拖垮整个玻璃
+    return null;
+  }
+}
+
 export const supportsSvgBackdropFilter: boolean = (() => {
   if (typeof navigator === "undefined") return false;
+  const forced = override();
+  if (forced) return forced === "on";
   if ("userAgentData" in navigator) return true;
   // 兜底：老一点的 Chromium 没有 userAgentData
   const ua = navigator.userAgent;

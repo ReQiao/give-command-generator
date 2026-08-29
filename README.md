@@ -180,6 +180,24 @@ Minecraft 指令组件语法会随版本变化。
 本项目当前以实测语法为准，不保证所有 Minecraft 版本都兼容。  
 如果某个组件在游戏中报错，请以游戏实际提示为准，并提交可复现的正确指令和错误指令。
 
+## 界面出问题时的应急开关
+
+界面的液态玻璃（面板/弹窗边缘那圈折射）用的是 `backdrop-filter` 引用 SVG 滤镜，
+只有 Chromium 内核支持。macOS 版用的是系统的 WKWebView，会自动退回纯模糊，
+观感上差别很小。
+
+万一某台机器上玻璃显示异常（显卡驱动、某个 WebView2 版本），不用等新版本，
+在开发者工具的控制台里敲一行然后刷新即可强制退回纯模糊：
+
+```js
+localStorage.setItem('soul-lantern-glass', 'off')   // 强制纯模糊
+localStorage.setItem('soul-lantern-glass', 'on')    // 强制开折射
+localStorage.removeItem('soul-lantern-glass')       // 恢复自动判断
+```
+
+这个开关同时也是**验证降级效果的唯一手段**：设成 `off` 看到的界面，
+和 macOS 用户看到的完全一样，不需要真有一台 Mac。
+
 ## 开发计划
 
 - 增加更多 Minecraft Java 版本
