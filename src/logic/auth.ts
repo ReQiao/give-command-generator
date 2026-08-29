@@ -50,8 +50,38 @@ export const auth = ref<AuthState>({ ...LOGGED_OUT });
  */
 export const authRequired = ref(false);
 
+/**
+ * 短信签名（用户在短信开头方括号里看到的名字），由服务端下发。
+ *
+ * 注册界面要在**点获取验证码之前**就把它显示出来：走的是免资质通道，署名是
+ * 服务商的名字而不是「灵魂灯笼」，事先不打招呼的话用户会把验证码当诈骗短信忽略。
+ * 拿不到（老服务端 / 连不上）就是 null，界面退回泛化文案。
+ */
+export const smsSignName = ref<string | null>(null);
+
+/**
+ * 测试开关：`localStorage` 里 `soul-lantern-gate` = "on" 时强制进入门禁状态。
+ *
+ * 门禁真正生效需要三件事同时成立：跑在 Tauri 里、服务端说要登录、当前没登录。
+ * 前两条在浏览器里都不成立（`isTauri()` 是 false，而且开发时连的多半是还没
+ * 部署新版的服务器），于是这条 UI 分支**在桌面包之外根本走不到**，
+ * 只能靠"打包发出去再看"来验——那太贵了。
+ *
+ * 这个开关只会**多加**一道门禁，不会绕过任何鉴权（服务端该 401 还是 401），
+ * 所以留在正式版里没有安全代价。
+ */
+function gateForced(): boolean {
+  try {
+    return localStorage.getItem("soul-lantern-gate") === "on";
+  } catch {
+    return false;
+  }
+}
+
 /** 需要登录、但还没登录。门禁判断只看这一个值。 */
-export const gated = computed(() => desktop && authRequired.value && !auth.value.loggedIn);
+export const gated = computed(
+  () => !auth.value.loggedIn && (gateForced() || (desktop && authRequired.value)),
+);
 
 // ---------------- 弹窗 ----------------
 
@@ -91,6 +121,11 @@ export async function refreshAuthRequired() {
     authRequired.value = await invoke<boolean>("auth_required");
   } catch {
     authRequired.value = false;
+  }
+  try {
+    smsSignName.value = await invoke<string | null>("auth_sms_sign_name");
+  } catch {
+    smsSignName.value = null;
   }
 }
 

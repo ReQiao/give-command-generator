@@ -32,14 +32,21 @@
  * 承载密集文字，中间透亮会让对比度不够。
  */
 :root {
-  --glass-tint: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
-  --glass-tint-strong: linear-gradient(180deg, rgba(23, 34, 64, 0.58), rgba(14, 22, 44, 0.52));
-  --glass-border: 1px solid rgba(255, 255, 255, 0.13);
-  --glass-border-soft: 1px solid rgba(122, 162, 255, 0.24);
-  --glass-shadow: 0 22px 52px rgba(0, 0, 0, 0.28);
-  --glass-shadow-sm: 0 16px 38px rgba(0, 0, 0, 0.32);
-  /* 高光描边：让玻璃有个"边缘更亮"的厚度感，纯 box-shadow，不占布局 */
-  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.14);
+  /* 【底色是**压暗**的，不是提亮的】早先这里铺的是一层白纱
+     （rgba(255,255,255,.09)）再配 brightness(1.04)，两样叠起来把整个界面顶得
+     发白发亮。玻璃在深色界面上应该比背景**更暗**才对——它挡光，不发光。
+     现在铺的是深蓝黑，靠 alpha 控制通透度。 */
+  --glass-tint: linear-gradient(180deg, rgba(6, 14, 32, 0.26), rgba(4, 10, 24, 0.38));
+  --glass-tint-strong: linear-gradient(180deg, rgba(9, 17, 38, 0.52), rgba(5, 11, 27, 0.60));
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --glass-border-soft: 1px solid rgba(122, 162, 255, 0.2);
+  --glass-shadow: 0 22px 52px rgba(0, 0, 0, 0.34);
+  --glass-shadow-sm: 0 16px 38px rgba(0, 0, 0, 0.38);
+  /* 高光描边：让玻璃有个"边缘更亮"的厚度感，纯 box-shadow，不占布局。
+     上沿的白比之前收了一半——它是"整体偏白"的另一个来源。 */
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  /* 按下去再弹回来的曲线：末端过冲一点点，手感才是"回弹"而不是"归位"。 */
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /*
@@ -53,15 +60,17 @@
   border: var(--glass-border-soft);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
-  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
+  -webkit-backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
   /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
-     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
-  --glass-depth: 6;
-  --glass-strength: 26;
-  --glass-blur: 20;
-  --glass-saturate: 185;
-  --glass-brightness: 1.05;
+     模糊也要比大面板重一些——它们承载密集文字，太通透会让对比度不够。
+     色散给一点点，边缘有彩色但不至于让文字发虚。 */
+  --glass-depth: 10;
+  --glass-strength: 44;
+  --glass-aberration: 5;
+  --glass-blur: 12;
+  --glass-saturate: 140;
+  --glass-brightness: 0.92;
 }
 
 body {
@@ -100,6 +109,12 @@ button {
 
 .card,
 .modal-card {
+  /* transform 的回弹曲线末端会过冲，所以按下去松手是"弹回来"而不是"滑回去"。
+     background-color 那条是给 .ignite-flat 摘玻璃/装玻璃时补差用的，
+     见那条规则里的注释。 */
+  transition:
+    transform 280ms var(--spring),
+    background-color 260ms ease;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   background: var(--glass-tint);
@@ -113,16 +128,26 @@ button {
      Gecko 上**唯一**生效的那条：它们不支持 backdrop-filter 里引用 SVG 滤镜，
      而且不是报错、是整条声明失效——直接看穿，比不加还难看。glass.ts 在那些
      引擎上探测到之后直接空转，把场子留给这里。 */
-  backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
-  -webkit-backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
+  backdrop-filter: blur(9px) saturate(135%) brightness(0.9);
+  -webkit-backdrop-filter: blur(9px) saturate(135%) brightness(0.9);
   /* 下面这些是给 glass.ts 读的调参口，逐类面板可以各自覆盖。
-     --glass-radius 不设时它直接读 border-radius，所以圆角永远对得上。 */
-  --glass-depth: 11;
-  --glass-strength: 46;
-  --glass-aberration: 0;
-  --glass-blur: 14;
-  --glass-saturate: 180;
-  --glass-brightness: 1.04;
+     --glass-radius 不设时它直接读 border-radius，所以圆角永远对得上。
+
+     调参的几条经验：
+     - depth 是倒角厚度。小了没有"玻璃有厚度"的感觉；这里给到 22，
+       和对比图里那块 depth=24 的样本一个量级。
+     - aberration 是色散。它才是"白线经过折射变成彩色光晕"的来源——
+       RGB 三个通道用不同强度各位移一次，边缘就分色了。0 的话只有几何弯折，
+       没有颜色。
+     - blur 从 14 收到 5：模糊越大越看不出折射，折射感和模糊是互相抵消的。
+       想要"透一点但保留反射感"，就得压模糊、留位移。
+     - brightness 压到 0.9：玻璃挡光，不发光。 */
+  --glass-depth: 22;
+  --glass-strength: 92;
+  --glass-aberration: 10;
+  --glass-blur: 5;
+  --glass-saturate: 135;
+  --glass-brightness: 0.9;
 }
 
 .modal-card {
@@ -316,11 +341,19 @@ button {
   color: #e7ecff;
   font-weight: 700;
   background: rgba(0, 0, 0, 0.14);
+  /* transform 用回弹曲线：松手时末端过冲一点点，手感是"弹回来"。
+     按下那一下另有一条更快的规则（button:active），不然按下也带着过冲，
+     会显得黏。 */
   transition:
-    transform 150ms ease,
+    transform 260ms var(--spring),
     border-color 150ms ease,
     background 150ms ease,
     opacity 150ms ease;
+}
+
+button:active {
+  transition-duration: 90ms;
+  transition-timing-function: ease-out;
 }
 
 button:hover {
@@ -330,7 +363,7 @@ button:hover {
 }
 
 button:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0) scale(0.955);
 }
 
 /* 液态玻璃折射只接给数量少、常驻可见的按钮（主按钮/选择按钮），不接给
@@ -342,7 +375,7 @@ button#primary,
   backdrop-filter: url(#lensBtnNormal) blur(2px) saturate(140%);
   -webkit-backdrop-filter: blur(6px) saturate(140%);
   transition:
-    transform 150ms ease,
+    transform 260ms var(--spring),
     border-color 150ms ease,
     background 150ms ease,
     opacity 150ms ease,
@@ -352,8 +385,8 @@ button#primary,
 button#primary:active,
 .primary-btn:active,
 .pick-btn:active {
-  backdrop-filter: url(#lensBtnPressed) blur(1px) saturate(160%) brightness(1.08);
-  -webkit-backdrop-filter: blur(3px) saturate(160%) brightness(1.08);
+  backdrop-filter: url(#lensBtnPressed) blur(1px) saturate(160%) brightness(0.95);
+  -webkit-backdrop-filter: blur(3px) saturate(160%) brightness(0.95);
 }
 
 button#primary,
@@ -454,15 +487,17 @@ button#primary,
   border-color: rgba(122, 162, 255, 0.24);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
-  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
+  -webkit-backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
   /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
-     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
-  --glass-depth: 6;
-  --glass-strength: 26;
-  --glass-blur: 20;
-  --glass-saturate: 185;
-  --glass-brightness: 1.05;
+     模糊也要比大面板重一些——它们承载密集文字，太通透会让对比度不够。
+     色散给一点点，边缘有彩色但不至于让文字发虚。 */
+  --glass-depth: 10;
+  --glass-strength: 44;
+  --glass-aberration: 5;
+  --glass-blur: 12;
+  --glass-saturate: 140;
+  --glass-brightness: 0.92;
 }
 
 .info-bubble.center {
@@ -694,15 +729,17 @@ button#primary,
   border: var(--glass-border-soft);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
-  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
+  -webkit-backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
   /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
-     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
-  --glass-depth: 6;
-  --glass-strength: 26;
-  --glass-blur: 20;
-  --glass-saturate: 185;
-  --glass-brightness: 1.05;
+     模糊也要比大面板重一些——它们承载密集文字，太通透会让对比度不够。
+     色散给一点点，边缘有彩色但不至于让文字发虚。 */
+  --glass-depth: 10;
+  --glass-strength: 44;
+  --glass-aberration: 5;
+  --glass-blur: 12;
+  --glass-saturate: 140;
+  --glass-brightness: 0.92;
 }
 
 .floating-menu {
@@ -775,15 +812,21 @@ button#primary,
   white-space: nowrap;
 }
 
-.combo-menu-enter-active,
+/* 展开时用回弹曲线弹出来；收回时刻意用普通 ease-in、时长更短——
+   收回带过冲会像"被弹飞"，那是最常见的把回弹用过头的样子。 */
+.combo-menu-enter-active {
+  transition: opacity 160ms ease, transform 260ms var(--spring);
+}
+
 .combo-menu-leave-active {
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition: opacity 120ms ease, transform 120ms ease-in;
 }
 
 .combo-menu-enter-from,
 .combo-menu-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(0.97);
+  transform-origin: top center;
 }
 
 .status-text,
@@ -990,15 +1033,41 @@ button#primary,
   border-color: rgba(122, 162, 255, 0.26);
   background: var(--glass-tint-strong);
   box-shadow: var(--glass-shadow-sm), var(--glass-edge);
-  backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
-  -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.05);
+  backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
+  -webkit-backdrop-filter: blur(13px) saturate(140%) brightness(0.92);
   /* 小浮层的倒角要薄：depth 太大时那圈弯折会盖住菜单项的文字。
-     模糊反而要更重——它们承载密集文字，中间透亮会让对比度不够。 */
-  --glass-depth: 6;
-  --glass-strength: 26;
-  --glass-blur: 20;
-  --glass-saturate: 185;
-  --glass-brightness: 1.05;
+     模糊也要比大面板重一些——它们承载密集文字，太通透会让对比度不够。
+     色散给一点点，边缘有彩色但不至于让文字发虚。 */
+  --glass-depth: 10;
+  --glass-strength: 44;
+  --glass-aberration: 5;
+  --glass-blur: 12;
+  --glass-saturate: 140;
+  --glass-brightness: 0.92;
+}
+
+/*
+ * 按下去的回弹。
+ *
+ * `.glass-press` 由 logic/glass.ts 在 pointerdown 时挂上、pointerup/cancel 时摘掉，
+ * 挂在**所有**玻璃面板上——点面板里的任何地方都会有反馈，而不只是点到按钮才有。
+ * 缩放幅度刻意很小（0.4%）：面板很大，缩多了会像整页在抖；真正让人感觉到
+ * "弹"的是上面那条曲线的末端过冲，不是幅度。
+ */
+.card.glass-press,
+.modal-card.glass-press,
+.eula-box.glass-press,
+.combo-menu.glass-press,
+.ai-topup-panel.glass-press {
+  transform: scale(0.996);
+}
+
+/* 输入框里点一下不该让整块面板动——那会让人以为点错了地方。 */
+.card.glass-press:has(input:focus),
+.modal-card.glass-press:has(input:focus),
+.card.glass-press:has(textarea:focus),
+.modal-card.glass-press:has(textarea:focus) {
+  transform: none;
 }
 
 /*
@@ -1049,13 +1118,15 @@ button#primary,
      跟 .card 用同一套材质，全应用只有一种玻璃。 */
   background: var(--glass-tint);
   box-shadow: var(--glass-shadow), var(--glass-edge);
-  backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
-  -webkit-backdrop-filter: blur(18px) saturate(180%) brightness(1.04);
+  backdrop-filter: blur(10px) saturate(140%) brightness(0.9);
+  -webkit-backdrop-filter: blur(10px) saturate(140%) brightness(0.9);
   /* 须知那一屏是全屏门禁，玻璃厚一点更像"一块摆在面前的板子" */
-  --glass-depth: 16;
-  --glass-strength: 60;
-  --glass-aberration: 4;
-  --glass-blur: 16;
+  --glass-depth: 26;
+  --glass-strength: 110;
+  --glass-aberration: 12;
+  --glass-blur: 7;
+  --glass-saturate: 140;
+  --glass-brightness: 0.9;
 }
 
 .eula-box h2 {
@@ -1383,17 +1454,22 @@ button#primary,
   filter: blur(2px);
 }
 
-.toast-enter-active,
+.toast-enter-active {
+  transition:
+    opacity 200ms ease,
+    transform 340ms var(--spring);
+}
+
 .toast-leave-active {
   transition:
-    opacity 220ms ease,
-    transform 220ms ease;
+    opacity 180ms ease,
+    transform 180ms ease-in;
 }
 
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(14px) scale(0.96);
 }
 
 .modal-fade-enter-active,
@@ -1402,12 +1478,29 @@ button#primary,
 }
 
 .modal-fade-enter-active .modal-card {
-  animation: modal-rise 180ms ease both;
+  animation: modal-rise 320ms var(--spring) both;
+}
+
+/* 关窗也要有交代：直接消失会显得像闪退。收回不带过冲（见 combo-menu 那段注释）。 */
+.modal-fade-leave-active .modal-card {
+  animation: modal-sink 150ms ease-in both;
+}
+
+@keyframes modal-sink {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(6px) scale(0.97); }
 }
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
+}
+
+.auth-sign-hint {
+  border-left: 3px solid rgba(255, 209, 138, 0.5);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 10px;
+  background: rgba(255, 209, 138, 0.08);
 }
 
 .pulse {
@@ -1594,6 +1687,16 @@ button#primary,
 .ai-card.ignite-flat {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  /*
+   * 【为什么这里要补一层黑】摘掉 backdrop-filter 的同时，`brightness(0.9)` 那份
+   * 压暗也一起没了，于是特效一结束、玻璃装回来的那一刻整块面板"啪"地变暗/变亮
+   * 一下——用户看到的就是"动画加载完突然变色"。
+   *
+   * 补一层等效的压暗把这个落差填平：没有滤镜的时候用一层半透明黑顶上，
+   * 装回滤镜的时候撤掉。配合下面 .card 上那条 background-color 过渡，
+   * 剩下的那点差值也是渐变过去而不是跳变。
+   */
+  background-color: rgba(0, 0, 0, 0.1);
 }
 
 /* 面板整体先暗一下再亮起来，像被点着。
@@ -1789,12 +1892,14 @@ button#primary,
   /* 暖色调的玻璃：底色带一点琥珀，其余交给 backdrop-filter 取景 */
   background: linear-gradient(180deg, rgba(255, 209, 138, 0.12), rgba(255, 209, 138, 0.05));
   box-shadow: var(--glass-edge);
-  backdrop-filter: blur(14px) saturate(175%);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  --glass-depth: 5;
-  --glass-strength: 22;
-  --glass-blur: 13;
-  --glass-saturate: 175;
+  backdrop-filter: blur(10px) saturate(150%) brightness(0.95);
+  -webkit-backdrop-filter: blur(10px) saturate(150%) brightness(0.95);
+  --glass-depth: 9;
+  --glass-strength: 38;
+  --glass-aberration: 4;
+  --glass-blur: 9;
+  --glass-saturate: 150;
+  --glass-brightness: 0.95;
 }
 
 .ai-topup-note {

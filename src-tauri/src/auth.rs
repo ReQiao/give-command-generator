@@ -87,6 +87,14 @@ pub async fn auth_required() -> Result<bool, ()> {
     Ok(remote::server_version().await.map(|v| v.auth_required).unwrap_or(false))
 }
 
+/// 短信签名，给注册界面在**发码之前**提示用。
+///
+/// 拿不到就返回 None，界面退回泛化文案——连不上服务器时不该因为这个多弹一个错。
+#[tauri::command]
+pub async fn auth_sms_sign_name() -> Result<Option<String>, ()> {
+    Ok(remote::server_version().await.ok().and_then(|v| v.sms_sign_name))
+}
+
 /// 服务端认为客户端太旧时给出的升级提示；不需要升级就是 None。
 ///
 /// **说清楚它救不了谁**：这段代码是随新版客户端一起分发的，所以它对
@@ -137,6 +145,9 @@ pub struct CodeSent {
     pub phone_masked: String,
     pub expires_in_secs: u32,
     pub log_mode: bool,
+    /// 短信签名。界面要显示"短信开头写的是【XXX】"，让用户认得出这条码是我们发的。
+    /// 不写死在前端——它是服务端 .env 里配的，以后换了前端写死就成了骗人。
+    pub sign_name: Option<String>,
 }
 
 #[tauri::command]
@@ -158,6 +169,7 @@ pub async fn auth_register_begin(
         phone_masked: r.phone_masked,
         expires_in_secs: r.expires_in_secs,
         log_mode: r.log_mode,
+        sign_name: r.sign_name,
     })
 }
 
@@ -168,6 +180,7 @@ pub async fn auth_register_resend(phone: String) -> Result<CodeSent, String> {
         phone_masked: r.phone_masked,
         expires_in_secs: r.expires_in_secs,
         log_mode: r.log_mode,
+        sign_name: r.sign_name,
     })
 }
 
@@ -228,6 +241,7 @@ pub async fn auth_reset_begin(phone: String) -> Result<CodeSent, String> {
         phone_masked: r.phone_masked,
         expires_in_secs: r.expires_in_secs,
         log_mode: r.log_mode,
+        sign_name: r.sign_name,
     })
 }
 

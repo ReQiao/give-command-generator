@@ -198,6 +198,16 @@ localStorage.removeItem('soul-lantern-glass')       // 恢复自动判断
 这个开关同时也是**验证降级效果的唯一手段**：设成 `off` 看到的界面，
 和 macOS 用户看到的完全一样，不需要真有一台 Mac。
 
+另有一个测试开关，用来在浏览器/开发环境里走通"未登录点 AI 模式"那条分支
+（正常情况下它需要同时满足"跑在桌面端"和"服务端要求登录"，开发时两条都不成立）：
+
+```js
+localStorage.setItem('soul-lantern-gate', 'on')     // 强制显示登录门禁
+localStorage.removeItem('soul-lantern-gate')        // 恢复正常
+```
+
+它只会**多加**一道门禁，不会绕过任何鉴权。
+
 ## 开发计划
 
 - 增加更多 Minecraft Java 版本

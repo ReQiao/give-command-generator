@@ -226,7 +226,17 @@ function clear(el: HTMLElement) {
   el.style.removeProperty("backdrop-filter");
 }
 
-function apply(el: HTMLElement) {
+/**
+ * 按下时玻璃"变厚"的倍率。
+ *
+ * 这是从你给的那个 GlassElement 里学来的：它在 mousedown 时把 depth 除以 0.7
+ * （≈ 放大 1.43 倍），松手复位。效果是按下去那一瞬间边缘的折射突然变强，
+ * 像真的把一块玻璃往下按了一下。光靠 CSS 的 scale 做不出这个——scale 缩的是
+ * 整个元素，而这里变的是"玻璃有多厚"。
+ */
+const PRESS_DEPTH = 1.45;
+
+function apply(el: HTMLElement, pressed = el.classList.contains("glass-press")) {
   // 显式关掉的（比如点灯动画期间的 .ai-card）不碰
   if (el.dataset.glassOff === "1") {
     clear(el);
@@ -240,7 +250,7 @@ function apply(el: HTMLElement) {
   if (w < 8 || h < 8) return;
 
   const cs = getComputedStyle(el);
-  const depth = num(cs, "--glass-depth", 10);
+  const depth = num(cs, "--glass-depth", 10) * (pressed ? PRESS_DEPTH : 1);
   // 倒角厚度的两倍不能超过短边，否则位移图里那个"擦回中性"的内矩形宽高会变负数
   const safeDepth = Math.max(1, Math.min(depth, Math.floor(Math.min(w, h) / 2) - 1));
   const radius = Math.min(
@@ -285,13 +295,48 @@ export function installLiquidGlass(): () => void {
       raf = 0;
       const batch = [...pending];
       pending.clear();
-      batch.forEach(apply);
+      // 注意不能写成 batch.forEach(apply)：forEach 会把下标当第二个参数传进去，
+      // 于是每个元素都被当成"按下状态"重算一遍。
+      for (const el of batch) apply(el);
     });
   };
 
   const ro = new ResizeObserver((entries) => {
     for (const e of entries) schedule(e.target as HTMLElement);
   });
+
+  /**
+   * 按下 / 松手的回弹。
+   *
+   * 挂在 document 上做事件委托，而不是给每个面板各挂一对监听：面板是动态出现的
+   * （弹窗 v-if），委托就不用管认领时机，也不用在卸载时逐个摘。
+   *
+   * 用 pointer 事件而不是 mouse 事件：触摸屏和触控笔一样能触发。
+   * pointerup 挂在 window 上是必须的——按下之后把鼠标拖出面板再松手，
+   * 光靠面板自己的 pointerup 收不到事件，那块玻璃就会一直卡在"按下"状态。
+   */
+  const pressed = new Set<HTMLElement>();
+  const release = () => {
+    for (const el of pressed) {
+      el.classList.remove("glass-press");
+      schedule(el);
+    }
+    pressed.clear();
+  };
+  const onDown = (e: PointerEvent) => {
+    const t = e.target as HTMLElement | null;
+    const el = t?.closest?.(GLASS_SELECTOR) as HTMLElement | null;
+    if (!el || el.dataset.glassOff === "1") return;
+    // 嵌套的情况（弹窗里的下拉菜单）只认最内层那一个，否则会一次按下去两层。
+    el.classList.add("glass-press");
+    pressed.add(el);
+    schedule(el);
+  };
+  document.addEventListener("pointerdown", onDown, true);
+  window.addEventListener("pointerup", release, true);
+  window.addEventListener("pointercancel", release, true);
+  // 焦点被抢走（比如按下之后切窗口）也要复位，不然回来看到一块按扁的玻璃
+  window.addEventListener("blur", release);
 
   const seen = new WeakSet<HTMLElement>();
   const claim = (root: ParentNode) => {
@@ -334,6 +379,10 @@ export function installLiquidGlass(): () => void {
   return () => {
     mo.disconnect();
     ro.disconnect();
+    document.removeEventListener("pointerdown", onDown, true);
+    window.removeEventListener("pointerup", release, true);
+    window.removeEventListener("pointercancel", release, true);
+    window.removeEventListener("blur", release);
     if (raf) cancelAnimationFrame(raf);
     document.documentElement.classList.remove("has-lens-glass");
   };

@@ -18,6 +18,7 @@
  */
 import { computed, nextTick, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { smsSignName } from "../logic/auth";
 
 const props = withDefaults(
   defineProps<{
@@ -65,6 +66,20 @@ const resetConfirm = ref("");
 const codeSent = ref(false);
 const code = ref("");
 const phoneMasked = ref("");
+/**
+ * 短信开头方括号里那个名字。
+ *
+ * 【不要改成前端写死】它来自服务端 .env 里的 SMS_SIGN_NAME，以后换服务商就会变，
+ * 写死在这儿等于界面开始骗人——而这段文案存在的唯一目的就是让用户相信那条
+ * 陌生署名的短信是我们发的，说错了比不说更糟。拿不到就退回泛化说法。
+ */
+const signName = ref<string | null>(null);
+
+/**
+ * 界面上该显示哪个签名：优先用发码响应里带回来的那份（那是这条短信实际用的），
+ * 没有就退回启动时从 /v1/version 拿到的那份。两处都拿不到就是 null。
+ */
+const shownSignName = computed(() => signName.value ?? smsSignName.value);
 const logMode = ref(false);
 const cooldown = ref(0);
 let cooldownTimer: ReturnType<typeof setInterval> | undefined;
@@ -93,6 +108,7 @@ function resetAll() {
   codeSent.value = false;
   code.value = "";
   phoneMasked.value = "";
+  signName.value = null;
   logMode.value = false;
   cooldown.value = 0;
   clearInterval(cooldownTimer);
@@ -139,6 +155,8 @@ interface CodeSent {
   phoneMasked: string;
   expiresInSecs: number;
   logMode: boolean;
+  /** 短信签名，服务端下发。老服务端不发这个字段，所以是可选的。 */
+  signName?: string | null;
 }
 
 async function doLogin() {
@@ -165,6 +183,7 @@ async function doRegisterBegin() {
   if (sent) {
     codeSent.value = true;
     phoneMasked.value = sent.phoneMasked;
+    signName.value = sent.signName ?? null;
     logMode.value = sent.logMode;
     startCooldown(60);
   }
@@ -223,6 +242,7 @@ async function doResetBegin() {
   if (sent) {
     codeSent.value = true;
     phoneMasked.value = sent.phoneMasked;
+    signName.value = sent.signName ?? null;
     logMode.value = sent.logMode;
     startCooldown(60);
   }
@@ -319,6 +339,19 @@ function onKeydown(event: KeyboardEvent) {
                   @keydown.enter="doRegisterBegin"
                 />
               </label>
+              <!-- 【发码之前就要说】这条不是补充说明，是这套短信方案能不能用的前提：
+                   免资质通道的署名是服务商的名字，用户点完"获取验证码"收到一条
+                   陌生公司发来的短信，第一反应是诈骗。事后再解释已经晚了。 -->
+              <p class="auth-notice auth-sign-hint">
+                <template v-if="shownSignName">
+                  验证码短信开头会写 <strong>【{{ shownSignName }}】</strong>，不是「灵魂灯笼」——
+                  那是我们接入的验证码通道的署名，认准它就对了。
+                </template>
+                <template v-else>
+                  验证码短信开头写的是我们接入的验证码通道的署名，不是「灵魂灯笼」，
+                  收到时别当成诈骗短信。
+                </template>
+              </p>
               <button class="primary-btn auth-submit" type="button" :disabled="busy" @click="doRegisterBegin">
                 {{ busy ? "发送中…" : "获取验证码" }}
               </button>
@@ -335,7 +368,12 @@ function onKeydown(event: KeyboardEvent) {
                    阿里云个人免资质通道的短信签名是服务商的名字，不可能显示成
                    「灵魂灯笼」。不提前打招呼的话，用户看到一个完全陌生的公司名，
                    很可能当成诈骗短信直接忽略甚至举报。 -->
-              <p class="auth-notice">
+              <p v-if="shownSignName" class="auth-notice">
+                短信开头写的是 <strong>【{{ shownSignName }}】</strong>，<strong>不是「灵魂灯笼」</strong>——
+                那是我们接入的验证码通道的署名，认准这个名字就对了。
+                如果一直收不到，检查一下手机管家 / 骚扰拦截里有没有被误拦。
+              </p>
+              <p v-else class="auth-notice">
                 短信开头显示的是我们接入的短信服务商名称，<strong>不是「灵魂灯笼」</strong>——
                 这是正规验证码通道，不是垃圾短信，请放心查收。
                 如果一直收不到，检查一下手机管家 / 骚扰拦截里有没有被误拦。
@@ -420,6 +458,19 @@ function onKeydown(event: KeyboardEvent) {
                   @keydown.enter="doResetBegin"
                 />
               </label>
+              <!-- 【发码之前就要说】这条不是补充说明，是这套短信方案能不能用的前提：
+                   免资质通道的署名是服务商的名字，用户点完"获取验证码"收到一条
+                   陌生公司发来的短信，第一反应是诈骗。事后再解释已经晚了。 -->
+              <p class="auth-notice auth-sign-hint">
+                <template v-if="shownSignName">
+                  验证码短信开头会写 <strong>【{{ shownSignName }}】</strong>，不是「灵魂灯笼」——
+                  那是我们接入的验证码通道的署名，认准它就对了。
+                </template>
+                <template v-else>
+                  验证码短信开头写的是我们接入的验证码通道的署名，不是「灵魂灯笼」，
+                  收到时别当成诈骗短信。
+                </template>
+              </p>
               <button class="primary-btn auth-submit" type="button" :disabled="busy" @click="doResetBegin">
                 {{ busy ? "发送中…" : "获取验证码" }}
               </button>

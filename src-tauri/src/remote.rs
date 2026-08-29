@@ -193,6 +193,10 @@ pub struct CodeSentView {
     /// 服务端 SMS_KIND=log 时为 true。界面上要提示"当前是日志模式，
     /// 短信不会真的发出"，否则用户会一直等一条永远不会来的短信。
     pub log_mode: bool,
+    /// 短信开头方括号里那个签名，由服务端下发。
+    /// `#[serde(default)]` 是给老服务端留的：它不发这个字段，反序列化不能因此失败。
+    #[serde(default)]
+    pub sign_name: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -201,6 +205,9 @@ pub struct VersionView {
     /// 服务端的逃生开关：短信通道整个挂掉时把它设成 false，客户端就不挡登录门禁。
     pub auth_required: bool,
     pub min_client: String,
+    /// 短信签名。老服务端不发，所以是可选的。
+    #[serde(default)]
+    pub sms_sign_name: Option<String>,
 }
 
 pub async fn register_begin(username: &str, password: &str, phone: &str) -> Result<CodeSentView, String> {
