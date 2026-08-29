@@ -405,18 +405,7 @@ function copyAll() {
 </script>
 
 <template>
-  <!-- ignite-flat 跟着 showIgnition 走（比 igniting 早两帧）：它负责在特效期间
-       摘掉卡片的 backdrop-filter，那一下会让整张卡重绘，必须发生在预热窗口里，
-       不能和动画起跑撞在同一帧。原因见 style.css 里 .ai-card.ignite-flat 的注释。 -->
-  <!-- data-glass-off 是给 logic/glass.ts 看的：它写的是内联 backdrop-filter，
-       优先级压过 CSS，所以 .ignite-flat 那条 `backdrop-filter: none` 单靠 CSS
-       生效不了，必须让 glass.ts 主动把内联样式清掉。少了这个属性，点灯动画
-       会从 60 帧掉回 16 帧（实测过）。 -->
-  <section
-    class="card ai-card"
-    :class="{ 'ignite-flat': showIgnition, igniting: igniteRunning }"
-    :data-glass-off="showIgnition ? '1' : undefined"
-  >
+  <section class="card ai-card" :class="{ igniting: igniteRunning }">
     <!-- 启动特效层：纯装饰，pointer-events:none，不拦任何点击。
          节点先插进来（showIgnition），隔两帧再加 running 起跑，见上面注释。 -->
     <div v-if="showIgnition" class="ai-ignite" :class="{ running: igniteRunning }" aria-hidden="true">

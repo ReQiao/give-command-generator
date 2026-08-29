@@ -192,9 +192,17 @@ export const supportsSvgBackdropFilter: boolean = (() => {
 
 // ---------------------------------------------------------------- 安装
 
-/** 哪些东西算"窗口"。新加了浮层就往这里加一条，不用改组件。 */
-const GLASS_SELECTOR = [
-  ".card",
+/**
+ * 哪些东西上真折射。新加了浮层就往这里加一条，不用改组件。
+ *
+ * 【`.card` 不在这里，是刻意的】常驻满屏的大面板不能有 backdrop-filter：
+ * 页面任何地方重绘都会逼它重算，打字时整个应用掉到 8fps。而它们背后只有一片
+ * 静态渐变，折射几乎看不出来。完整实测数据见 style.css 里 `.card` 那段注释。
+ *
+ * 留在这里的都是**临时出现、且背后压着真实内容**的东西——代价只在它们显示的
+ * 那段时间里付，而那时折射真的看得见。
+ */
+const LENS_SELECTOR = [
   ".modal-card",
   ".eula-box",
   ".combo-menu",
@@ -202,6 +210,15 @@ const GLASS_SELECTOR = [
   ".toast",
   ".ai-topup-panel",
 ].join(",");
+
+/**
+ * 哪些东西按下去会回弹。
+ *
+ * 和上面刚好互补：**只有没上折射的面板**才做整块回弹。在开着 backdrop-filter
+ * 的元素上动 transform 是最贵的组合，实测按一下弹窗那 300ms 掉到 10fps。
+ * 弹窗里的反馈交给你真正点到的那个控件（按钮 / 菜单项）。
+ */
+const PRESS_SELECTOR = ".card";
 
 /** 逐类面板的调参留在 CSS 里，这里只读。 */
 function num(style: CSSStyleDeclaration, prop: string, fallback: number): number {
@@ -226,17 +243,7 @@ function clear(el: HTMLElement) {
   el.style.removeProperty("backdrop-filter");
 }
 
-/**
- * 按下时玻璃"变厚"的倍率。
- *
- * 这是从你给的那个 GlassElement 里学来的：它在 mousedown 时把 depth 除以 0.7
- * （≈ 放大 1.43 倍），松手复位。效果是按下去那一瞬间边缘的折射突然变强，
- * 像真的把一块玻璃往下按了一下。光靠 CSS 的 scale 做不出这个——scale 缩的是
- * 整个元素，而这里变的是"玻璃有多厚"。
- */
-const PRESS_DEPTH = 1.45;
-
-function apply(el: HTMLElement, pressed = el.classList.contains("glass-press")) {
+function apply(el: HTMLElement) {
   // 显式关掉的（比如点灯动画期间的 .ai-card）不碰
   if (el.dataset.glassOff === "1") {
     clear(el);
@@ -250,7 +257,7 @@ function apply(el: HTMLElement, pressed = el.classList.contains("glass-press")) 
   if (w < 8 || h < 8) return;
 
   const cs = getComputedStyle(el);
-  const depth = num(cs, "--glass-depth", 10) * (pressed ? PRESS_DEPTH : 1);
+  const depth = num(cs, "--glass-depth", 10);
   // 倒角厚度的两倍不能超过短边，否则位移图里那个"擦回中性"的内矩形宽高会变负数
   const safeDepth = Math.max(1, Math.min(depth, Math.floor(Math.min(w, h) / 2) - 1));
   const radius = Math.min(
@@ -317,20 +324,16 @@ export function installLiquidGlass(): () => void {
    */
   const pressed = new Set<HTMLElement>();
   const release = () => {
-    for (const el of pressed) {
-      el.classList.remove("glass-press");
-      schedule(el);
-    }
+    for (const el of pressed) el.classList.remove("glass-press");
     pressed.clear();
   };
   const onDown = (e: PointerEvent) => {
     const t = e.target as HTMLElement | null;
-    const el = t?.closest?.(GLASS_SELECTOR) as HTMLElement | null;
-    if (!el || el.dataset.glassOff === "1") return;
-    // 嵌套的情况（弹窗里的下拉菜单）只认最内层那一个，否则会一次按下去两层。
+    const el = t?.closest?.(PRESS_SELECTOR) as HTMLElement | null;
+    if (!el) return;
+    // 嵌套的情况只认最内层那一个，否则会一次按下去两层。
     el.classList.add("glass-press");
     pressed.add(el);
-    schedule(el);
   };
   document.addEventListener("pointerdown", onDown, true);
   window.addEventListener("pointerup", release, true);
@@ -341,8 +344,8 @@ export function installLiquidGlass(): () => void {
   const seen = new WeakSet<HTMLElement>();
   const claim = (root: ParentNode) => {
     const list: HTMLElement[] = [];
-    if (root instanceof HTMLElement && root.matches(GLASS_SELECTOR)) list.push(root);
-    root.querySelectorAll<HTMLElement>(GLASS_SELECTOR).forEach((el) => list.push(el));
+    if (root instanceof HTMLElement && root.matches(LENS_SELECTOR)) list.push(root);
+    root.querySelectorAll<HTMLElement>(LENS_SELECTOR).forEach((el) => list.push(el));
     for (const el of list) {
       if (seen.has(el)) continue;
       seen.add(el);

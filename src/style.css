@@ -107,41 +107,49 @@ button {
   overflow: hidden;
 }
 
-.card,
-.modal-card {
-  /* transform 的回弹曲线末端会过冲，所以按下去松手是"弹回来"而不是"滑回去"。
-     background-color 那条是给 .ignite-flat 摘玻璃/装玻璃时补差用的，
-     见那条规则里的注释。 */
-  transition:
-    transform 280ms var(--spring),
-    background-color 260ms ease;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/*
+ * 常驻可见的大面板：**刻意不上 backdrop-filter**。
+ *
+ * 【别加回去】实测数据（headless Chromium，在顶部输入框里连续打字时的帧率）：
+ *   SVG 透镜折射        8fps   最长卡顿 275ms
+ *   纯 CSS blur(9px)   27fps          57ms
+ *   完全不加            63fps          17ms
+ *
+ * 原因是 backdrop-filter 的结果依赖它背后的合成内容，而页面上**任何地方**重绘
+ * （打字、光标闪、hover）都会让所有开着它的元素重算一遍。这几张卡片是常驻满屏的，
+ * 于是整个应用的交互都被拖到个位数帧率。试过只关掉输入框所在那张卡——没用，
+ * 9fps，因为要重算的是别的卡。
+ *
+ * 而收益几乎为零：它们背后只有 body 那片静态渐变，模糊一片渐变还是那片渐变。
+ * 玻璃真正好看是在"盖住实际内容"的时候——所以折射留给弹窗和浮层（见下面
+ * .modal-card 那组），它们要么是临时出现的，要么背后确实压着东西。
+ *
+ * 视觉上补偿：底色比原来重一些，让面板仍然是"一块板子"而不是一片透明。
+ */
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  background: var(--glass-tint);
+  background: linear-gradient(180deg, rgba(9, 19, 42, 0.72), rgba(6, 13, 30, 0.8));
   box-shadow: var(--glass-shadow), var(--glass-edge);
-  /* 这里写的是**降级版**：纯 blur + saturate，没有折射。
-     真正的边缘折射由 logic/glass.ts 在运行时按元素实际尺寸生成位移图滤镜、
-     覆盖写到 element.style.backdropFilter 上——位移图必须和元素像素尺寸一致，
-     CSS 里写不出来。
+  /* 没有 backdrop-filter，所以在这上面动 transform 是廉价的——按下回弹就挂在这儿。 */
+  transition: transform 280ms var(--spring);
+}
 
-     所以这一条不是多余的兜底，而是 WebKit（macOS 上 Tauri 用的 WKWebView）和
-     Gecko 上**唯一**生效的那条：它们不支持 backdrop-filter 里引用 SVG 滤镜，
-     而且不是报错、是整条声明失效——直接看穿，比不加还难看。glass.ts 在那些
-     引擎上探测到之后直接空转，把场子留给这里。 */
+/*
+ * 弹窗和浮层：这些才上真折射。
+ *
+ * 和上面那组的区别只有一条——它们**不是常驻的**，而且背后压着真实内容，
+ * 折射看得出来。代价只在它们显示的那段时间里付。
+ */
+.modal-card {
+  border: var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-tint-strong);
+  box-shadow: var(--glass-shadow), var(--glass-edge);
+  /* 降级版；真正的边缘折射由 logic/glass.ts 按元素实际尺寸生成后写成内联样式。
+     WebKit / Gecko 不支持 backdrop-filter 里引用 SVG 滤镜，那里只有这一条生效。 */
   backdrop-filter: blur(9px) saturate(135%) brightness(0.9);
   -webkit-backdrop-filter: blur(9px) saturate(135%) brightness(0.9);
-  /* 下面这些是给 glass.ts 读的调参口，逐类面板可以各自覆盖。
-     --glass-radius 不设时它直接读 border-radius，所以圆角永远对得上。
-
-     调参的几条经验：
-     - depth 是倒角厚度。小了没有"玻璃有厚度"的感觉；这里给到 22，
-       和对比图里那块 depth=24 的样本一个量级。
-     - aberration 是色散。它才是"白线经过折射变成彩色光晕"的来源——
-       RGB 三个通道用不同强度各位移一次，边缘就分色了。0 的话只有几何弯折，
-       没有颜色。
-     - blur 从 14 收到 5：模糊越大越看不出折射，折射感和模糊是互相抵消的。
-       想要"透一点但保留反射感"，就得压模糊、留位移。
-     - brightness 压到 0.9：玻璃挡光，不发光。 */
   --glass-depth: 22;
   --glass-strength: 92;
   --glass-aberration: 10;
@@ -1049,24 +1057,26 @@ button#primary,
 /*
  * 按下去的回弹。
  *
- * `.glass-press` 由 logic/glass.ts 在 pointerdown 时挂上、pointerup/cancel 时摘掉，
- * 挂在**所有**玻璃面板上——点面板里的任何地方都会有反馈，而不只是点到按钮才有。
- * 缩放幅度刻意很小（0.4%）：面板很大，缩多了会像整页在抖；真正让人感觉到
- * "弹"的是上面那条曲线的末端过冲，不是幅度。
+ * `.glass-press` 由 logic/glass.ts 在 pointerdown 时挂上、松手摘掉。
+ *
+ * 【只挂在 .card 上，不要扩到弹窗和菜单】在开着 backdrop-filter 的元素上动
+ * transform 是最贵的组合：实测按一下弹窗，那 300ms 里帧率掉到 10fps
+ * （去掉 transform 只改滤镜参数也才 27fps）。而 .card 没有 backdrop-filter，
+ * 同样的动画是 63fps。
+ *
+ * 弹窗和菜单里的反馈交给你**真正点到的那个控件**（按钮、菜单项）——
+ * 那本来也是更符合直觉的做法：反馈应该出现在你按的东西上，而不是整扇窗跟着抖。
+ *
+ * 缩放幅度刻意很小（0.4%）：面板很大，缩多了像整页在抖；让人感觉到"弹"的是
+ * --spring 那条曲线末端的过冲，不是幅度。
  */
-.card.glass-press,
-.modal-card.glass-press,
-.eula-box.glass-press,
-.combo-menu.glass-press,
-.ai-topup-panel.glass-press {
+.card.glass-press {
   transform: scale(0.996);
 }
 
 /* 输入框里点一下不该让整块面板动——那会让人以为点错了地方。 */
 .card.glass-press:has(input:focus),
-.modal-card.glass-press:has(input:focus),
-.card.glass-press:has(textarea:focus),
-.modal-card.glass-press:has(textarea:focus) {
+.card.glass-press:has(textarea:focus) {
   transform: none;
 }
 
@@ -1667,37 +1677,13 @@ button#primary,
 }
 
 /*
- * 【这条规则是整个特效流畅与否的关键，别删】
+ * 【历史注记，别再加回来】这里曾经有一条 `.ai-card.ignite-flat { backdrop-filter: none }`，
+ * 用来在点灯特效期间把玻璃摘掉——因为玻璃上面有东西在动时每帧都要重算滤镜。
  *
- * 特效期间把卡片自己的 backdrop-filter 摘掉。
- *
- * 液态玻璃和"玻璃上面有东西在动"是天然冲突的：backdrop-filter 的结果依赖它
- * 背后的合成内容，而上面盖着一层逐帧变化的东西时，浏览器每一帧都要把整套
- * SVG 折射（feTurbulence + feDisplacementMap）加 18px 高斯模糊重算一遍。
- *
- * 实测（headless Chromium，1.3 秒窗口内的 rAF 帧数 / 最长卡顿）：
- *   url(#lensPanel) + blur(18px)     19 帧 / 205ms   ← 原样
- *   只去掉 url() 折射，留 blur        31 帧 /  74ms
- *   特效期间整层摘掉                  66 帧 /  39ms   ← 现在这样
- * 同一台机器空白页是 64fps、应用静止时 66fps，所以 19 帧是真卡，不是环境问题。
- *
- * 视觉上不亏：这 1.2 秒里卡片正被扫光和辉光盖着，底下玻璃糊不糊没人看得出来；
- * 而 15fps 和 60fps 的差别一眼就能看出来。
+ * 现在 `.ai-card` 是 `.card`，本来就没有 backdrop-filter（见 .card 那段的实测数据），
+ * 所以这条规则连同它配套的亮度补偿都没有存在的必要了。留着反而有害：
+ * 补偿那层黑是为了填平"摘掉滤镜"造成的落差，没有滤镜可摘时它自己就是落差。
  */
-.ai-card.ignite-flat {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  /*
-   * 【为什么这里要补一层黑】摘掉 backdrop-filter 的同时，`brightness(0.9)` 那份
-   * 压暗也一起没了，于是特效一结束、玻璃装回来的那一刻整块面板"啪"地变暗/变亮
-   * 一下——用户看到的就是"动画加载完突然变色"。
-   *
-   * 补一层等效的压暗把这个落差填平：没有滤镜的时候用一层半透明黑顶上，
-   * 装回滤镜的时候撤掉。配合下面 .card 上那条 background-color 过渡，
-   * 剩下的那点差值也是渐变过去而不是跳变。
-   */
-  background-color: rgba(0, 0, 0, 0.1);
-}
 
 /* 面板整体先暗一下再亮起来，像被点着。
    这层辉光挂在特效层的伪元素上，只动 opacity——不要回到"给 .ai-card 动
