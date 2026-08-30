@@ -283,3 +283,11 @@ docker-compose.override.yml
 scripts/mc-verifier/cache/
 # results/ 默认保留（人工审查用），如需忽略可取消下一行注释
 # scripts/mc-verifier/results/
+
+# =========================
+# 发布与商业化路线图
+# =========================
+# plan.md 里有定价策略、未修的服务端漏洞、以及署名相关的决定。
+# 这个仓库是公开的（而且马上要正式开源），这份东西不能进去。
+# 要跨机器同步的话放进 private 的服务端仓库，不要放这儿。
+plan.md
