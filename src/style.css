@@ -47,6 +47,21 @@
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
   /* 按下去再弹回来的曲线：末端过冲一点点，手感才是"回弹"而不是"归位"。 */
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 光晕。抽成变量是因为它有两份使用者：背景层本身，和主界面那块玻璃里
+     预先模糊好的副本（.shell-frost）。两份必须一模一样，写两遍迟早会漂。 */
+  --bg-glow: radial-gradient(
+    circle,
+    rgba(184, 245, 230, 0.3) 0%,
+    rgba(77, 228, 201, 0.17) 12%,
+    rgba(58, 168, 214, 0.08) 28%,
+    rgba(30, 90, 170, 0.03) 48%,
+    rgba(6, 26, 58, 0) 68%
+  );
+  --bg-base: linear-gradient(135deg, #04122a 0%, #072049 45%, #02091a 100%);
+  /* 灯的图片地址由 App.vue 在运行时注入——它是 Vite 打过内容哈希的路径，
+     CSS 里写不出来。 */
+  --bg-lantern: none;
 }
 
 /*
@@ -78,7 +93,56 @@ body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(135deg, #061a3a 0%, #0a2f6e 45%, #041026 100%);
+  /* 比原来深一档：背景要沉下去，主界面那层玻璃才浮得起来。
+     真正的亮度来自中间那盏灯的光晕，不再靠整片渐变去撑。 */
+  background: var(--bg-base);
+}
+
+/* ---------------- 背景层：灵魂灯笼 + 光晕 ----------------
+   固定在最底下，主界面浮在它上面。静止不动，理由见 App.vue 里那段注释。 */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * 光晕：越靠中心越亮。
+ *
+ * 用四段 stop 而不是两段——两段的线性衰减会在中间留一圈能看出来的硬边，
+ * 四段能压出接近 inverse-square 的衰减，看起来才像"光"而不是"一个圆"。
+ * 颜色取灯芯那个青（#4de4c9 / #b8f5e6），和界面里灰烬、主按钮是同一族。
+ */
+.app-bg-glow {
+  position: absolute;
+  width: min(150vw, 150vh);
+  height: min(150vw, 150vh);
+  border-radius: 50%;
+  background: var(--bg-glow);
+}
+
+.app-bg-lantern {
+  position: relative;
+  width: min(30vw, 30vh);
+  max-width: 320px;
+  /* 像素画放大要用 pixelated，默认的平滑插值会把方块边缘糊成一团 */
+  image-rendering: pixelated;
+  /* 灯本身也要向外洒光，不然它像贴在光晕上的一张纸 */
+  filter: drop-shadow(0 0 28px rgba(77, 228, 201, 0.55))
+    drop-shadow(0 0 90px rgba(77, 228, 201, 0.3));
+  opacity: 0.92;
+  user-select: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  /* 要求减少透明效果时，背景压暗、玻璃那边会另行加重底色 */
+  .app-bg-glow {
+    opacity: 0.4;
+  }
 }
 
 button,
@@ -97,50 +161,109 @@ button {
   min-height: 0;
 }
 
+/*
+ * 主界面：**一整块**悬浮在背景之上的毛玻璃，而不是几张各自为政的卡片。
+ *
+ * 这么改之后玻璃才终于有意义：以前面板背后只有一片静态渐变，模糊它还是它；
+ * 现在背后是一盏发光的灯，玻璃能把那圈光晕揉开、压暗、透出来——这才是
+ * 「悬浮在背景之上」该有的样子。
+ *
+ * 按 apple-design 那份材质指南的两条：
+ *   - 大表面要读起来"更厚"：模糊更重、阴影更深（比里面那些子区块重得多）
+ *   - **不要在浅色半透明上再叠一层浅色半透明**——所以里面的 .card 从
+ *     "一张玻璃"降级成"玻璃上的一块浅色分区"，只有极淡的底色和描边，
+ *     绝不再各自开 backdrop-filter。
+ *
+ * 性能上这也是划算的：一整块的 backdrop-filter 只有一个元素要重算，
+ * 而不是四五张卡片各算一遍。
+ */
 .app-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
-  height: 100vh;
+  height: calc(100vh - 28px);
   min-height: 0;
+  margin: 14px;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 14px;
-  padding: 24px;
+  gap: 12px;
+  padding: 16px;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(10, 22, 48, 0.5), rgba(5, 13, 32, 0.62));
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
 }
 
 /*
- * 常驻可见的大面板：**刻意不上 backdrop-filter**。
+ * 毛玻璃的实现：**不用 backdrop-filter**，而是把背景预先模糊好一份贴在面板里。
  *
- * 【别加回去】实测数据（headless Chromium，在顶部输入框里连续打字时的帧率）：
- *   SVG 透镜折射        8fps   最长卡顿 275ms
- *   纯 CSS blur(9px)   27fps          57ms
- *   完全不加            63fps          17ms
+ * 【为什么绕这一圈】backdrop-filter 每一帧都要重新采样并重滤它背后的东西，而这块
+ * 面板几乎占满视口，代价极高。实测打字时的帧率：
+ *   backdrop-filter blur(26px)   31fps   最长卡顿 108ms
+ *   blur(14px)                   38fps          47ms
+ *   blur(6px)                    43fps          48ms
+ *   只 saturate 不 blur           62fps          27ms
+ *   完全不加                      63fps          18ms
+ * 也就是说贵的就是 blur 本身，调小半径救不回来。
  *
- * 原因是 backdrop-filter 的结果依赖它背后的合成内容，而页面上**任何地方**重绘
- * （打字、光标闪、hover）都会让所有开着它的元素重算一遍。这几张卡片是常驻满屏的，
- * 于是整个应用的交互都被拖到个位数帧率。试过只关掉输入框所在那张卡——没用，
- * 9fps，因为要重算的是别的卡。
+ * 但**背景是完全静止的**（那盏灯不动、光晕不做呼吸），所以根本不需要"每帧重算"。
+ * 这里放一份和背景层一模一样的副本，用普通的 `filter: blur()` 糊掉——普通滤镜
+ * 只在内容变化时重算，静止内容栅格化一次就一直复用。外层 .app-shell 的
+ * `overflow: hidden` + `border-radius` 负责把它裁成圆角矩形。
  *
- * 而收益几乎为零：它们背后只有 body 那片静态渐变，模糊一片渐变还是那片渐变。
- * 玻璃真正好看是在"盖住实际内容"的时候——所以折射留给弹窗和浮层（见下面
- * .modal-card 那组），它们要么是临时出现的，要么背后确实压着东西。
+ * 几何对齐：绝对定位是相对**内边距盒**算的，而内边距盒左上角在视口里的位置
+ * 正好是 margin(14) + border(1) = 15px，所以 -15px 就回到了视口原点。
+ * 再往外扩 80px 是给模糊留采样余量——不扩的话边缘会因为采到"外面什么都没有"
+ * 而出现一圈暗边。四边等量外扩，居中的光晕和灯就仍然对得上视口中心。
+ */
+.shell-frost {
+  position: absolute;
+  top: -95px;
+  left: -95px;
+  width: calc(100vw + 160px);
+  height: calc(100vh + 160px);
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--bg-lantern), var(--bg-glow), var(--bg-base);
+  background-repeat: no-repeat;
+  background-position: center, center, center;
+  background-size: min(30vw, 30vh) auto, min(150vw, 150vh) min(150vw, 150vh), cover;
+  filter: blur(26px) saturate(150%) brightness(1.02);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-shell {
+    background: #071228;
+  }
+
+  .shell-frost {
+    display: none;
+  }
+}
+
+/*
+ * 主界面里的分区块。
  *
- * 视觉上补偿：底色比原来重一些，让面板仍然是"一块板子"而不是一片透明。
+ * 【它们不是玻璃，也不该是】外面 .app-shell 已经是一整块毛玻璃了，在玻璃上再叠
+ * 一层玻璃有两个问题：apple-design 的材质指南说浅色半透明不能叠浅色半透明，
+ * 可读性会塌；而且实测常驻可见的元素开 backdrop-filter，页面任何地方重绘都会
+ * 逼它重算——打字时整个应用掉到 8fps（纯 CSS 模糊 27fps，完全不加 63fps）。
+ *
+ * 所以它们只是玻璃表面上颜色略深一点的分区：一层极淡的底色 + 一条描边。
+ * 真折射留给弹窗和浮层（见下面 .modal-card），那些不常驻、背后压着真实内容。
  */
 .card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(9, 19, 42, 0.72), rgba(6, 13, 30, 0.8));
-  box-shadow: var(--glass-shadow), var(--glass-edge);
-  /* 没有 backdrop-filter，所以在这上面动 transform 是廉价的——按下回弹就挂在这儿。 */
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(4, 12, 28, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* 没有 backdrop-filter，所以在这上面动 transform 是廉价的——按下回弹挂在这儿。 */
   transition: transform 280ms var(--spring);
 }
 
-/*
- * 弹窗和浮层：这些才上真折射。
- *
- * 和上面那组的区别只有一条——它们**不是常驻的**，而且背后压着真实内容，
- * 折射看得出来。代价只在它们显示的那段时间里付。
- */
 .modal-card {
   border: var(--glass-border);
   border-radius: 16px;
@@ -1590,11 +1713,42 @@ button#primary,
   background: rgba(0, 0, 0, 0.12);
 }
 
+/*
+ * 「启用界面动画」关掉时的总开关。
+ *
+ * 【这个类必须挂在 <html> 上，不能挂在 .app-shell 上】以前挂在 .app-shell，
+ * 于是所有 Teleport 到 body 的东西——登录弹窗、物品选择、富文本编辑器里那五个
+ * 弹窗、下拉菜单、toast——**全都在选择器覆盖范围之外**，用户关了动画它们照动。
+ *
+ * 另外光把时长归零是不够的：`.glass-press` 那类"改一个 transform 值"的效果，
+ * 时长为 0 只是让它瞬间生效，效果本身还在。所以下面还要把这些效果本身关掉。
+ */
 .no-motion *,
 .no-motion *::before,
 .no-motion *::after {
   transition-duration: 0ms !important;
+  transition-delay: 0ms !important;
   animation-duration: 0ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* 效果本身也要关，不只是时长 */
+.no-motion .glass-press,
+.no-motion button:hover,
+.no-motion button:active {
+  transform: none !important;
+}
+
+.no-motion .ai-ignite,
+.no-motion .app-intro-hidden {
+  display: none !important;
+}
+
+/* 开场动画在关动画时不能留下位移/透明度的残余状态 */
+.no-motion .card {
+  opacity: 1 !important;
+  transform: none !important;
 }
 
 @media (max-width: 1240px) {

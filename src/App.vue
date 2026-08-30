@@ -14,6 +14,10 @@ import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
 import AuthModal from "./components/AuthModal.vue";
 import { installLiquidGlass } from "./logic/glass";
+import { playIntro } from "./logic/intro";
+// 背景里那盏灯。放 src/assets 而不是 public：走 Vite 的资源管线会带内容哈希，
+// 换图之后不会因为浏览器缓存显示旧的。
+import lanternUrl from "./assets/soul-lantern.png";
 import {
   authModalMode,
   authModalOpen,
@@ -88,6 +92,11 @@ function checkEulaScrolled() {
 function acceptEula() {
   eulaAccepted.value = true;
   localStorage.setItem(eulaKey, "true");
+  // 第一次用的人是在这一刻才第一次看到主界面的，开场动画该放给他看——
+  // 否则"先只展示背景再落位"这段只有老用户（已经同意过的）才见得到。
+  void nextTick(() => {
+    if (shellEl.value) void playIntro(shellEl.value).finally(() => (introPending.value = false));
+  });
 }
 
 function declineEula() {
@@ -204,7 +213,34 @@ const blockCatalog = computed(() => (bedrockMode.value ? BEDROCK_BLOCKS : BLOCKS
 const filteredBlocks = computed(() =>
   blockCatalog.value.filter((row) => matches(row, blockSearch.value)),
 );
-const shellClass = computed(() => ({ "app-shell": true, "no-motion": !animationEnabled.value }));
+/**
+ * 动画总开关挂到 <html> 上，不挂在 .app-shell 上。
+ *
+ * 原因见 style.css 里 .no-motion 那段：弹窗/下拉/toast 都 Teleport 到 body，
+ * 挂在 shell 上的话它们全在选择器覆盖范围之外，关了动画照动。
+ */
+watch(
+  animationEnabled,
+  (on) => document.documentElement.classList.toggle("no-motion", !on),
+  { immediate: true },
+);
+
+const shellClass = computed(() => ({ "app-shell": true }));
+const shellEl = ref<HTMLElement | null>(null);
+
+/**
+ * 开场动画还没开始，界面要藏着。
+ *
+ * 【必须在模板里就是 opacity:0，不能等 playIntro 去设】playIntro 跑在挂载之后，
+ * 那时第一帧已经画出去了——用户会先看到一整块完整的界面，然后它消失、再淡入。
+ * 实测过这个 bug：外层玻璃的不透明度是 1.00 → 0.49 → 1.00，正好反了。
+ *
+ * 关了界面动画时初值就是 false，界面直接显示，不经过任何隐藏状态。
+ */
+const introPending = ref(
+  animationEnabled.value &&
+    !(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches),
+);
 const legacyJava = computed(() => isJava121LegacyFamily(form.version));
 const supportsTooltipDisplay = computed(() =>
   !isJava121LegacyFamily(form.version) &&
@@ -298,7 +334,14 @@ onMounted(() => {
   void recheckAuth();
   // 液态玻璃：按选择器认领所有浮层，后来 v-if 挂上来的弹窗也会自动接管。
   // 不支持 SVG 滤镜的引擎（macOS 的 WKWebView）里它直接空转，交给 CSS 降级。
+  // 灯的图片路径是 Vite 打过哈希的，CSS 写不出来，运行时注入给 .shell-frost 用。
+  document.documentElement.style.setProperty("--bg-lantern", `url(${lanternUrl})`);
   uninstallGlass = installLiquidGlass();
+  // 开场：先只有背景，界面再一块块落位。节奏和"为什么用 WAAPI"见 logic/intro.ts。
+  // 须知门禁还没过的时候不放——那时 shell 根本没挂载，等用户点完同意再说。
+  void nextTick(() => {
+    if (shellEl.value) void playIntro(shellEl.value).finally(() => (introPending.value = false));
+  });
 });
 
 let uninstallGlass: (() => void) | undefined;
@@ -581,6 +624,24 @@ function textOptions(items: string[]): SelectOption[] {
     </defs>
   </svg>
 
+  <!--
+    背景层。三件东西叠在一起，从下到上：
+      1. body 那片三段蓝色渐变（在 style.css 里）
+      2. 一圈以灯为中心的青色光晕，越靠中心越亮
+      3. 灵魂灯笼本体
+
+    【光晕是静止的，不做呼吸动画】两个原因：一是 backdrop-filter 的结果依赖
+    背后的合成内容，背景只要一动，上面所有玻璃每帧都要重算，整个界面会掉到
+    个位数帧率（这一课已经付过学费了）；二是 apple-design 那份材质指南里明确
+    提到要避开"全视口缓慢循环的背景动效"，那正是最容易引发不适的一类。
+
+    aria-hidden：纯装饰，读屏软件不该念它。
+  -->
+  <div class="app-bg" aria-hidden="true">
+    <div class="app-bg-glow"></div>
+    <img :src="lanternUrl" class="app-bg-lantern" alt="" draggable="false" />
+  </div>
+
   <div v-if="!eulaAccepted" class="eula-gate">
     <div class="eula-box">
       <h2>使用须知与隐私说明</h2>
@@ -692,7 +753,15 @@ function textOptions(items: string[]): SelectOption[] {
     </div>
   </div>
 
-  <main v-else :class="shellClass">
+  <main
+    v-else
+    ref="shellEl"
+    :class="shellClass"
+    :style="introPending ? { opacity: 0 } : undefined"
+  >
+    <!-- 预先模糊好的背景副本，就是这块面板的"毛玻璃"。
+         用它而不是 backdrop-filter 的原因见 style.css 里 .shell-frost 的注释。 -->
+    <div class="shell-frost" aria-hidden="true"></div>
     <section class="card top-card">
       <div class="brand-group">
         <div class="logo"></div>

@@ -328,6 +328,9 @@ export function installLiquidGlass(): () => void {
     pressed.clear();
   };
   const onDown = (e: PointerEvent) => {
+    // 「启用界面动画」关掉时连按下的回弹也不要——用户要的是"全都别动"，
+    // 而 CSS 那边只能把时长归零，效果本身得在这里不发生。
+    if (document.documentElement.classList.contains("no-motion")) return;
     const t = e.target as HTMLElement | null;
     const el = t?.closest?.(PRESS_SELECTOR) as HTMLElement | null;
     if (!el) return;
