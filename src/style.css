@@ -285,6 +285,18 @@ button {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.13));
 }
 
+/*
+ * 变形期间整层玻璃摘掉。
+ *
+ * glass.ts 的 clear() 只清得掉它自己写的那条内联滤镜，上面这条 CSS 降级模糊
+ * 它管不着——而在一个逐帧改 width/height 的元素上，模糊同样是每帧重算。
+ * 所以两条都要关，用同一个 data-glass-off 开关，别再分成两套状态。
+ */
+[data-glass-off="1"] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .top-card {
   display: flex;
   align-items: center;
@@ -1452,9 +1464,24 @@ button#primary,
   background: rgba(0, 0, 0, 0.16);
 }
 
+/*
+ * 「格子也是玻璃」。
+ *
+ * 原型里每个格子都挂一份独立的 SVG 折射滤镜——那是十二个格子的算法。这里一屏
+ * 三百个，而滤镜是按元素各算一份的（见上面那段"不接给 picker-grid"的注释），
+ * 照抄下来光是打开弹窗就会卡住。
+ *
+ * 所以格子走的是"不花钱的玻璃"：自上而下的渐变当受光面，顶边一道内高光当厚度，
+ * 底部一点内阴影当背光边。没有 backdrop-filter，代价是零，而在这种小方块上
+ * 真折射本来也几乎看不出来——它们背后压着的只是弹窗自己那层底色。
+ */
 .picker-grid button {
   display: flex;
   min-height: 46px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.02));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.13);
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
