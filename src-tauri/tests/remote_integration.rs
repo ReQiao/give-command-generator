@@ -1,4 +1,4 @@
-//! 集成测试：真的起一个 server/ 服务器子进程，真的用证书锁定连过去，
+//! 集成测试：真的起一个服务端子进程，真的用证书锁定连过去，
 //! 调用的是 lib.rs 里真实的 tauri::command 函数本体（auth_* / billing_* /
 //! ai_generate），不是重新拼一遍逻辑去测——这样才能真正验证"客户端这边接得
 //! 对不对"，而不只是"remote.rs 这几个函数写得对不对"。
@@ -10,6 +10,10 @@
 //!
 //! 用 SOUL_LANTERN_PINNED_CERT_FILE 环境变量把 remote.rs 的证书锁定指向
 //! 这里现场生成的临时证书，不碰打包进正式客户端的那个占位常量。
+//!
+//! **服务端已经拆到独立的私有仓库**，所以这个测试默认跑不起来——编译好服务端
+//! 之后用 `SOUL_LANTERN_SERVER_BIN=<二进制路径> cargo test` 指过来。找不到就
+//! 自动跳过（见 `server_binary()` 上的注释）。
 
 use soul_lantern_lib::{ai, auth, billing};
 use std::io::{BufRead, Read, Write};
@@ -29,24 +33,38 @@ impl Drop for Guard {
     }
 }
 
-fn server_binary() -> PathBuf {
-    // 复用仓库根目录 server/ 已经编译好的二进制，不在这里重新编译一遍
-    // （server 是独立 crate，不是 src-tauri 的依赖，没法用 CARGO_BIN_EXE_ 拿到）。
-    let candidates = [
+/// 找服务端二进制。**找不到时返回 None，不 panic。**
+///
+/// 【为什么不能 panic 了】服务端已经从这个仓库里拆出去，放进一个独立的私有仓库。
+/// 公开仓库里 `server/` 不存在，谁 clone 下来跑 `cargo test` 都会撞上这个 panic，
+/// 而那不是"测试失败"，只是"这台机器上没有服务端"。
+///
+/// 【但这个测试不能删】它是客户端与服务端之间**字段名契约的唯一守门人**——
+/// 请求体 snake_case、响应体 camelCase 这套约定，两边各自的单测都是绿的，
+/// 只有真实 HTTP 往返才抓得到对不上。拆成两个仓库之后，两边独立演进、
+/// 契约漂移的风险只增不减，所以它比以前更需要存在。
+///
+/// 于是改成：有服务端就跑（拆仓之后这条路径只有作者本人走得到），
+/// 没有就跳过并打一行说明。
+fn server_binary() -> Option<PathBuf> {
+    // 服务端仓库在哪由环境变量说了算——它现在是独立仓库，路径因人而异。
+    if let Ok(p) = std::env::var("SOUL_LANTERN_SERVER_BIN") {
+        let p = PathBuf::from(p);
+        if p.exists() {
+            return Some(p);
+        }
+        eprintln!("SOUL_LANTERN_SERVER_BIN 指向的文件不存在：{}", p.display());
+        return None;
+    }
+    // 兜底猜几个常见位置：服务端仓库和客户端仓库并排放着的情况。
+    const CANDIDATES: [&str; 4] = [
+        "../../soul-lantern-server/target/debug/soul-lantern-server",
+        "../../soul-lantern-server/target/release/soul-lantern-server",
+        // 拆仓之前的老位置，本地还留着 server/ 的话仍然能用
         "../server/target/debug/soul-lantern-server",
-        "../server/target/x86_64-unknown-linux-musl/release/soul-lantern-server",
         "../server/target/release/soul-lantern-server",
     ];
-    for c in candidates {
-        let p = PathBuf::from(c);
-        if p.exists() {
-            return p;
-        }
-    }
-    panic!(
-        "找不到 server 的编译产物，先在 server/ 目录下跑一次 `cargo build`\n\
-         尝试过的路径：{candidates:?}"
-    );
+    CANDIDATES.iter().map(PathBuf::from).find(|p| p.exists())
 }
 
 fn generate_cert(dir: &PathBuf, cn: &str) -> (PathBuf, PathBuf) {
@@ -99,12 +117,12 @@ fn free_port() -> u16 {
 /// SMS_KIND=log 时验证码只出现在服务器日志里，这里把子进程输出接过来。
 type Logs = Arc<Mutex<Vec<String>>>;
 
-fn start_test_server(dir: &PathBuf) -> (Guard, PathBuf, u16, Logs) {
+fn start_test_server(bin: &PathBuf, dir: &PathBuf) -> (Guard, PathBuf, u16, Logs) {
     let (crt, key) = generate_cert(dir, "127.0.0.1");
     let upstream_port = spawn_mock_upstream();
     let bind_port = free_port();
 
-    let mut child = Command::new(server_binary())
+    let mut child = Command::new(bin)
         .env("TLS_CERT", &crt)
         .env("TLS_KEY", &key)
         .env("LEDGER_PATH", dir.join("ledger.json"))
@@ -163,8 +181,8 @@ fn log_len(logs: &Logs) -> usize {
 /// 用服务器自己的 --gen-license 出一张真码。
 /// 校验位是拿 AUTH_PEPPER 算的 HMAC，客户端算不出来——这本身就是设计意图
 /// （能算出来就等于把伪造能力跟着安装包分发出去了），所以测试也只能这么拿。
-fn mint_license() -> String {
-    let out = Command::new(server_binary())
+fn mint_license(bin: &PathBuf) -> String {
+    let out = Command::new(bin)
         .arg("--gen-license")
         .arg("1")
         .env("AUTH_PEPPER", PEPPER)
@@ -180,11 +198,19 @@ fn mint_license() -> String {
 /// 互相踩踏。
 #[tokio::test]
 async fn full_client_flow_against_real_server() {
+    let Some(bin) = server_binary() else {
+        eprintln!(
+            "跳过 full_client_flow_against_real_server：找不到服务端二进制。\n\
+             服务端在独立的私有仓库里，编译好之后用 SOUL_LANTERN_SERVER_BIN=<路径> 指过来即可。"
+        );
+        return;
+    };
+
     let dir = std::env::temp_dir().join(format!("soul-client-it-{}-{}", std::process::id(), free_port()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let (_guard, crt, bind_port, logs) = start_test_server(&dir);
+    let (_guard, crt, bind_port, logs) = start_test_server(&bin, &dir);
 
     // Rust 2024 里改环境变量是 unsafe（进程全局可变状态）。这个文件只有一个
     // 测试函数、不会并行跑，这里是安全的。
@@ -297,7 +323,7 @@ async fn full_client_flow_against_real_server() {
          这是改造前那个「36^12 个字符串每个都能兑 100 币」的洞的回归测试"
     );
 
-    let license = mint_license();
+    let license = mint_license(&bin);
     let activated = billing::billing_activate(license.clone()).await.expect("真码应该能兑换");
     assert_eq!(activated.balance, welcome + 1000 + 100, "激活应该叠加而不是覆盖");
     assert!(activated.activated);
