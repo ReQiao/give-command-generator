@@ -29,6 +29,19 @@ const MAX_OFFSET_PX = 90;
 /** 冲过头多少（相对进场位移的比例）。太大就成了甩，太小看不出来。 */
 const OVERSHOOT = 0.22;
 
+/**
+ * 落位回弹提前多少开播。
+ *
+ * 【为什么必须提前】原来是 `await anim.finished` 之后才按一下。落位动画的
+ * 末尾是缓出曲线的尾巴——最后这几十毫秒里位移已经小到看不见，画面事实上是
+ * 静止的；等它彻底跑完、`finished` 在下一帧回调、再挂上 class，中间就攒出
+ * 一段"停住了，然后才想起来抖一下"的空档，两个动作被读成两件事。
+ *
+ * 现在提前把落位动画掐掉再接回弹：掐掉的那一段本来就没有可见位移，
+ * 少了那段空档，落位和回弹接成一个连续动作。
+ */
+const PRESS_LEAD_MS = 50;
+
 const SHELL_FADE_MS = 420;
 /** 背景独处的时间。太短看不清那盏灯，太长像卡住了。 */
 const BACKDROP_HOLD_MS = 260;
@@ -58,10 +71,15 @@ function offsetFor(el: HTMLElement): { dx: number; dy: number } {
   };
 }
 
-/** 落位后按一下自己。复用 `.glass-press`，不另写一套放大缩小。 */
+/**
+ * 落位后按一下自己。复用 `.glass-press`，不另写一套放大缩小。
+ *
+ * 多挂一个 `.intro-press` 只为把幅度调轻——开场这一下不是用户按出来的，
+ * 而且四五块同时按，用平时的幅度整个画面像在颤。
+ */
 function pressOnce(el: HTMLElement) {
-  el.classList.add("glass-press");
-  window.setTimeout(() => el.classList.remove("glass-press"), 120);
+  el.classList.add("glass-press", "intro-press");
+  window.setTimeout(() => el.classList.remove("glass-press", "intro-press"), 120);
 }
 
 /**
@@ -124,7 +142,8 @@ export async function playIntro(shell: HTMLElement): Promise<void> {
           fill: "both",
         },
       );
-      await anim.finished;
+      // 不等 `finished`，提前 PRESS_LEAD_MS 收工（理由见上面那个常量）。
+      await new Promise((r) => setTimeout(r, i * STAGGER_MS + BLOCK_MS - PRESS_LEAD_MS));
       // 把 fill:both 留下的定格状态撤掉，交回给 CSS——否则之后的
       // .glass-press 会被这条动画的 transform 压住，按下去没反应。
       anim.cancel();

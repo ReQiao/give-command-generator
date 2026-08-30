@@ -52,11 +52,11 @@
      预先模糊好的副本（.shell-frost）。两份必须一模一样，写两遍迟早会漂。 */
   --bg-glow: radial-gradient(
     circle,
-    rgba(184, 245, 230, 0.3) 0%,
-    rgba(77, 228, 201, 0.17) 12%,
-    rgba(58, 168, 214, 0.08) 28%,
-    rgba(30, 90, 170, 0.03) 48%,
-    rgba(6, 26, 58, 0) 68%
+    rgba(196, 248, 236, 0.46) 0%,
+    rgba(77, 228, 201, 0.27) 13%,
+    rgba(58, 168, 214, 0.13) 30%,
+    rgba(30, 90, 170, 0.05) 50%,
+    rgba(6, 26, 58, 0) 70%
   );
   --bg-base: linear-gradient(135deg, #04122a 0%, #072049 45%, #02091a 100%);
   /* 灯的图片地址由 App.vue 在运行时注入——它是 Vite 打过内容哈希的路径，
@@ -132,9 +132,9 @@ body {
   /* 像素画放大要用 pixelated，默认的平滑插值会把方块边缘糊成一团 */
   image-rendering: pixelated;
   /* 灯本身也要向外洒光，不然它像贴在光晕上的一张纸 */
-  filter: drop-shadow(0 0 28px rgba(77, 228, 201, 0.55))
-    drop-shadow(0 0 90px rgba(77, 228, 201, 0.3));
-  opacity: 0.92;
+  filter: drop-shadow(0 0 30px rgba(77, 228, 201, 0.72))
+    drop-shadow(0 0 110px rgba(77, 228, 201, 0.42));
+  opacity: 1;
   user-select: none;
 }
 
@@ -190,7 +190,7 @@ button {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
-  background: linear-gradient(160deg, rgba(10, 22, 48, 0.5), rgba(5, 13, 32, 0.62));
+  background: linear-gradient(160deg, rgba(10, 22, 48, 0.36), rgba(5, 13, 32, 0.47));
   box-shadow:
     0 32px 80px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
@@ -1207,6 +1207,17 @@ button#primary,
  */
 .card.glass-press {
   transform: scale(0.996);
+}
+
+/*
+ * 开场落位时那一下要更轻。
+ *
+ * 平时的回弹是回应"我按了它"，幅度虽小也该被看见。开场那一下不是用户按的，
+ * 它只是给"落位"这个动作收个尾——用同样的幅度会显得整块面板自己抖了一下，
+ * 而且四五块同时抖，画面像在颤。减到三分之一，看得出是收尾，不至于抢戏。
+ */
+.card.glass-press.intro-press {
+  transform: scale(0.9987);
 }
 
 /* 输入框里点一下不该让整块面板动——那会让人以为点错了地方。 */
