@@ -8,9 +8,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "tsx src/logic/builder.test.mjs && tsx src/logic/glass.test.mjs",
-    "verify-syntax": "node scripts/mc-verifier/index.mjs",
-    "demo": "node scripts/demo-local.mjs"
+    "test": "tsx src/logic/builder.test.mjs && tsx src/logic/commands.test.mjs && tsx src/logic/glass.test.mjs",
+    "verify-syntax": "node scripts/mc-verifier/index.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

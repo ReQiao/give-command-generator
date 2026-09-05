@@ -1,19 +1,17 @@
 /**
- * AI 提示词构建（纯前端 TS）。
+ * AI 提示词构建 + 响应解析（纯前端 TS）。
  *
  * 分工：
- *   - AI 只产出结构化「指令意图」，不拼写最终命令字符串——语法一律由服务器上
- *     经 mc-verifier 实证的确定性构建器生成（server/src/give/）。这样 AI 的
- *     幻觉只会影响"做什么"，不会产出语法非法的命令。
+ *   - AI 只产出结构化「指令意图」（CommandIntent[]），不拼写最终命令字符串——
+ *     语法一律由 logic/dispatch.ts → logic/commands/* 里经服务器实证的构建器生成。
+ *     这样 AI 的幻觉只会影响"做什么"，不会产出语法非法的命令。
  *   - 附魔 / 药水效果的完整 id 表由 catalog 动态注入，避免 AI 编造不存在的 id。
- *   - 联网（注入 API key、POST 到大模型）、解析 AI 响应 JSON、目录校验、
- *     指令构建，全部由服务器负责（server/src/give/parse.rs、dispatch.rs、
- *     builder.rs、commands/*）；本模块只负责"请求前构造提示词"这一半——
- *     提示词本身是自然语言文本，不是确定性逻辑，没有安全/正确性问题，
- *     留在客户端还能不经服务器发布就调整措辞。
+ *   - 联网（注入 API key、POST 到大模型）由 Rust 后端负责，key 不进前端；
+ *     本模块只负责「请求前构造提示词」与「响应后解析 JSON」。
  */
 
 import { EFFECTS, ENCHANTS, ENTITIES, GENERATED_MC_VERSION, PARTICLES } from "../../data/catalog";
+import type { CommandIntent } from "../dispatch";
 import type { GiveVersion } from "../builder";
 
 function toRoman(n: number): string {
@@ -293,4 +291,76 @@ export function buildSystemPrompt(version: GiveVersion): string {
     "组合技（execute+summon/attribute等），也不要编造一个不存在的物品/方块/实体/附魔/效果/",
     "属性 id——编造的 id 不会让效果生效，只会导致这条意图直接构建失败，玩家什么都拿不到。",
   ].join("\n");
+}
+
+export interface ParsedAi {
+  intents: CommandIntent[];
+  explanation: string;
+}
+
+/** 支持的意图 command 取值，用于过滤模型偶尔混入 intents 数组的非法项。 */
+const KNOWN_COMMANDS = new Set([
+  "give",
+  "say",
+  "effect_give",
+  "effect_clear",
+  "tp",
+  "setblock",
+  "summon",
+  "fill",
+  "clone",
+  "enchant",
+  "execute",
+  "scoreboard",
+  "attribute",
+  "particle",
+]);
+
+/** 解析 AI 返回的 JSON 文本为指令意图。 */
+export function parseAiContent(content: string): ParsedAi {
+  const text = stripCodeFence(content);
+  let parsed: { intents?: unknown; explanation?: string };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`无法解析 AI 返回的 JSON：${text.slice(0, 200)}`);
+  }
+  if (!Array.isArray(parsed.intents)) {
+    throw new Error("AI 返回缺少 intents 数组。");
+  }
+
+  // 模型偶尔会把 explanation 错放进 intents 数组里（形如 {"explanation":"..."}，
+  // 没有 command 字段），这不是一条合法指令——之前会被 dispatch 当成「未知指令类型」
+  // 报错，实际上应该静默兜底：捞出来当 explanation 用，而不是当成失败项展示给用户。
+  let explanation = parsed.explanation ?? "";
+  const intents: CommandIntent[] = [];
+  for (const item of parsed.intents as unknown[]) {
+    if (item && typeof item === "object" && KNOWN_COMMANDS.has((item as { command?: unknown }).command as string)) {
+      const rec = item as Record<string, unknown>;
+      if (rec.form && typeof rec.form === "object") {
+        intents.push(item as CommandIntent);
+      } else {
+        // 模型偶尔会忘记套 form 包装，把参数直接摊平写在意图对象上
+        // （例如 { "command": "execute", "subcommands": [...], "run": "..." }，
+        // 没有 form 字段）。这会导致构建器拿到空表单——execute 报"至少需要一个
+        // 子命令"、give 直接退回默认物品——看起来像是随机丢参数，其实是同一个
+        // 结构性问题。这里兜底：把除 command 外的其余字段收拢成 form。
+        const { command, ...rest } = rec;
+        intents.push({ command, form: rest } as CommandIntent);
+      }
+      continue;
+    }
+    if (!explanation && item && typeof item === "object" && typeof (item as { explanation?: unknown }).explanation === "string") {
+      explanation = (item as { explanation: string }).explanation;
+    }
+  }
+
+  return { intents, explanation };
+}
+
+/** 模型偶尔会把 JSON 包在 ```json 代码块里，宽容处理一下。 */
+function stripCodeFence(content: string): string {
+  const text = String(content ?? "").trim();
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n?```$/.exec(text);
+  return fenced ? fenced[1].trim() : text;
 }

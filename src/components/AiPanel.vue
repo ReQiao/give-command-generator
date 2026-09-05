@@ -1,28 +1,25 @@
 <script setup lang="ts">
 /**
- * AI 模式面板：自然语言 → 确定性命令 → 一键部署为 datapack。
+ * AI 模式面板 —— **录视频分支专用版本，和 main 上的不是一回事**。
  *
- * 语法安全性来自分层：AI 只产出「意图」，命令字符串由服务器上经 mc-verifier
- * 实证的确定性构建器生成（server/src/give/），所以即便 AI 想歪了，也不会产出
- * 语法非法的命令。这套构建逻辑此前跑在这个客户端里，现在已经搬到服务器——
- * 它才是这个项目真正的护城河，比服务器保管的 API key 更值得保护，留在客户端
- * 容易被逆向。搬迁后这个面板只管展示服务器返回的结果，不再自己解析 AI 输出、
- * 不再自己校验目录、不再自己拼指令字符串。
+ * 语法安全性的来源不变：AI 只产出「意图」，命令字符串由经 mc-verifier 实证的
+ * 确定性构建器生成，所以即便 AI 想歪了也不会产出语法非法的命令。变的是这套
+ * 构建器住在哪：主线上它在服务器（server/src/give/），这个分支把它搬回了前端
+ * （logic/dispatch.ts → logic/commands/*），这样不用起服务端、不用配环境变量，
+ * 断网也能演示。
+ *
+ * 账号、灵魂币、充值、兑换码在这个分支里整块拿掉了——它们全都要服务器才有意义。
+ * API key 由用户自己在界面上填，花的是他自己的钱。
+ *
+ * **不要合进 main。** 主线把构建器放在服务器是有代价换来的结论，
+ * 见 src-tauri/src/ai.rs 顶部那两条理由。
  */
 import { computed, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { buildSystemPrompt } from "../logic/ai/prompt";
+import { buildSystemPrompt, parseAiContent } from "../logic/ai/prompt";
+import { dispatchIntents } from "../logic/dispatch";
 import type { GiveVersion } from "../logic/builder";
-// 登录态是全局单一真相源（见 logic/auth.ts 顶部注释）：门禁判断现在也发生在
-// App.vue 的模式切换按钮上，两处各存一份 ref 会立刻不同步。
-import {
-  auth,
-  desktop,
-  gated,
-  logout as doLogout,
-  openAuth,
-  recheckAuth,
-} from "../logic/auth";
+import { desktop } from "../logic/auth";
 import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
@@ -117,114 +114,11 @@ interface AiResponse {
   failures: string[];
   /** AI 给出的一句话说明。 */
   explanation: string;
-  /** 顶层失败原因（余额不足/上游调用失败/AI 内容解析失败）。 */
+  /** 顶层失败原因（没填 key / 上游调用失败 / 响应为空）。 */
   error: string | null;
-  /**
-   * 现在走远程服务器代理（真实大模型 key + Builder 构建逻辑都只在服务器上，
-   * 见 src-tauri/src/remote.rs 顶部注释——这个客户端曾经把 key 直接编译进
-   * 安装包，被人拆出来盗刷过一次）。连不上服务器时是 null，不能瞎填 0——
-   * 那会让用户误以为余额真的清零了。
-   */
-  balance: number | null;
+  /** AI 返回的原始 JSON 文本，前端自己解析（parseAiContent → dispatchIntents）。 */
+  content: string | null;
   usage: { prompt: number; completion: number; total: number } | null;
-  /** 供本组件存入多轮对话历史使用，不在 UI 展示。 */
-  rawContent: string | null;
-}
-
-/**
- * 灵魂币余额 + 充值。真实扣费在后端（ai_generate 成功后按用量折算），
- * 这里只是展示余额和发起充值——充值现在是免费直接加余额（billing_recharge
- * 还没接真实支付网关），等真要收钱时只用换后端实现，这几个调用点不用动。
- */
-interface AccountView {
-  activated: boolean;
-  balance: number;
-}
-interface TopupTier {
-  yuan: number;
-  coins: number;
-}
-const balance = ref<number | null>(null);
-const topupTiers = ref<TopupTier[]>([]);
-const showTopup = ref(false);
-
-// refreshAuth 现在住在 logic/auth.ts 里，它不知道余额条这回事，
-// 所以余额跟随登录态的同步放在这里做。
-watch(
-  () => auth.value.loggedIn,
-  (loggedIn) => {
-    if (loggedIn) balance.value = auth.value.balance;
-  },
-  { immediate: true },
-);
-
-async function logout() {
-  await doLogout();
-  balance.value = null;
-  emit("toast", "已退出登录");
-}
-
-async function refreshBalance() {
-  if (!desktop) return;
-  try {
-    const st = await invoke<AccountView>("billing_state");
-    balance.value = st.balance;
-  } catch {
-    // 读不到就算了，不影响主流程；余额会在下次生成成功后从 AiResponse 里更新。
-  }
-}
-
-async function loadTopupTiers() {
-  if (!desktop) return;
-  try {
-    topupTiers.value = await invoke<TopupTier[]>("billing_topup_tiers");
-  } catch {
-    topupTiers.value = [];
-  }
-}
-
-async function recharge(coins: number) {
-  try {
-    const st = await invoke<AccountView>("billing_recharge", { coins });
-    balance.value = st.balance;
-    emit("toast", `已充值 ${coins} 灵魂币（当前免费测试阶段，未实际扣款）`);
-  } catch (err) {
-    emit("toast", `充值失败：${err instanceof Error ? err.message : String(err)}`);
-    // 失败多半是会话过期/根本没登录。回头刷一次登录态，让登录入口重新出现——
-    // 否则用户看到"请重新登录"却在界面上找不到任何地方能登录。
-    void recheckAuth();
-  }
-}
-
-/**
- * 激活码兑换。
- *
- * 这段注释以前写的是"后端只做格式校验、没有真实性验证，别暗示这是一道真防线"——
- * 那已经过时了，现在三条全都做到了：激活码带 HMAC 校验位（用只存在于服务器
- * 环境变量里的 pepper 算，见 server/src/crypto.rs::verify_license）、全局一次性
- * 核销、10 次/24h 的爆破限流。改造前那套只校验格式，等于约 36^12 个字符串
- * 每一个都是能兑 100 币的一次性券，写个 for 循环就能刷。
- *
- * 客户端这边**只做"长得像不像"的即时提示，不判断有效性**——校验位客户端既
- * 算不出也不该算得出，否则伪造能力就跟着安装包分发出去了。
- */
-const licenseKey = ref("");
-const activating = ref(false);
-
-async function activate() {
-  const key = licenseKey.value.trim();
-  if (!key || activating.value) return;
-  activating.value = true;
-  try {
-    const st = await invoke<AccountView>("billing_activate", { licenseKey: key });
-    balance.value = st.balance;
-    licenseKey.value = "";
-    emit("toast", "激活码已兑换");
-  } catch (err) {
-    emit("toast", `兑换失败：${err instanceof Error ? err.message : String(err)}`);
-  } finally {
-    activating.value = false;
-  }
 }
 
 /**
@@ -243,9 +137,7 @@ async function checkUpgradeNotice() {
 
 onMounted(() => {
   void checkUpgradeNotice();
-  // 登录态/门禁开关由 App.vue 在挂载时统一拉一次（模式切换按钮要用），这里不重复。
-  void refreshBalance();
-  void loadTopupTiers();
+  loadSettings();
 });
 
 /**
@@ -256,14 +148,64 @@ onMounted(() => {
  * 留空/选不到就用服务器 .env 里 AI_MODEL 配置的默认值。
  */
 const MODEL_OPTIONS = [
-  { label: "服务器默认", value: "" },
-  { label: "Qwen Plus（稳）", value: "qwen3.7-plus" },
+  { label: "Qwen Plus（稳）", value: "qwen-plus" },
   { label: "Qwen Max（旗舰，贵）", value: "qwen3.8-max" },
-  { label: "Qwen Flash（最便宜，注意32k阶梯跳价）", value: "qwen3.7-flash" },
-  { label: "Qwen Long（长上下文，性价比高）", value: "qwen-long-latest" },
+  { label: "Qwen Flash（便宜）", value: "qwen3.8-flash" },
+  { label: "Qwen Long（长上下文）", value: "qwen-long-latest" },
   { label: "DeepSeek V4 Pro", value: "deepseek-v4-pro" },
 ] as const;
-const apiModel = ref<string>("");
+const apiModel = ref<string>(MODEL_OPTIONS[0].value);
+
+/**
+ * AI 服务商设置：端点 + 模型 + 用户自己的 API key。
+ *
+ * key 存在 localStorage 里而不是内存里——录视频要反复重启应用，每次重填很烦。
+ * 它只留在这台机器上，不会发到任何地方（除了用户自己填的那个端点）。
+ *
+ * **绝对不要给它加"内置默认 key"兜底。** 那正是当年出事故的形态：
+ * 一把 key 打进所有人的安装包，拆出来就能白嫖（见 src-tauri/src/ai.rs 顶部）。
+ */
+const KEY_STORE = "soul-lantern-demo-ai";
+const PROVIDERS = [
+  {
+    label: "阿里云百炼（DashScope）",
+    endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+  },
+  { label: "OpenAI", endpoint: "https://api.openai.com/v1/chat/completions" },
+  { label: "自定义", endpoint: "" },
+] as const;
+
+const apiKey = ref("");
+const apiEndpoint = ref<string>(PROVIDERS[0].endpoint);
+const showSettings = ref(false);
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(KEY_STORE);
+    if (!raw) return;
+    const v = JSON.parse(raw) as { key?: string; endpoint?: string; model?: string };
+    apiKey.value = v.key ?? "";
+    if (v.endpoint) apiEndpoint.value = v.endpoint;
+    if (v.model) apiModel.value = v.model;
+  } catch {
+    // 存坏了就当没存过，不能因为读配置失败挡住整个面板
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(
+      KEY_STORE,
+      JSON.stringify({ key: apiKey.value, endpoint: apiEndpoint.value, model: apiModel.value }),
+    );
+  } catch {
+    // 无痕模式之类会抛，忽略——只是下次要重填
+  }
+}
+watch([apiKey, apiEndpoint, apiModel], saveSettings);
+
+/** 没填 key 时把「AI 生成指令」按钮也禁掉，别让人点了才发现。 */
+const keyReady = computed(() => apiKey.value.trim().length > 0);
 
 const userText = ref("");
 const busy = ref(false);
@@ -315,7 +257,13 @@ function newConversation() {
 const bedrockUnsupported = computed(() => props.version === "bedrock");
 
 const canGenerate = computed(
-  () => desktop && !bedrockUnsupported.value && !busy.value && userText.value.trim().length > 0,
+  () =>
+    desktop &&
+    !bedrockUnsupported.value &&
+    !busy.value &&
+    // 【录视频分支】没填 key 就别让人点了才发现——上面那块设置默认就是展开的
+    keyReady.value &&
+    userText.value.trim().length > 0,
 );
 
 const examples = [
@@ -347,26 +295,28 @@ async function generate() {
     const res = await invoke<AiResponse>("ai_generate", {
       systemPrompt: buildSystemPrompt(props.version),
       userText: thisTurnText,
+      apiKey: apiKey.value.trim() || null,
+      endpoint: apiEndpoint.value.trim() || null,
       model: apiModel.value.trim() || null,
-      version: props.version,
       history: history.value,
     });
 
-    // 连不上服务器时 res.balance 是 null，不能拿它覆盖已经显示的余额——
-    // 那会让用户误以为余额真的清零了，其实只是网络问题。
-    if (res.balance !== null) balance.value = res.balance;
-
-    if (!res.ok) {
+    if (!res.ok || !res.content) {
       errorText.value = res.error ?? "AI 调用失败。";
       return;
     }
 
-    // 解析/校验/构建现在全部在服务器上完成（server/src/give/），这里直接
-    // 用服务器已经分好类的结果，不用再自己解析 AI 输出、跑目录校验。
-    explanation.value = res.explanation;
-    commands.value = res.commands;
-    loopCommands.value = res.loopCommands;
-    failures.value = res.failures;
+    // 这个分支里解析和构建都在前端做（主线上是服务器做的）。
+    // parseAiContent 只负责把 AI 的 JSON 变成意图数组、并挡掉非法项；
+    // 真正的语法正确性由 dispatchIntents → logic/commands/* 保证。
+    const parsed = parseAiContent(res.content);
+    const results = dispatchIntents(parsed.intents, props.version);
+    explanation.value = parsed.explanation;
+    commands.value = results.filter((r) => r.command && !r.loop).map((r) => r.command as string);
+    loopCommands.value = results.filter((r) => r.command && r.loop).map((r) => r.command as string);
+    failures.value = results
+      .filter((r) => r.error)
+      .map((r) => `${r.intent.command}：${r.error}`);
 
     const total = commands.value.length + loopCommands.value.length;
     if (total === 0) {
@@ -380,7 +330,7 @@ async function generate() {
     history.value = [
       ...history.value,
       { role: "user", content: thisTurnText },
-      { role: "assistant", content: res.rawContent ?? "" },
+      { role: "assistant", content: res.content },
     ];
     userText.value = "";
   } catch (err) {
@@ -440,77 +390,57 @@ function copyAll() {
       <p>请切回<strong>手动模式</strong>使用基岩版的物品生成——那边的基岩 ID 是单独校对过的。</p>
     </div>
 
-    <!-- 登录门禁：和上面 bedrockUnsupported 那块用同一个范式（.ai-notice 黄条整块挡住），
-         这个写法这个文件里本来就有，直接复用不另起炉灶。
-         注意门禁写在 v-else 内部 —— 基岩版那条提示优先级更高，
-         选了基岩版就该先说"AI 模式不支持基岩版"，而不是先要求登录。 -->
-    <div v-else-if="gated" class="ai-notice ai-gate">
-      <p><strong>AI 模式需要先登录。</strong></p>
-      <p>
-        AI 生成会真实调用大模型、按用量计费，所以需要一个账号来记余额——
-        账号也让你换电脑、重装之后余额还在。注册只要用户名、密码和一个手机号。
-      </p>
-      <p v-if="auth.offline" class="ai-gate-offline">
-        （现在连不上服务器，可能是网络问题或者服务器在维护，稍后再试试。）
-      </p>
-      <div class="ai-gate-actions">
-        <button class="primary-btn" type="button" @click="openAuth('login')">登录 / 注册</button>
-      </div>
-    </div>
-
     <template v-else>
-    <div v-if="desktop" class="ai-balance-bar">
+    <!-- 服务商设置。默认收起，只在没填 key 时自动展开——录制时不占画面，
+         但第一次打开的人不会找不到入口。 -->
+    <div class="ai-balance-bar">
       <span>
-        灵魂币余额：<strong>{{ balance ?? "—" }}</strong>
-        <InfoTip text="每次 AI 生成会按真实调用花费（不同模型单价不同）折算扣除灵魂币，不是固定扣一个数。当前充值是免费测试阶段，不会真的扣款。" />
+        AI 服务商
+        <InfoTip text="这个版本直接用你自己的 API key 调用大模型，不经过任何服务器。key 只存在这台机器上，花的是你自己的额度。" />
+        <strong>{{ keyReady ? "已配置" : "未配置" }}</strong>
       </span>
-      <span v-if="auth.loggedIn" class="ai-account">
-        {{ auth.username }}
-        <button type="button" class="auth-link" @click="openAuth('change')">修改密码</button>
-        <button type="button" class="auth-link" @click="logout">退出登录</button>
-      </span>
-      <!-- 未登录时这里必须有入口。走到这个分支说明 gated 是 false，
-           也就是门禁块（唯一另一个登录按钮所在处）没渲染——少了这个 v-else，
-           用户就会卡在"点充值报请登录、但界面上找不到哪里能登录"的死胡同里。 -->
-      <span v-else class="ai-account">
-        <button type="button" class="auth-link" @click="openAuth('login')">登录 / 注册</button>
-      </span>
-      <button type="button" class="ai-topup-toggle" @click="showTopup = !showTopup">
-        充值
+      <button type="button" class="ai-topup-toggle" @click="showSettings = !showSettings">
+        {{ showSettings ? "收起" : "设置" }}
       </button>
     </div>
 
-    <div v-if="showTopup" class="ai-topup-panel">
-      <p class="ai-topup-note">当前是免费测试阶段，点击即可直接到账，不会真的扣款。</p>
-      <div class="ai-topup-tiers">
-        <button
-          v-for="tier in topupTiers"
-          :key="tier.coins"
-          type="button"
-          class="ai-topup-tier"
-          @click="recharge(tier.coins)"
-        >
-          <span class="ai-topup-yuan">¥{{ tier.yuan }}</span>
-          <span class="ai-topup-coins">{{ tier.coins }} 灵魂币</span>
-        </button>
+    <div v-if="showSettings || !keyReady" class="ai-topup-panel">
+      <p class="ai-topup-note">
+        key 不会发到除你所填端点之外的任何地方，也不会进仓库。这是本地演示版本。
+      </p>
+      <div class="ai-license">
+        <span class="field-label">接口地址</span>
+        <div class="ai-license-row">
+          <input
+            v-model="apiEndpoint"
+            placeholder="https://…/v1/chat/completions"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <div class="ai-topup-tiers">
+          <button
+            v-for="p in PROVIDERS.filter((x) => x.endpoint)"
+            :key="p.label"
+            type="button"
+            class="ai-topup-tier"
+            @click="apiEndpoint = p.endpoint"
+          >
+            <span class="ai-topup-coins">{{ p.label }}</span>
+          </button>
+        </div>
       </div>
 
       <div class="ai-license">
-        <span class="field-label">
-          激活码
-          <InfoTip text="在外部渠道购买后拿到的激活码，格式 SOUL-XXXX-XXXX-XXXX。同一个码只能兑换一次。" />
-        </span>
+        <span class="field-label">API key</span>
         <div class="ai-license-row">
           <input
-            v-model="licenseKey"
-            placeholder="SOUL-XXXX-XXXX-XXXX"
+            v-model="apiKey"
+            type="password"
+            placeholder="sk-…"
             autocomplete="off"
             spellcheck="false"
-            @keydown.enter="activate"
           />
-          <button type="button" :disabled="!licenseKey.trim() || activating" @click="activate">
-            {{ activating ? "兑换中…" : "兑换" }}
-          </button>
         </div>
       </div>
     </div>

@@ -78,10 +78,15 @@ function gateForced(): boolean {
   }
 }
 
-/** 需要登录、但还没登录。门禁判断只看这一个值。 */
-export const gated = computed(
-  () => !auth.value.loggedIn && (gateForced() || (desktop && authRequired.value)),
-);
+/**
+ * 需要登录、但还没登录。
+ *
+ * 【录视频分支：恒为 false】这个分支不连任何服务器，AI 用的是用户自己填的 key，
+ * 没有账号这回事，门禁自然也不该存在。保留 `gateForced()` 是为了让
+ * localStorage 开关仍能把门禁调出来验 UI（见上面那段注释），
+ * 但默认路径一定放行。
+ */
+export const gated = computed(() => gateForced() && !auth.value.loggedIn);
 
 // ---------------- 弹窗 ----------------
 
@@ -106,28 +111,20 @@ export function openAuth(mode: AuthMode) {
 
 // ---------------- 刷新 ----------------
 
-export async function refreshAuth() {
-  if (!desktop) return;
-  try {
-    auth.value = await invoke<AuthState>("auth_state");
-  } catch {
-    // auth_state 自己已经把各种失败折叠成"未登录"了，走到这里说明 invoke 本身炸了
-  }
-}
+/*
+ * 【录视频分支：下面这两个函数是空的】
+ *
+ * 主线上它们会 invoke 到 Rust 侧、再打到 120.26.175.121:8443 拿登录态和门禁
+ * 开关。这个分支不连任何服务器，那台机器在演示环境里根本不通，而 reqwest 的
+ * 超时是 60 秒（src-tauri/src/remote.rs:71）——等于每次启动都挂一个一分钟的
+ * 后台请求，录制时不该有这种东西。
+ *
+ * 留着空壳而不是删掉，是因为 App.vue 和 AuthModal 还在调它们；
+ * 删函数要连带改那两个文件，而那两个文件正是要原样上镜的界面。
+ */
+export async function refreshAuth() {}
 
-export async function refreshAuthRequired() {
-  if (!desktop) return;
-  try {
-    authRequired.value = await invoke<boolean>("auth_required");
-  } catch {
-    authRequired.value = false;
-  }
-  try {
-    smsSignName.value = await invoke<string | null>("auth_sms_sign_name");
-  } catch {
-    smsSignName.value = null;
-  }
-}
+export async function refreshAuthRequired() {}
 
 /**
  * 重新确认一次登录态和门禁开关。

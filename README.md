@@ -1,5 +1,18 @@
 # Soul Lantern（灵魂灯笼）
 
+> ## ⚠️ 这是 `demo/local-ai` 分支，不要合进 main
+>
+> 这个分支为**录制演示视频**而存在：AI 模式不连任何服务器，指令构建器搬回了
+> 前端（`src/logic/dispatch.ts` + `src/logic/commands/`），API key 由用户自己
+> 在界面上填。不需要服务端二进制、不需要环境变量、断网可用。
+>
+> 主线把构建器放在服务器、把 key 收到服务器，是拿事故换来的结论
+> （见 `src-tauri/src/ai.rs` 顶部）。这个分支只是把界面完整地拍下来的手段，
+> 不是产品方向。账号、灵魂币、充值、兑换码在这里整块拿掉了。
+>
+> 界面本身和主线完全一致——这正是建这个分支而不是回退旧 commit 的原因。
+
+
 一个面向 Minecraft 的 `/give` 指令生成器，当前支持 **Java 1.21.11+** 与 **基岩版** 两种模式。
 
 **注意：如果下载后被杀软拦截，请您放心同意运行，本程序没有任何病毒。**
@@ -148,28 +161,6 @@ keep_on_death
 npm install
 npm run tauri dev
 ```
-
-## 全本地跑一遍（录视频 / 断网演示）
-
-AI 模式平时要连自建服务器。想在本机把整条链路跑通——注册、登录、找回密码、
-AI 生成、兑换码——用这个：
-
-```powershell
-npm run demo                # 真实 AI，需要 AI_API_KEY
-node scripts/demo-local.mjs --mock      # 完全离线，AI 回固定内容
-node scripts/demo-local.mjs --keep      # 保留上一次的账本，不清空余额和账号
-node scripts/demo-local.mjs --no-app    # 只起服务端，客户端自己开
-```
-
-它会现场签一张 127.0.0.1 的证书、用 `SMS_KIND=log` 起一个本地服务端
-（验证码直接打在终端里，不发真短信），再把客户端的两个逃生舱环境变量
-指过去。**源码一个字不改**，界面就是当前最新的这一版。
-
-服务端二进制不在这个仓库里，按顺序找 `SOUL_LANTERN_SERVER_BIN` 环境变量、
-`../soul-lantern-server/target/…`、`./server/target/…`。
-
-默认每次都是全新账本，方便重拍。证书、私钥、账本、随机 pepper 全部落在
-`.demo-local/`，退出时删掉，且已被 `.gitignore` 挡住。
 
 ## 打包 Windows 安装包
 

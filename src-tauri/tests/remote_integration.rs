@@ -253,13 +253,15 @@ async fn full_client_flow_against_real_server() {
         "没登录不能充值（改造前 /v1/topup 是无鉴权免费发币口）"
     );
 
-    let gated = ai::ai_generate(
-        "system".to_string(), "做一把弓".to_string(), None, "java_1_21_5".to_string(), None,
+    // 【录视频分支】AI 不再经过服务端，所以这里守的不是"没登录不给用"，
+    // 而是"没填 key 不给用"——而且必须是 AiResponse.error 而不是内置 key 兜底。
+    let no_key = ai::ai_generate(
+        "system".to_string(), "做一把弓".to_string(), None, None, None, None,
     )
     .await
     .expect("ai_generate 本身返回 Ok，失败信息走 AiResponse.error");
-    assert!(!gated.ok, "没登录时 AI 生成必须失败");
-    assert!(gated.error.is_some());
+    assert!(!no_key.ok, "没填 API key 时必须失败，绝不能有内置 key 兜底");
+    assert!(no_key.error.is_some());
 
     // ---------- 充值档位是公开接口，不需要登录 ----------
     let tiers = billing::billing_topup_tiers().await.expect("档位是公开接口");
@@ -332,20 +334,28 @@ async fn full_client_flow_against_real_server() {
         "同一个码不该能兑第二次"
     );
 
-    // ---------- AI 生成：全链路 ----------
+    // ---------- AI 生成：直连上游，不经过服务端 ----------
+    // 【录视频分支】ai_generate 现在自己 POST 到用户填的 OpenAI 兼容端点，
+    // 所以这里另起一个 mock 上游直接指过去，验的是"请求发得对、原始内容带得回来"。
+    // 把内容变成指令那一步搬去了前端（logic/dispatch.ts），由
+    // src/logic/commands.test.mjs 的 174 条断言覆盖。
+    let upstream = spawn_mock_upstream();
     let ai_resp = ai::ai_generate(
-        "system prompt".to_string(), "做一把弓".to_string(), None, "java_1_21_5".to_string(), None,
+        "system prompt".to_string(),
+        "做一把弓".to_string(),
+        Some("sk-test-not-real".to_string()),
+        Some(format!("http://127.0.0.1:{upstream}/mock")),
+        Some("qwen-plus".to_string()),
+        None,
     )
     .await
     .expect("ai_generate 本身不应该返回 Err");
     assert!(ai_resp.ok, "mock 上游应该让这次调用成功：{:?}", ai_resp.error);
-    assert_eq!(
-        ai_resp.commands,
-        vec!["say hi".to_string()],
-        "服务器应该已经把意图分派构建成命令字符串"
+    let content = ai_resp.content.expect("成功时必须带回原始内容");
+    assert!(
+        content.contains("\"intents\""),
+        "应该把大模型的 JSON 原样带回前端去解析：{content}"
     );
-    assert!(ai_resp.balance.is_some(), "成功调用后余额应该是具体数字而不是 None");
-    assert!(ai_resp.balance.unwrap() < activated.balance, "成功调用应该扣了费");
 
     // ---------- 改密码：旧会话应该作废 ----------
     auth::auth_change_password("Passw0rd-2026".into(), "N3w-Passw0rd".into(), "N3w-Passw0rd".into())
