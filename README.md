@@ -149,6 +149,28 @@ npm install
 npm run tauri dev
 ```
 
+## 全本地跑一遍（录视频 / 断网演示）
+
+AI 模式平时要连自建服务器。想在本机把整条链路跑通——注册、登录、找回密码、
+AI 生成、兑换码——用这个：
+
+```powershell
+npm run demo                # 真实 AI，需要 AI_API_KEY
+node scripts/demo-local.mjs --mock      # 完全离线，AI 回固定内容
+node scripts/demo-local.mjs --keep      # 保留上一次的账本，不清空余额和账号
+node scripts/demo-local.mjs --no-app    # 只起服务端，客户端自己开
+```
+
+它会现场签一张 127.0.0.1 的证书、用 `SMS_KIND=log` 起一个本地服务端
+（验证码直接打在终端里，不发真短信），再把客户端的两个逃生舱环境变量
+指过去。**源码一个字不改**，界面就是当前最新的这一版。
+
+服务端二进制不在这个仓库里，按顺序找 `SOUL_LANTERN_SERVER_BIN` 环境变量、
+`../soul-lantern-server/target/…`、`./server/target/…`。
+
+默认每次都是全新账本，方便重拍。证书、私钥、账本、随机 pepper 全部落在
+`.demo-local/`，退出时删掉，且已被 `.gitignore` 挡住。
+
 ## 打包 Windows 安装包
 
 ```powershell
