@@ -298,3 +298,15 @@ plan.md
 # 现场签的证书、私钥、临时账本、随机 pepper 都落在这里。
 # 一个都不该进仓库——尤其 pepper，它决定兑换码的校验位。
 .demo-local/
+
+# =========================
+# 合并冲突的残骸
+# =========================
+# git mergetool 会在冲突文件旁边留下 xxx_BACKUP_1234.ext / _BASE_ / _LOCAL_ /
+# _REMOTE_ 四份。它们被 `git add -A` 扫进仓库过一次，而且因为躺在
+# src-tauri/tests/ 下，cargo 会把每个 .rs 当独立集成测试去编译——带冲突标记
+# 那份直接语法错误，整个 cargo test 就红了。
+*_BACKUP_*.*
+*_BASE_*.*
+*_LOCAL_*.*
+*_REMOTE_*.*
