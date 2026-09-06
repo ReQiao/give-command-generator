@@ -14,6 +14,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { buildSystemPrompt } from "../logic/ai/prompt";
 import type { GiveVersion } from "../logic/builder";
 import AuthModal from "./AuthModal.vue";
+import { useModalOrigin } from "../logic/modal-origin";
 import CustomSelect from "./CustomSelect.vue";
 import DeployPanel from "./DeployPanel.vue";
 import InfoTip from "./InfoTip.vue";
@@ -148,6 +149,12 @@ const auth = ref<AuthState>({
   offline: false,
 });
 const authModalOpen = ref(false);
+const { origin: authOrigin, capture: captureAuthOrigin } = useModalOrigin();
+
+function openAuth(event: MouseEvent) {
+  captureAuthOrigin(event);
+  authModalOpen.value = true;
+}
 /**
  * 服务端的登录门禁开关（/v1/version 的 authRequired）。
  * 取不到时默认 false——宁可放行也不要把用户锁死在一个连不上服务器的门禁后面。
@@ -455,7 +462,7 @@ function copyAll() {
         （现在连不上服务器，可能是网络问题或者服务器在维护，稍后再试试。）
       </p>
       <div class="ai-gate-actions">
-        <button class="primary-btn" type="button" @click="authModalOpen = true">登录 / 注册</button>
+        <button class="primary-btn" type="button" @click="openAuth">登录 / 注册</button>
       </div>
     </div>
 
@@ -600,6 +607,8 @@ function copyAll() {
 
     <AuthModal
       v-model:open="authModalOpen"
+      :animate="props.animate"
+      :origin="authOrigin"
       @authed="refreshAuth"
       @toast="(m) => emit('toast', m)"
     />

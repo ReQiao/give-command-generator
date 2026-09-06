@@ -12,6 +12,9 @@ import AiPanel from "./components/AiPanel.vue";
 import DeployPanel from "./components/DeployPanel.vue";
 import NumberInput from "./components/NumberInput.vue";
 import RichTextEditor from "./components/RichTextEditor.vue";
+import ModalShell from "./components/ModalShell.vue";
+import { useModalOrigin } from "./logic/modal-origin";
+import { installFullscreenShortcut } from "./logic/fullscreen";
 import {
   ATTRIBUTES,
   BEDROCK_BLOCKS,
@@ -97,6 +100,8 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const selectedBuiltinTemplate = ref("");
 const itemPickerOpen = ref(false);
 const pickBtnEl = ref<HTMLButtonElement | null>(null);
+/** 通用提示弹窗多为程序触发（无按钮），origin 为空时 ModalShell 自动退化成淡入淡出。 */
+const { origin: modalOrigin } = useModalOrigin();
 /** 手动填表 / AI 自然语言，两种模式共用顶部的版本选择。 */
 const mode = ref<"manual" | "ai">("manual");
 const generateButtonText = ref("生成指令");
@@ -224,14 +229,18 @@ const autosaveTimer = window.setInterval(() => {
   status.value = "状态：已自动保存";
 }, 1000);
 
+let removeFullscreenShortcut: (() => void) | undefined;
+
 onBeforeUnmount(() => {
   window.clearInterval(autosaveTimer);
+  removeFullscreenShortcut?.();
 });
 
 onMounted(() => {
   // 须知内容如果短到不用滚动就能看完（小字号/大窗口），不该因为用户压根没机会
   // 触发 scroll 事件就一直卡在"未同意"按钮不能点，挂载后主动检查一次。
   void nextTick(checkEulaScrolled);
+  removeFullscreenShortcut = installFullscreenShortcut();
 });
 
 function loadAutosave(): GiveForm {
@@ -503,6 +512,13 @@ function textOptions(items: string[]): SelectOption[] {
         <feGaussianBlur in="noise" stdDeviation="10" result="soft" />
         <feDisplacementMap in="SourceGraphic" in2="soft" scale="16" xChannelSelector="R" yChannelSelector="G" />
       </filter>
+      <!-- 弹出层（下拉菜单/tooltip/toast）用：尺寸比主面板小得多，
+           lensPanel 那档噪声频率在小面上会糊成一片，所以频率调高、位移调小。 -->
+      <filter id="lensPopup" x="-25%" y="-25%" width="150%" height="150%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012 0.016" numOctaves="2" seed="11" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="7" result="soft" />
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="10" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
       <filter id="lensBtnNormal" x="-40%" y="-40%" width="180%" height="180%">
         <feTurbulence type="fractalNoise" baseFrequency="0.02 0.03" numOctaves="2" seed="3" result="noise" />
         <feGaussianBlur in="noise" stdDeviation="5" result="soft" />
@@ -676,9 +692,9 @@ function textOptions(items: string[]): SelectOption[] {
         <Transition name="tab-page" mode="out-in">
           <section :key="activeTab" class="tab-page">
             <div v-if="activeTab === '文本'" class="text-tab">
-              <RichTextEditor v-model="form.displayName" :version="form.version" title="显示名称" @toast="showToast" />
-              <RichTextEditor v-model="form.itemName" :version="form.version" title="物品名称" @toast="showToast" />
-              <RichTextEditor v-model="form.lore" :version="form.version" multiline title="物品描述" @toast="showToast" />
+              <RichTextEditor v-model="form.displayName" :animate="animationEnabled" :version="form.version" title="显示名称" @toast="showToast" />
+              <RichTextEditor v-model="form.itemName" :animate="animationEnabled" :version="form.version" title="物品名称" @toast="showToast" />
+              <RichTextEditor v-model="form.lore" :animate="animationEnabled" :version="form.version" multiline title="物品描述" @toast="showToast" />
             </div>
 
             <div v-else-if="activeTab === '附魔'" class="table-tab">
@@ -889,16 +905,18 @@ function textOptions(items: string[]): SelectOption[] {
       @select="selectItem"
     />
 
-    <Transition name="modal-fade">
-      <div v-if="modal.open" class="modal-overlay">
-        <div :class="['modal-card', { shake: modal.error }]">
-          <h2>{{ modal.title }}</h2>
-          <p>{{ modal.message }}</p>
-          <div class="modal-actions">
-            <button class="primary-btn" type="button" @click="modal.open = false">知道了</button>
-          </div>
-        </div>
+    <ModalShell
+      v-model:open="modal.open"
+      :animate="animationEnabled"
+      :card-class="modal.error ? 'shake' : ''"
+      :origin="modalOrigin"
+      close-on="none"
+    >
+      <h2>{{ modal.title }}</h2>
+      <p>{{ modal.message }}</p>
+      <div class="modal-actions">
+        <button class="primary-btn" type="button" @click="modal.open = false">知道了</button>
       </div>
-    </Transition>
+    </ModalShell>
   </main>
 </template>

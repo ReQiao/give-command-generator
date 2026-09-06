@@ -387,8 +387,14 @@ button#primary,
   line-height: 1.55;
   text-align: left;
   pointer-events: none;
-  background: rgba(17, 26, 51, 0.98);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.34);
+  /* 小面积浮层：底色留出通透度让玻璃透出来，靠 lensPopup 折射 + 顶边高光成形。
+     字号小，所以 saturate 提得比大面板高一点，保证文字不被背景吃掉（vibrancy）。 */
+  background: linear-gradient(180deg, rgba(28, 40, 74, 0.74), rgba(17, 26, 51, 0.8));
+  backdrop-filter: url(#lensPopup) blur(20px) saturate(180%) brightness(1.06);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 16px 38px rgba(0, 0, 0, 0.34);
 }
 
 .info-bubble.center {
@@ -408,7 +414,10 @@ button#primary,
   width: 9px;
   height: 9px;
   content: "";
-  background: rgba(17, 26, 51, 0.98);
+  /* 箭头跟气泡一样是玻璃，否则通透的气泡接一个实心尖角会很突兀 */
+  background: rgba(22, 33, 62, 0.78);
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.06);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.06);
 }
 
 .info-bubble.center::after {
@@ -613,9 +622,14 @@ button#primary,
   border: 1px solid rgba(122, 162, 255, 0.25);
   border-radius: 14px;
   padding: 5px;
-  background: rgba(17, 26, 51, 0.98);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(16px);
+  /* 下拉菜单：可滚动的中等浮层，玻璃比 tooltip 厚一档（面积大 = 材质更厚），
+     顶边高光模拟光打在玻璃边缘上。 */
+  background: linear-gradient(180deg, rgba(28, 40, 74, 0.72), rgba(17, 26, 51, 0.78));
+  backdrop-filter: url(#lensPopup) blur(22px) saturate(175%) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(175%) brightness(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    0 18px 46px rgba(0, 0, 0, 0.38);
 }
 
 .floating-menu {
@@ -900,8 +914,12 @@ button#primary,
   color: #e7ecff;
   font-weight: 700;
   word-break: break-all;
-  background: rgba(17, 26, 51, 0.94);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(180deg, rgba(28, 40, 74, 0.74), rgba(17, 26, 51, 0.8));
+  backdrop-filter: url(#lensPopup) blur(20px) saturate(180%) brightness(1.06);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 18px 46px rgba(0, 0, 0, 0.3);
 }
 
 .modal-overlay {
@@ -911,7 +929,12 @@ button#primary,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(3, 8, 22, 0.82);
+  /* 「变暗以聚焦」：遮罩自己也是一层玻璃，把背景压暗+模糊推远。
+     不能做得太实（原来 0.82）——那样弹窗卡片的 backdrop-filter 取到的
+     底就几乎是纯色，卡片上的玻璃质感会完全消失。 */
+  background: rgba(3, 8, 22, 0.5);
+  backdrop-filter: blur(7px) saturate(115%) brightness(0.92);
+  -webkit-backdrop-filter: blur(7px) saturate(115%) brightness(0.92);
 }
 
 .eula-gate {
@@ -1005,12 +1028,29 @@ button#primary,
   width: clamp(320px, 58vw, 620px);
 }
 
+/* ModalShell 的内容层：框体展开/收缩时它独立淡入淡出，所以必须是一个真实的
+   盒子（不能用 display:contents，那样 opacity 无效）。默认保持块级流，不改变
+   各弹窗原有的间距；需要撑满/弹性布局的弹窗通过 inner-class 叠加。 */
+.modal-inner {
+  width: 100%;
+  min-height: 0;
+}
+
 /* ---- 物品选择弹窗 ---- */
 
 .picker-card {
   display: flex;
   width: clamp(340px, 86vw, 1040px);
   max-height: clamp(420px, 86vh, 760px);
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.picker-inner {
+  display: flex;
+  height: 100%;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
 }
@@ -2084,4 +2124,66 @@ button#primary,
 .auth-link:disabled {
   color: rgba(174, 183, 218, 0.5);
   cursor: default;
+}
+
+/* ---- 无障碍降级 ----
+   玻璃材质靠通透度成立，但通透度对某些用户是负担：系统开了「减少透明度」时
+   必须换成实心底，否则背景纹理会从字底下透上来，小字尤其难读。
+   同理「增强对比度」下要给出明确的实体边界。 */
+
+@media (prefers-reduced-transparency: reduce) {
+  .card,
+  .modal-card,
+  .combo-menu,
+  .info-bubble,
+  .info-bubble::after,
+  .toast,
+  .modal-overlay,
+  button#primary,
+  .primary-btn,
+  .pick-btn {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .card,
+  .modal-card {
+    background: #142344;
+  }
+
+  .combo-menu,
+  .info-bubble,
+  .toast {
+    background: #16213e;
+  }
+
+  .info-bubble::after {
+    background: #16213e;
+  }
+
+  .modal-overlay {
+    background: rgba(3, 8, 22, 0.88);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .card,
+  .modal-card,
+  .combo-menu,
+  .info-bubble,
+  .toast {
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* 系统要求减弱动效时，ModalShell 已在 JS 里跳过展开/收回补间（退化成淡入淡出），
+   这里再兜住纯 CSS 的过渡与关键帧。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

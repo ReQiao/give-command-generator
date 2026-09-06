@@ -18,6 +18,17 @@
  */
 import { computed, nextTick, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import ModalShell from "./ModalShell.vue";
+
+const props = withDefaults(
+  defineProps<{
+    /** 触发弹窗的按钮：弹窗从它的位置流出来，关闭时收回去 */
+    origin?: HTMLElement | null;
+    /** 同 AiPanel 的 :animate 约定：关了界面动画就跳过展开/收回动效 */
+    animate?: boolean;
+  }>(),
+  { origin: null, animate: true },
+);
 
 const open = defineModel<boolean>("open", { required: true });
 const emit = defineEmits<{
@@ -204,17 +215,15 @@ async function doResetConfirm() {
     switchTo("login");
   }
 }
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") open.value = false;
-}
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="open" class="modal-overlay" @click.self="open = false">
-        <div class="modal-card auth-card" @keydown="onKeydown">
+  <ModalShell
+    v-model:open="open"
+    :animate="props.animate"
+    :origin="props.origin"
+    card-class="auth-card"
+  >
           <div class="auth-head">
             <h2>{{ title }}</h2>
             <button class="picker-close" type="button" aria-label="关闭" @click="open = false">×</button>
@@ -384,8 +393,5 @@ function onKeydown(event: KeyboardEvent) {
           </div>
 
           <p v-if="errorText" class="auth-error">{{ errorText }}</p>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 </template>

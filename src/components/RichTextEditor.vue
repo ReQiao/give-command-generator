@@ -22,12 +22,19 @@ interface SelectOption {
   value: string;
   description?: string;
 }
+import ModalShell from "./ModalShell.vue";
+import { useModalOrigin } from "../logic/modal-origin";
 
 const props = defineProps<{
   title: string;
   multiline?: boolean;
   version?: string;
+  /** 同 AiPanel 的 :animate 约定：关了界面动画就跳过弹窗展开/收回动效 */
+  animate?: boolean;
 }>();
+
+/** 六个弹窗共用一个 origin：同一时刻只会开一个，每次点击覆盖成当前按钮即可。 */
+const { origin: modalOrigin, capture: captureOrigin } = useModalOrigin();
 
 const supportsObject = computed(() =>
   props.version ? resolveTextProfile(props.version as GiveVersion).supportsObjectComponent : true,
@@ -258,11 +265,12 @@ function wrapSelection(setup: (span: HTMLSpanElement) => void, label: string) {
   pulse(label);
 }
 
-function openFont() {
+function openFont(event?: MouseEvent) {
   if (!storeRange()) {
     emit("toast", "请先选中文字");
     return;
   }
+  captureOrigin(event);
   fontModalOpen.value = true;
 }
 
@@ -327,12 +335,13 @@ function insertAtom(run: RichComponent) {
   updateModel();
 }
 
-function openSprite() {
+function openSprite(event?: MouseEvent) {
   if (!supportsObject.value) {
     emit("toast", "内嵌图标需要 Java 1.21.9+");
     return;
   }
   storeCaret();
+  captureOrigin(event);
   spriteModalOpen.value = true;
 }
 
@@ -352,12 +361,13 @@ function applySprite() {
   pulse("图标");
 }
 
-function openPlayer() {
+function openPlayer(event?: MouseEvent) {
   if (!supportsObject.value) {
     emit("toast", "内嵌头像需要 Java 1.21.9+");
     return;
   }
   storeCaret();
+  captureOrigin(event);
   playerModalOpen.value = true;
 }
 
@@ -377,8 +387,9 @@ function applyPlayer() {
   pulse("头像");
 }
 
-function openComponent() {
+function openComponent(event?: MouseEvent) {
   storeCaret();
+  captureOrigin(event);
   compModalOpen.value = true;
 }
 
@@ -434,11 +445,12 @@ function applyComponent() {
   pulse("组件");
 }
 
-function openEvents() {
+function openEvents(event?: MouseEvent) {
   if (!storeRange()) {
     emit("toast", "请先选中文字");
     return;
   }
+  captureOrigin(event);
   eventModalOpen.value = true;
 }
 
@@ -550,12 +562,13 @@ function clearFormat() {
   pulse("清除格式");
 }
 
-function openColor(tab: "text" | "shadow") {
+function openColor(tab: "text" | "shadow", event?: MouseEvent) {
   if (!storeRange()) {
     emit("toast", "请先选中文字");
     return;
   }
   activeTab.value = tab;
+  captureOrigin(event);
   modalOpen.value = true;
 }
 
@@ -851,8 +864,8 @@ function hexToRgba(hex: string, alpha: number): string {
       <button :class="{ pulse: toolbarPulse === '删除线' }" type="button" @click="runCommand('strikeThrough', '删除线')">删除线</button>
       <button :class="{ pulse: toolbarPulse === '混淆' }" type="button" @click="toggleObfuscated">混淆</button>
       <button :class="{ pulse: toolbarPulse === '字体' }" type="button" @click="openFont">字体</button>
-      <button :class="{ pulse: toolbarPulse === '颜色' }" type="button" @click="openColor('text')">颜色</button>
-      <button :class="{ pulse: toolbarPulse === '阴影' }" type="button" @click="openColor('shadow')">阴影</button>
+      <button :class="{ pulse: toolbarPulse === '颜色' }" type="button" @click="openColor('text', $event)">颜色</button>
+      <button :class="{ pulse: toolbarPulse === '阴影' }" type="button" @click="openColor('shadow', $event)">阴影</button>
       <button
         v-if="supportsObject"
         :class="{ pulse: toolbarPulse === '图标' }"
@@ -881,10 +894,13 @@ function hexToRgba(hex: string, alpha: number): string {
     ></div>
   </section>
 
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="modalOpen" class="modal-overlay" @mousedown.self="modalOpen = false">
-        <div class="modal-card color-card">
+  <ModalShell
+    v-model:open="modalOpen"
+    :animate="props.animate"
+    :origin="modalOrigin"
+    card-class="color-card"
+    close-on="mousedown"
+  >
           <h2>颜色</h2>
           <div class="tab-strip compact">
             <button :class="{ active: activeTab === 'text' }" type="button" @click="activeTab = 'text'">文字颜色</button>
@@ -936,15 +952,15 @@ function hexToRgba(hex: string, alpha: number): string {
             <button class="normal-btn" type="button" @click="modalOpen = false">取消</button>
             <button class="primary-btn" type="button" @click="applyColor">应用</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="fontModalOpen" class="modal-overlay" @mousedown.self="fontModalOpen = false">
-        <div class="modal-card color-card">
+  <ModalShell
+    v-model:open="fontModalOpen"
+    :animate="props.animate"
+    :origin="modalOrigin"
+    card-class="color-card"
+    close-on="mousedown"
+  >
           <h2>字体</h2>
           <div class="color-page">
             <label>选择字体</label>
@@ -958,15 +974,15 @@ function hexToRgba(hex: string, alpha: number): string {
             <button class="normal-btn" type="button" @click="fontModalOpen = false">取消</button>
             <button class="primary-btn" type="button" @click="applyFont">应用</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="spriteModalOpen" class="modal-overlay" @mousedown.self="spriteModalOpen = false">
-        <div class="modal-card color-card">
+  <ModalShell
+    v-model:open="spriteModalOpen"
+    :animate="props.animate"
+    :origin="modalOrigin"
+    card-class="color-card"
+    close-on="mousedown"
+  >
           <h2>插入图标</h2>
           <div class="color-page">
             <label>贴图来源</label>
@@ -982,15 +998,15 @@ function hexToRgba(hex: string, alpha: number): string {
             <button class="normal-btn" type="button" @click="spriteModalOpen = false">取消</button>
             <button class="primary-btn" type="button" @click="applySprite">插入</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="playerModalOpen" class="modal-overlay" @mousedown.self="playerModalOpen = false">
-        <div class="modal-card color-card">
+  <ModalShell
+    v-model:open="playerModalOpen"
+    :animate="props.animate"
+    :origin="modalOrigin"
+    card-class="color-card"
+    close-on="mousedown"
+  >
           <h2>插入头像</h2>
           <div class="color-page">
             <label>玩家名 / UUID</label>
@@ -1001,15 +1017,15 @@ function hexToRgba(hex: string, alpha: number): string {
             <button class="normal-btn" type="button" @click="playerModalOpen = false">取消</button>
             <button class="primary-btn" type="button" @click="applyPlayer">插入</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="eventModalOpen" class="modal-overlay" @mousedown.self="eventModalOpen = false">
-        <div class="modal-card color-card">
+  <ModalShell
+    v-model:open="eventModalOpen"
+    :animate="props.animate"
+    :origin="modalOrigin"
+    card-class="color-card"
+    close-on="mousedown"
+  >
           <h2>交互事件</h2>
           <div class="color-page">
             <label>插入文本<InfoTip text="玩家 Shift+点击这段文字时，把这段内容填入聊天输入框。留空则不设置。" /></label>
@@ -1047,15 +1063,15 @@ function hexToRgba(hex: string, alpha: number): string {
             <button class="normal-btn" type="button" @click="eventModalOpen = false">取消</button>
             <button class="primary-btn" type="button" @click="applyEvents">应用</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="compModalOpen" class="modal-overlay" @mousedown.self="compModalOpen = false">
-        <div class="modal-card color-card">
+  <ModalShell
+    v-model:open="compModalOpen"
+    :animate="props.animate"
+    :origin="modalOrigin"
+    card-class="color-card"
+    close-on="mousedown"
+  >
           <h2>插入组件</h2>
           <div class="color-page">
             <label>类型</label>
@@ -1103,8 +1119,5 @@ function hexToRgba(hex: string, alpha: number): string {
             <button class="normal-btn" type="button" @click="compModalOpen = false">取消</button>
             <button class="primary-btn" type="button" @click="applyComponent">插入</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  </ModalShell>
 </template>
